@@ -1,0 +1,125 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+@plugin '@tailwindcss/typography';
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark, cupcake, bumblebee, emerald, corporate, synthwave, valentine;
+}
+
+/* Frutiger-inspired design system */
+:root {
+  /* Color palette inspired by clean, functional design */
+  --color-canvas: 250 250 250;
+  --color-canvas-dark: 28 28 28;
+  --color-surface: 255 255 255;
+  --color-surface-dark: 40 40 40;
+  --color-accent: 59 130 246; /* Clean blue */
+  --color-accent-warm: 245 158 11; /* Warm amber for creativity */
+  --color-text: 15 23 42;
+  --color-text-muted: 71 85 105;
+  --color-border: 226 232 240;
+  
+  /* Animations */
+  --ease-elastic: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom scrollbars that adapt to theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--b2));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--bc) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--bc) / 0.5);
+}
+
+/* Smooth transitions for all interactive elements */
+* {
+  transition: color 200ms ease-out, background-color 200ms ease-out, border-color 200ms ease-out;
+}
+
+/* Focus states for accessibility using theme colors */
+*:focus-visible {
+  outline: 2px solid hsl(var(--p));
+  outline-offset: 2px;
+}
+
+/* Glass morphism effects using theme colors */
+.glass {
+  backdrop-filter: blur(12px);
+  background: hsl(var(--b1) / 0.8);
+  border: 1px solid hsl(var(--b3) / 0.5);
+}
+
+/* Utility animations for smooth interactions */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+.scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+/* Custom button hover states using DaisyUI semantic colors */
+.btn-artist {
+  background: hsl(var(--b1));
+  border: 1px solid hsl(var(--b3));
+  color: hsl(var(--bc));
+  transition: all 200ms ease-out;
+}
+
+.btn-artist:hover {
+  background: hsl(var(--p) / 0.1);
+  border-color: hsl(var(--p) / 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px hsl(var(--p) / 0.15);
+}
+
+/* Custom range slider styles using DaisyUI colors */
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: hsl(var(--p));
+  cursor: pointer;
+  border: 2px solid hsl(var(--b1));
+  box-shadow: 0 2px 4px hsl(var(--b3) / 0.3);
+}
+
+input[type="range"]::-webkit-slider-track {
+  height: 8px;
+  border-radius: 4px;
+  background: hsl(var(--b3));
+}
