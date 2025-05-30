@@ -1,22 +1,16 @@
 <script lang="ts">
-	import { appStore } from "$lib/stores/app.svelte";
-	import ReferencesModule from "$lib/components/modules/ReferencesModule.svelte";
-	import PalettesModule from "$lib/components/modules/PalettesModule.svelte";
-	import GradientsModule from "$lib/components/modules/GradientsModule.svelte";
-	import SettingsModule from "$lib/components/modules/SettingsModule.svelte";
-	import TutorialsModule from "$lib/components/modules/TutorialsModule.svelte";
+	import { goto } from "$app/navigation";
+	import { onMount } from "svelte";
+
+	// Redirect to references page on load
+	onMount(() => {
+		goto("/references");
+	});
 </script>
 
-<div class="h-full">
-	{#if appStore.activeModule === "references"}
-		<ReferencesModule />
-	{:else if appStore.activeModule === "palettes"}
-		<PalettesModule />
-	{:else if appStore.activeModule === "gradients"}
-		<GradientsModule />
-	{:else if appStore.activeModule === "settings"}
-		<SettingsModule />
-	{:else if appStore.activeModule === "tutorials"}
-		<TutorialsModule />
-	{/if}
+<div class="h-full flex items-center justify-center">
+	<div class="text-center">
+		<div class="loading loading-spinner loading-lg text-primary"></div>
+		<p class="mt-4 text-base-content/70">Loading PhoenyxColor...</p>
+	</div>
 </div>

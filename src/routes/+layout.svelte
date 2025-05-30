@@ -11,7 +11,6 @@
 	// Initialize keyboard shortcuts and theme
 	onMount(async () => {
 		keyboardShortcuts.startListening();
-
 		// Load saved state first
 		await appStore.loadFromStorage();
 
@@ -32,7 +31,7 @@
 
 <div class="min-h-screen bg-base-200">
 	<Navigation />
-	<main class="h-[calc(100vh-theme(spacing.16))]">
+	<main class="h-[calc(100vh-4rem)] md:h-[calc(100vh-theme(spacing.16))] overflow-auto">
 		{@render children()}
 	</main>
 
