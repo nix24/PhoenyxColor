@@ -108,7 +108,11 @@ export function validateColor(color: string): { valid: boolean; error?: string }
 	}
 }
 
-export function validateGradient(gradient: unknown): { valid: boolean; error?: string; data?: any } {
+export function validateGradient(gradient: unknown): {
+	valid: boolean;
+	error?: string;
+	data?: any;
+} {
 	try {
 		const validatedGradient = GradientSchema.parse(gradient);
 		return { valid: true, data: validatedGradient };
@@ -149,4 +153,4 @@ export type ValidatedReferenceImage = z.infer<typeof ReferenceImageSchema>;
 export type ValidatedGradient = z.infer<typeof GradientSchema>;
 export type ValidatedColorPalette = z.infer<typeof ColorPaletteSchema>;
 export type ValidatedAppSettings = z.infer<typeof AppSettingsSchema>;
-export type ValidatedExportData = z.infer<typeof ExportDataSchema>; 
+export type ValidatedExportData = z.infer<typeof ExportDataSchema>;

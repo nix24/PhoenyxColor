@@ -1,6 +1,10 @@
 // Core application state management using Svelte 5 runes
 import { persistenceService } from "$lib/services/persistence";
+import { simpleStorageService } from "$lib/services/simpleStorage";
 import { validatePalette, validateGradient, validateColor } from "$lib/schemas/validation";
+
+// Use simple storage for now to debug persistence issues
+const storageService = simpleStorageService;
 
 export interface ReferenceImage {
 	id: string;
@@ -140,6 +144,9 @@ function createAppStore() {
 		lastSaved: null,
 	});
 
+	// Flag to prevent auto-save during clearing operations
+	let clearingInProgress = $state(false);
+
 	// Helper function to create undo/redo actions
 	function createUndoAction(
 		moduleId: string,
@@ -208,17 +215,24 @@ function createAppStore() {
 
 		// Reference actions
 		addReference(ref: Omit<ReferenceImage, "id">) {
-			const prevState = [...state.references];
 			const newRef: ReferenceImage = {
 				...ref,
 				id: crypto.randomUUID(),
 				createdAt: new Date(),
 				thumbnailSrc: ref.thumbnailSrc || ref.src, // Fallback to full src if thumbnail not provided
 			};
+
+			const prevState = [...state.references];
 			state.references.push(newRef);
 
-			const action = createUndoAction("references", "add", prevState, [...state.references]);
-			pushUndoAction(action);
+			pushUndoAction(createUndoAction("references", "add", prevState, [...state.references]));
+
+			// Auto-save after adding reference (only if not clearing)
+			if (!clearingInProgress && state.settings.autoSave) {
+				this.saveToStorage().catch((error) =>
+					console.error("Auto-save failed after adding reference:", error)
+				);
+			}
 		},
 
 		updateReference(id: string, updates: Partial<ReferenceImage>) {
@@ -240,54 +254,113 @@ function createAppStore() {
 
 				const action = createUndoAction("references", "remove", prevState, [...state.references]);
 				pushUndoAction(action);
+
+				// Auto-save after removing reference (only if not clearing)
+				if (!clearingInProgress && state.settings.autoSave) {
+					this.saveToStorage().catch((error) =>
+						console.error("Auto-save failed after removing reference:", error)
+					);
+				}
 			}
 		},
 
 		// Palette actions
 		addPalette(palette: Omit<ColorPalette, "id" | "createdAt">) {
-			const prevState = [...state.palettes];
+			if (state.palettes.length >= 100) {
+				console.warn("Maximum number of palettes reached");
+				return;
+			}
+
+			// Create the new palette with proper UUID first
 			const newPalette: ColorPalette = {
 				...palette,
 				id: crypto.randomUUID(),
 				createdAt: new Date(),
 			};
 
-			// Validate palette data before adding
+			// Now validate the complete palette
 			const validation = validatePalette(newPalette);
 			if (!validation.valid) {
-				console.error("Invalid palette data:", validation.error);
-				throw new Error(validation.error);
+				console.error("Invalid palette:", validation.error);
+				return;
 			}
 
-			state.palettes.push(newPalette);
-			state.activePalette = newPalette.id;
+			console.log("🎨 Adding palette:", newPalette.name, "ID:", newPalette.id);
 
-			const action = createUndoAction("palettes", "add", prevState, [...state.palettes]);
-			pushUndoAction(action);
+			const prevState = [...state.palettes];
+			state.palettes.push(newPalette);
+
+			console.log("🎨 Palettes array after add:", state.palettes.length);
+
+			pushUndoAction(createUndoAction("palettes", "add", prevState, [...state.palettes]));
+
+			// IMMEDIATE save to localStorage as backup
+			try {
+				const immediateBackup = {
+					palettes: state.palettes,
+					timestamp: new Date().toISOString(),
+				};
+				localStorage.setItem("phoenyxcolor-immediate-backup", JSON.stringify(immediateBackup));
+				console.log("🆘 Immediate backup saved to localStorage");
+			} catch (error) {
+				console.error("🆘 Immediate backup failed:", error);
+			}
+
+			// Synchronous save attempt (only if not clearing)
+			if (!clearingInProgress && state.settings.autoSave) {
+				console.log("💾 Starting immediate save...");
+				this.saveToStorage()
+					.then((success) => {
+						console.log("💾 Save completed:", success);
+					})
+					.catch((error) => {
+						console.error("💾 Save failed:", error);
+					});
+			}
+
+			return newPalette.id;
 		},
 
 		updatePalette(id: string, updates: Partial<ColorPalette>) {
+			const prevState = [...state.palettes];
 			const index = state.palettes.findIndex((p) => p.id === id);
 			if (index !== -1) {
-				const prevState = [...state.palettes];
 				Object.assign(state.palettes[index], updates);
 
-				const action = createUndoAction("palettes", "update", prevState, [...state.palettes]);
-				pushUndoAction(action);
+				// Create undo action
+				const undoAction = createUndoAction("palettes", "updatePalette", prevState, [
+					...state.palettes,
+				]);
+				pushUndoAction(undoAction);
+
+				console.log("✅ Palette updated:", id);
+
+				// Auto-save changes
+				this.saveToStorage().catch((error) => {
+					console.error("Failed to auto-save after updating palette:", error);
+				});
 			}
 		},
 
 		removePalette(id: string) {
 			const index = state.palettes.findIndex((p) => p.id === id);
-			if (index !== -1) {
-				const prevState = [...state.palettes];
-				state.palettes.splice(index, 1);
-				if (state.activePalette === id) {
-					state.activePalette = state.palettes[0]?.id || null;
-				}
+			if (index === -1) return;
 
-				const action = createUndoAction("palettes", "remove", prevState, [...state.palettes]);
-				pushUndoAction(action);
+			const prevState = [...state.palettes];
+			state.palettes.splice(index, 1);
+
+			// Clear active palette if it was removed
+			if (state.activePalette === id) {
+				state.activePalette = null;
+			}
+
+			pushUndoAction(createUndoAction("palettes", "remove", prevState, [...state.palettes]));
+
+			// Auto-save after removing palette (only if not clearing)
+			if (!clearingInProgress && state.settings.autoSave) {
+				this.saveToStorage().catch((error) =>
+					console.error("Auto-save failed after removing palette:", error)
+				);
 			}
 		},
 
@@ -306,6 +379,13 @@ function createAppStore() {
 
 				const action = createUndoAction("palettes", "addColor", prevState, [...state.palettes]);
 				pushUndoAction(action);
+
+				// Auto-save after adding color (only if not clearing)
+				if (!clearingInProgress && state.settings.autoSave) {
+					this.saveToStorage().catch((error) =>
+						console.error("Auto-save failed after adding color:", error)
+					);
+				}
 			}
 		},
 
@@ -317,55 +397,86 @@ function createAppStore() {
 
 				const action = createUndoAction("palettes", "updateColor", prevState, [...state.palettes]);
 				pushUndoAction(action);
+
+				// Auto-save after updating color (only if not clearing)
+				if (!clearingInProgress && state.settings.autoSave) {
+					this.saveToStorage().catch((error) =>
+						console.error("Auto-save failed after updating color:", error)
+					);
+				}
 			}
 		},
 
 		// Gradient actions
 		addGradient(gradient: Omit<Gradient, "id" | "createdAt">) {
 			const prevState = [...state.gradients];
+
 			const newGradient: Gradient = {
 				...gradient,
 				id: crypto.randomUUID(),
 				createdAt: new Date(),
 			};
 
-			// Validate gradient data before adding
-			const validation = validateGradient(newGradient);
-			if (!validation.valid) {
-				console.error("Invalid gradient data:", validation.error);
-				throw new Error(validation.error);
-			}
-
 			state.gradients.push(newGradient);
-			state.activeGradient = newGradient.id;
 
-			const action = createUndoAction("gradients", "add", prevState, [...state.gradients]);
-			pushUndoAction(action);
+			// Create undo action
+			const undoAction = createUndoAction("gradients", "addGradient", prevState, [
+				...state.gradients,
+			]);
+			pushUndoAction(undoAction);
+
+			console.log("✅ Gradient added:", newGradient.name);
+
+			// Auto-save changes
+			this.saveToStorage().catch((error) => {
+				console.error("Failed to auto-save after adding gradient:", error);
+			});
+
+			return newGradient.id;
 		},
 
 		updateGradient(id: string, updates: Partial<Gradient>) {
+			const prevState = [...state.gradients];
 			const index = state.gradients.findIndex((g) => g.id === id);
 			if (index !== -1) {
-				const prevState = [...state.gradients];
 				Object.assign(state.gradients[index], updates);
 
-				const action = createUndoAction("gradients", "update", prevState, [...state.gradients]);
-				pushUndoAction(action);
+				// Create undo action
+				const undoAction = createUndoAction("gradients", "updateGradient", prevState, [
+					...state.gradients,
+				]);
+				pushUndoAction(undoAction);
+
+				console.log("✅ Gradient updated:", id);
+
+				// Auto-save changes
+				this.saveToStorage().catch((error) => {
+					console.error("Failed to auto-save after updating gradient:", error);
+				});
 			}
 		},
 
 		removeGradient(id: string) {
-			const index = state.gradients.findIndex((g) => g.id === id);
-			if (index !== -1) {
-				const prevState = [...state.gradients];
-				state.gradients.splice(index, 1);
-				if (state.activeGradient === id) {
-					state.activeGradient = state.gradients[0]?.id || null;
-				}
+			const prevState = [...state.gradients];
+			state.gradients = state.gradients.filter((g) => g.id !== id);
 
-				const action = createUndoAction("gradients", "remove", prevState, [...state.gradients]);
-				pushUndoAction(action);
+			// If this was the active gradient, clear it
+			if (state.activeGradient === id) {
+				state.activeGradient = null;
 			}
+
+			// Create undo action
+			const undoAction = createUndoAction("gradients", "removeGradient", prevState, [
+				...state.gradients,
+			]);
+			pushUndoAction(undoAction);
+
+			console.log("✅ Gradient removed:", id);
+
+			// Auto-save changes
+			this.saveToStorage().catch((error) => {
+				console.error("Failed to auto-save after removing gradient:", error);
+			});
 		},
 
 		setActiveGradient(id: string | null) {
@@ -386,8 +497,17 @@ function createAppStore() {
 		},
 
 		// Settings
-		updateSettings(updates: Partial<AppSettings>) {
+		async updateSettings(updates: Partial<AppSettings>) {
+			console.log("⚙️ Updating settings:", updates);
 			Object.assign(state.settings, updates);
+
+			// Automatically save settings changes to storage
+			try {
+				const saved = await this.saveToStorage();
+				console.log(`💾 Settings save result: ${saved ? "SUCCESS" : "FAILED"}`);
+			} catch (error) {
+				console.error("❌ Failed to save settings:", error);
+			}
 		},
 
 		// Tutorial actions
@@ -478,22 +598,118 @@ function createAppStore() {
 		},
 
 		async saveToStorage(): Promise<boolean> {
-			const success = await persistenceService.saveState(state);
-			if (success) {
-				this.markSaved();
+			try {
+				console.log("💾 Starting save to storage...");
+				console.log("💾 Current state to save:", {
+					references: state.references.length,
+					palettes: state.palettes.length,
+					gradients: state.gradients.length,
+					activePalette: state.activePalette,
+					activeGradient: state.activeGradient,
+					theme: state.settings.theme,
+				});
+
+				const success = await storageService.saveState(state);
+				if (success) {
+					this.markSaved();
+					console.log("✅ Data saved successfully to storage");
+				} else {
+					console.error("❌ Failed to save data to storage");
+				}
+				return success;
+			} catch (error) {
+				console.error("❌ Error during save operation:", error);
+				return false;
 			}
-			return success;
 		},
 
 		async loadFromStorage(): Promise<boolean> {
-			const loadedState = await persistenceService.loadState();
-			if (loadedState) {
-				// Merge loaded state with current state
-				Object.assign(state, loadedState);
+			try {
+				state.isLoading = true;
+				console.log("📦 Starting data load from storage...");
+
+				const loadedState = await storageService.loadState();
+
+				// Check for immediate backup if main load fails
+				if (!loadedState) {
+					console.log("📦 No saved state found, checking for immediate backup...");
+
+					try {
+						const backupData = localStorage.getItem("phoenyxcolor-immediate-backup");
+						if (backupData) {
+							const backup = JSON.parse(backupData);
+							console.log(
+								"🆘 Found immediate backup with",
+								backup.palettes?.length || 0,
+								"palettes"
+							);
+
+							if (backup.palettes && backup.palettes.length > 0) {
+								// Restore from backup
+								state.palettes = backup.palettes.map((palette: any) => ({
+									...palette,
+									createdAt: new Date(palette.createdAt),
+								}));
+								console.log(
+									"🆘 Restored from immediate backup:",
+									state.palettes.length,
+									"palettes"
+								);
+								this.markSaved();
+								return true;
+							}
+						}
+					} catch (backupError) {
+						console.error("🆘 Failed to load backup:", backupError);
+					}
+
+					console.log("📦 No saved state or backup found");
+					return false;
+				}
+
+				console.log("📦 Raw loaded state:", loadedState);
+
+				// Simple merge - just assign arrays directly since simple storage already processes them
+				if (loadedState.references) {
+					state.references = loadedState.references;
+				}
+				if (loadedState.palettes) {
+					state.palettes = loadedState.palettes;
+				}
+				if (loadedState.gradients) {
+					state.gradients = loadedState.gradients;
+				}
+				if (loadedState.settings) {
+					Object.assign(state.settings, loadedState.settings);
+				}
+				if (loadedState.activePalette !== undefined) {
+					state.activePalette = loadedState.activePalette;
+				}
+				if (loadedState.activeGradient !== undefined) {
+					state.activeGradient = loadedState.activeGradient;
+				}
+				if (loadedState.tutorialState) {
+					Object.assign(state.tutorialState, loadedState.tutorialState);
+				}
+
+				console.log("📦 Final merged state:", {
+					references: state.references.length,
+					palettes: state.palettes.length,
+					gradients: state.gradients.length,
+					activePalette: state.activePalette,
+					activeGradient: state.activeGradient,
+					theme: state.settings.theme,
+				});
+
 				this.markSaved();
+				console.log("✅ Data loaded successfully from storage");
 				return true;
+			} catch (error) {
+				console.error("❌ Failed to load data from storage:", error);
+				return false;
+			} finally {
+				state.isLoading = false;
 			}
-			return false;
 		},
 
 		async exportData(): Promise<boolean> {
@@ -529,10 +745,65 @@ function createAppStore() {
 			await persistenceService.debugStorage();
 		},
 
+		async testPersistence() {
+			console.log("🧪 Testing persistence functionality...");
+
+			// Save current state
+			const currentPalettes = state.palettes.length;
+			const currentReferences = state.references.length;
+
+			console.log("🧪 Current state before test:", {
+				palettes: currentPalettes,
+				references: currentReferences,
+			});
+
+			// Save to storage
+			const saveResult = await this.saveToStorage();
+			console.log("🧪 Save result:", saveResult);
+
+			// Try to load back
+			const loadResult = await this.loadFromStorage();
+			console.log("🧪 Load result:", loadResult);
+
+			console.log("🧪 State after load test:", {
+				palettes: state.palettes.length,
+				references: state.references.length,
+			});
+
+			// Check if localforage is working
+			try {
+				const { default: localforage } = await import("localforage");
+				const testKey = "phoenyxcolor-test-persist";
+				const testData = { test: true, timestamp: Date.now() };
+
+				await localforage.setItem(testKey, testData);
+				const retrieved = await localforage.getItem(testKey);
+				await localforage.removeItem(testKey);
+
+				console.log("🧪 Direct localforage test:", {
+					saved: testData,
+					retrieved: retrieved,
+					success: JSON.stringify(testData) === JSON.stringify(retrieved),
+				});
+			} catch (error) {
+				console.error("🧪 Direct localforage test failed:", error);
+			}
+
+			return { saveResult, loadResult };
+		},
+
 		async nuclearClearStorage() {
-			const cleared = await persistenceService.nuclearClearStorage();
-			if (cleared) {
-				// Also clear in-memory state
+			console.log("🧨 NUCLEAR CLEAR: Starting complete storage wipe...");
+
+			// Set flag to prevent auto-save during clearing
+			clearingInProgress = true;
+
+			try {
+				// Stop auto-save to prevent race conditions
+				this.stopAutoSave();
+
+				// Clear in-memory state first
+				console.log("🧨 Clearing in-memory state...");
 				state.references = [];
 				state.palettes = [];
 				state.gradients = [];
@@ -541,15 +812,57 @@ function createAppStore() {
 				state.globalColorBuffer = null;
 				state.undoStack = [];
 				state.redoStack = [];
-				this.markSaved();
+
+				// Clear both old and new storage systems
+				console.log("🧨 Clearing simple storage...");
+				const simpleCleared = await storageService.clearStorage();
+
+				console.log("🧨 Clearing old persistence storage...");
+				const persistenceCleared = await persistenceService.clearStorage();
+
+				// Also try to clear localforage directly
+				try {
+					const { default: localforage } = await import("localforage");
+					await localforage.clear();
+					console.log("🧨 Cleared localforage");
+				} catch (error) {
+					console.warn("🧨 Could not clear localforage:", error);
+				}
+
+				console.log("🧨 Storage clear results:", {
+					simple: simpleCleared,
+					persistence: persistenceCleared,
+				});
+
+				if (simpleCleared || persistenceCleared) {
+					this.markSaved();
+					console.log("✅ NUCLEAR CLEAR: Complete storage wipe successful");
+				} else {
+					console.error("❌ NUCLEAR CLEAR: Storage clear failed");
+				}
+
+				// Restart auto-save if it was enabled
+				if (state.settings.autoSave) {
+					setTimeout(() => {
+						this.startAutoSave();
+						console.log("🔄 Auto-save restarted after nuclear clear");
+					}, 1000); // Wait 1 second before restarting
+				}
+
+				return simpleCleared || persistenceCleared;
+			} finally {
+				// Always reset the clearing flag
+				setTimeout(() => {
+					clearingInProgress = false;
+					console.log("🔓 Clearing flag reset");
+				}, 2000); // Wait 2 seconds to ensure all operations complete
 			}
-			return cleared;
 		},
 
 		// Clear all data
 		async clearData() {
 			console.log("Clearing all application data...");
-			
+
 			// Clear in-memory state
 			state.references = [];
 			state.palettes = [];
@@ -559,20 +872,49 @@ function createAppStore() {
 			state.globalColorBuffer = null;
 			state.undoStack = [];
 			state.redoStack = [];
-			
+
 			console.log("In-memory state cleared");
-			
+
 			// Clear persistent storage
 			const storageCleared = await persistenceService.clearStorage();
-			
+
 			if (storageCleared) {
 				console.log("Storage cleared successfully");
 				this.markSaved();
 			} else {
 				console.error("Failed to clear storage");
 			}
-			
+
 			return storageCleared;
+		},
+
+		// Hard reset - clears everything and reloads page
+		async hardReset() {
+			console.log("🚨 HARD RESET: Clearing all data and reloading page...");
+
+			try {
+				await this.nuclearClearStorage();
+
+				// Clear any remaining localStorage items
+				const allKeys = Object.keys(localStorage);
+				allKeys.forEach((key) => {
+					if (key.includes("phoenyx") || key.includes("theme") || key.includes("daisy")) {
+						localStorage.removeItem(key);
+						console.log("🗑️ Hard reset removed:", key);
+					}
+				});
+
+				// Force page reload after a short delay
+				setTimeout(() => {
+					console.log("🔄 Reloading page for clean state...");
+					window.location.reload();
+				}, 500);
+
+				return true;
+			} catch (error) {
+				console.error("❌ Hard reset failed:", error);
+				return false;
+			}
 		},
 	};
 }
@@ -580,12 +922,16 @@ function createAppStore() {
 export const appStore = createAppStore();
 
 // Make appStore globally accessible for debugging in development
-if (typeof window !== 'undefined' && import.meta.env.DEV) {
+if (typeof window !== "undefined" && import.meta.env.DEV) {
 	(window as any).appStore = appStore;
 	(window as any).debugStorage = () => appStore.debugStorage();
+	(window as any).testPersistence = () => appStore.testPersistence();
 	(window as any).nuclearClear = () => appStore.nuclearClearStorage();
+	(window as any).hardReset = () => appStore.hardReset();
 	console.log("🔧 Debug functions available:");
 	console.log("  - appStore: Full access to app store");
 	console.log("  - debugStorage(): Inspect storage contents");
+	console.log("  - testPersistence(): Test save/load functionality");
 	console.log("  - nuclearClear(): Clear ALL storage (nuclear option)");
+	console.log("  - hardReset(): Nuclear clear + page reload (ultimate reset)");
 }

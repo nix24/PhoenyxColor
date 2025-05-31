@@ -1,6 +1,7 @@
 <script lang="ts">
 	import "../app.css";
 	import Navigation from "$lib/components/Navigation.svelte";
+	import StorageDebugger from "$lib/components/common/StorageDebugger.svelte";
 	import { Toaster } from "svelte-sonner";
 	import { keyboardShortcuts } from "$lib/services/keyboardShortcuts";
 	import { appStore } from "$lib/stores/app.svelte";
@@ -10,18 +11,37 @@
 
 	// Initialize keyboard shortcuts and theme
 	onMount(async () => {
+		console.log("🚀 App initialization starting...");
+
 		keyboardShortcuts.startListening();
+		console.log("✅ Keyboard shortcuts initialized");
+
 		// Load saved state first
-		await appStore.loadFromStorage();
+		console.log("📦 Loading state from storage...");
+		const loaded = await appStore.loadFromStorage();
+		console.log(`📦 State loading result: ${loaded ? "SUCCESS" : "FAILED"}`);
+
+		if (loaded) {
+			console.log("📊 Loaded state:", {
+				palettes: appStore.state.palettes.length,
+				gradients: appStore.state.gradients.length,
+				references: appStore.state.references.length,
+				theme: appStore.state.settings.theme,
+			});
+		}
 
 		// Apply saved theme on app load
 		const savedTheme = appStore.state.settings.theme;
+		console.log(`🎨 Applying theme: ${savedTheme}`);
 		document.documentElement.setAttribute("data-theme", savedTheme);
 
 		// Initialize auto-save if enabled
 		if (appStore.state.settings.autoSave) {
+			console.log("💾 Starting auto-save...");
 			appStore.startAutoSave();
 		}
+
+		console.log("✅ App initialization complete");
 	});
 
 	onDestroy(() => {
@@ -36,5 +56,10 @@
 	</main>
 
 	<!-- Toast notifications -->
-	<Toaster richColors position="top-right" theme="system" closeButton />
+	<Toaster richColors position="bottom-right" theme="system" closeButton />
+
+	<!-- Storage debugger for development -->
+	{#if import.meta.env.DEV}
+		<StorageDebugger />
+	{/if}
 </div>

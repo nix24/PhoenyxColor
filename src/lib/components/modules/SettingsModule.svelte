@@ -7,6 +7,16 @@
 	let isExporting = $state(false);
 	let isImporting = $state(false);
 
+	// Helper function for async onChange handlers
+	function handleAsyncChange(handler: () => Promise<void>) {
+		return () => {
+			handler().catch((error) => {
+				console.error("Error in async change handler:", error);
+				toast.error("Failed to save changes. Please try again.");
+			});
+		};
+	}
+
 	// Local state for settings form
 	let localSettings = $state({
 		theme: appStore.state.settings.theme,
@@ -69,9 +79,11 @@
 		{ value: 800, label: "Standard (800px)" },
 	];
 
-	function saveSettings() {
+	async function saveSettings() {
 		try {
-			appStore.updateSettings({
+			console.log("💾 Saving settings from UI...");
+
+			await appStore.updateSettings({
 				theme: localSettings.theme as any,
 				defaultPaletteSlots: localSettings.defaultPaletteSlots,
 				alwaysOnTop: localSettings.alwaysOnTop,
@@ -97,6 +109,7 @@
 			}
 
 			toast.success("Settings saved successfully!");
+			console.log("✅ Settings saved and applied");
 		} catch (error) {
 			console.error("Failed to save settings:", error);
 			toast.error("Failed to save settings. Please try again.");
@@ -156,19 +169,16 @@
 		}
 	}
 
-	function clearAllData() {
+	async function clearAllData() {
 		if (
 			confirm("Are you sure you want to clear all application data? This action cannot be undone.")
 		) {
-			// Clear all data from the store
-			appStore.state.references = [];
-			appStore.state.palettes = [];
-			appStore.state.gradients = [];
-			appStore.state.activePalette = null;
-			appStore.state.activeGradient = null;
-			appStore.clearUndoHistory();
-
-			toast.success("All application data cleared");
+			const cleared = await appStore.clearData();
+			if (cleared) {
+				toast.success("All application data cleared");
+			} else {
+				toast.error("Failed to clear all application data. Some data might remain in storage.");
+			}
 		}
 	}
 </script>
@@ -202,7 +212,7 @@
 							id="theme-select"
 							class="select select-bordered w-full"
 							bind:value={localSettings.theme}
-							onchange={saveSettings}
+							onchange={handleAsyncChange(saveSettings)}
 						>
 							{#each themeOptions as theme}
 								<option value={theme.value}>{theme.label}</option>
@@ -223,7 +233,7 @@
 								type="checkbox"
 								class="toggle toggle-primary"
 								bind:checked={localSettings.enableAnimations}
-								onchange={saveSettings}
+								onchange={handleAsyncChange(saveSettings)}
 							/>
 						</label>
 						<label class="label" for="enable-animations">
@@ -255,7 +265,7 @@
 							max="20"
 							class="range range-primary"
 							bind:value={localSettings.defaultPaletteSlots}
-							onchange={saveSettings}
+							onchange={handleAsyncChange(saveSettings)}
 						/>
 						<div class="w-full flex justify-between text-xs px-2 text-base-content/60">
 							<span>3</span>
@@ -272,7 +282,7 @@
 								type="checkbox"
 								class="toggle toggle-primary"
 								bind:checked={localSettings.autoSave}
-								onchange={saveSettings}
+								onchange={handleAsyncChange(saveSettings)}
 							/>
 						</label>
 					</div>
@@ -290,58 +300,10 @@
 								max="60"
 								class="input input-bordered"
 								bind:value={localSettings.autoSaveInterval}
-								onchange={saveSettings}
+								onchange={handleAsyncChange(saveSettings)}
 							/>
 						</div>
 					{/if}
-				</div>
-			</div>
-
-			<!-- Desktop Features -->
-			<div class="card bg-base-100 shadow-lg border border-base-300">
-				<div class="card-body">
-					<h2 class="card-title text-xl mb-4">
-						<Icon icon="material-symbols:desktop-windows" class="text-primary" />
-						Desktop Features
-					</h2>
-
-					<!-- Always on Top -->
-					<div class="form-control mb-4 tooltip" data-tip="Desktop app feature">
-						<label class="label cursor-not-allowed">
-							<span class="label-text font-medium opacity-50">Always on Top</span>
-							<input
-								type="checkbox"
-								class="toggle toggle-primary"
-								bind:checked={localSettings.alwaysOnTop}
-								onchange={saveSettings}
-								disabled
-							/>
-						</label>
-						<label class="label" for="always-on-top">
-							<span class="label-text-alt text-base-content/60">
-								Keep PhoenyxColor above other windows (Desktop Only)
-							</span>
-						</label>
-					</div>
-
-					<!-- Global Eyedropper -->
-					<div class="form-control tooltip" data-tip="Desktop app feature">
-						<label class="label cursor-not-allowed">
-							<span class="label-text font-medium opacity-50">Global Eyedropper</span>
-							<input
-								type="checkbox"
-								class="toggle toggle-primary"
-								bind:checked={localSettings.globalEyedropperEnabled}
-								onchange={saveSettings}
-								disabled
-							/>
-						</label>
-						<label class="label" for="global-eyedropper">
-							<span class="label-text-alt text-base-content/60">
-								Pick colors from anywhere on screen (Desktop Only)
-							</span>
-						</label>
-					</div>
 				</div>
 			</div>
 
@@ -362,7 +324,7 @@
 							id="png-resolution"
 							class="select select-bordered w-full"
 							bind:value={localSettings.defaultPngResolution}
-							onchange={saveSettings}
+							onchange={handleAsyncChange(saveSettings)}
 						>
 							{#each resolutionPresets as preset}
 								<option value={preset.value}>{preset.label}</option>
@@ -382,7 +344,7 @@
 							max="100"
 							class="range range-primary"
 							bind:value={localSettings.compressionLevel}
-							onchange={saveSettings}
+							onchange={handleAsyncChange(saveSettings)}
 						/>
 						<div class="w-full flex justify-between text-xs px-2 text-base-content/60">
 							<span>High Compression</span>
@@ -396,7 +358,7 @@
 
 		<!-- Action Buttons -->
 		<div class="mt-8 flex flex-wrap gap-4 justify-center">
-			<button class="btn btn-primary" onclick={saveSettings}>
+			<button class="btn btn-primary" onclick={handleAsyncChange(saveSettings)}>
 				<Icon icon="material-symbols:save" />
 				Save Settings
 			</button>
@@ -428,6 +390,113 @@
 				<Icon icon="material-symbols:delete-forever" />
 				Clear All Data
 			</button>
+		</div>
+
+		<!-- Storage Diagnostics -->
+		<div class="mt-8 card bg-base-100 shadow-lg border border-base-300">
+			<div class="card-body">
+				<h2 class="card-title text-xl mb-4">
+					<Icon icon="material-symbols:storage" class="text-primary" />
+					Storage Diagnostics
+				</h2>
+
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<!-- Storage Status -->
+					<div class="stat bg-base-200 rounded-lg">
+						<div class="stat-title">Storage Backend</div>
+						<div class="stat-value text-sm">LocalForage + IndexedDB</div>
+						<div class="stat-desc">Robust persistent storage</div>
+					</div>
+
+					<!-- Storage Usage -->
+					<div class="stat bg-base-200 rounded-lg">
+						<div class="stat-title">Last Saved</div>
+						<div class="stat-value text-sm">
+							{appStore.state.lastSaved
+								? new Date(appStore.state.lastSaved).toLocaleString()
+								: "Never"}
+						</div>
+						<div class="stat-desc">Automatic persistence</div>
+					</div>
+				</div>
+
+				<!-- Diagnostic Actions -->
+				<div class="flex flex-wrap gap-2 mt-4">
+					<button
+						class="btn btn-sm btn-outline"
+						onclick={() => {
+							appStore.debugStorage();
+							toast.info("Check browser console for storage debug info");
+						}}
+					>
+						<Icon icon="material-symbols:bug-report" />
+						Debug Storage
+					</button>
+
+					<button
+						class="btn btn-sm btn-outline"
+						onclick={async () => {
+							const saved = await appStore.saveToStorage();
+							if (saved) {
+								toast.success("Storage test successful!");
+							} else {
+								toast.error("Storage test failed!");
+							}
+						}}
+					>
+						<Icon icon="material-symbols:save" />
+						Test Save
+					</button>
+
+					<button
+						class="btn btn-sm btn-outline"
+						onclick={async () => {
+							const loaded = await appStore.loadFromStorage();
+							if (loaded) {
+								toast.success("Storage load test successful!");
+							} else {
+								toast.info("No data to load or load failed");
+							}
+						}}
+					>
+						<Icon icon="material-symbols:download" />
+						Test Load
+					</button>
+
+					<button
+						class="btn btn-sm btn-error btn-outline"
+						onclick={async () => {
+							if (confirm("This will clear ALL browser storage (nuclear option). Continue?")) {
+								const cleared = await appStore.nuclearClearStorage();
+								if (cleared) {
+									toast.success("Nuclear clear successful!");
+									window.location.reload();
+								} else {
+									toast.error("Nuclear clear failed!");
+								}
+							}
+						}}
+					>
+						<Icon icon="material-symbols:nuclear" />
+						Nuclear Clear
+					</button>
+				</div>
+
+				<div class="mt-4 p-4 bg-warning/10 rounded-lg border border-warning/20">
+					<div class="flex items-start space-x-2">
+						<Icon icon="material-symbols:info" class="text-warning mt-0.5" />
+						<div class="text-sm">
+							<p class="font-medium text-warning">Storage Information:</p>
+							<ul class="mt-2 space-y-1 text-base-content/70">
+								<li>• Changes are automatically saved when you modify settings</li>
+								<li>• LocalForage provides robust storage with IndexedDB fallback</li>
+								<li>• Use "Debug Storage" to inspect storage contents in console</li>
+								<li>• "Nuclear Clear" removes ALL browser data (use with caution)</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
 		</div>
 
 		<!-- Keyboard Shortcuts Management -->
@@ -467,9 +536,7 @@
 									{#if shortcut.altKey}
 										<kbd class="kbd kbd-xs">Alt</kbd>
 									{/if}
-									{#if shortcut.metaKey}
-										<kbd class="kbd kbd-xs">Cmd</kbd>
-									{/if}
+
 									<kbd class="kbd kbd-xs">
 										{shortcut.key.startsWith("Key")
 											? shortcut.key.substring(3)
