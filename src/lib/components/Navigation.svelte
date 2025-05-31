@@ -182,25 +182,6 @@
 				</div>
 			{/if}
 
-			<!-- Tutorials -->
-			<button
-				class="btn btn-circle btn-ghost hidden sm:flex"
-				class:btn-primary={currentPath === "/tutorials"}
-				onclick={() => {
-					navigateTo("/tutorials");
-				}}
-				type="button"
-				aria-label="Open tutorials"
-				title="Tutorials & Help"
-			>
-				<Icon
-					icon="material-symbols:help-outline"
-					class="text-lg {currentPath === '/tutorials'
-						? 'text-primary-content'
-						: 'text-base-content'}"
-				/>
-			</button>
-
 			<!-- Settings -->
 			<button
 				class="btn btn-circle btn-ghost"
@@ -241,20 +222,6 @@
 					{item.label}
 				</button>
 			{/each}
-
-			<!-- Mobile-specific items -->
-			<button
-				class="btn btn-outline btn-block justify-start"
-				class:btn-primary={currentPath === "/tutorials"}
-				onclick={() => {
-					navigateTo("/tutorials");
-				}}
-				type="button"
-				aria-label="Open tutorials"
-			>
-				<Icon icon="material-symbols:help-outline" class="text-lg" />
-				Tutorials
-			</button>
 		</div>
 
 		<!-- Mobile Global Color Buffer -->

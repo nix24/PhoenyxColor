@@ -56,7 +56,8 @@
 	</main>
 
 	<!-- Toast notifications -->
-	<Toaster richColors position="bottom-right" theme="system" closeButton />
+	<!-- change toaster time to 3 seconds  -->
+	<Toaster richColors position="bottom-right" theme="system" closeButton duration={2000} />
 
 	<!-- Storage debugger for development -->
 	{#if import.meta.env.DEV}

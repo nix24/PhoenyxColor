@@ -13,15 +13,6 @@
 				key.startsWith("phoenyxcolor")
 			);
 
-			// Check localforage
-			let localforageKeys: string[] = [];
-			try {
-				const { default: localforage } = await import("localforage");
-				localforageKeys = await localforage.keys();
-			} catch (error) {
-				console.error("LocalForage not available:", error);
-			}
-
 			// Check immediate backup
 			const immediateBackup = localStorage.getItem("phoenyxcolor-immediate-backup");
 			let backupData = null;
@@ -45,9 +36,6 @@
 						}
 						return acc;
 					}, {} as any),
-				},
-				localforage: {
-					keys: localforageKeys,
 				},
 				backup: backupData,
 				currentState: {

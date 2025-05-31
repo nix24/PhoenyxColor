@@ -88,13 +88,13 @@ export const TutorialStateSchema = z.object({
 // File export validation
 export const ExportDataSchema = z.object({
 	version: z.string(),
-	exportedAt: z.string().datetime(),
-	application: z.literal("PhoenyxColor"),
+	timestamp: z.string().datetime(),
 	data: z.object({
 		references: z.array(ReferenceImageSchema),
 		palettes: z.array(ColorPaletteSchema),
 		gradients: z.array(GradientSchema),
 		settings: AppSettingsSchema,
+		tutorialState: TutorialStateSchema,
 	}),
 });
 
