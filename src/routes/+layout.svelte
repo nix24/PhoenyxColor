@@ -6,11 +6,8 @@
 	import { keyboardShortcuts } from "$lib/services/keyboardShortcuts";
 	import { appStore } from "$lib/stores/app.svelte";
 	import { onMount, onDestroy } from "svelte";
-	import { injectAnalytics } from "@vercel/analytics/sveltekit";
 
 	let { children } = $props();
-
-	injectAnalytics();
 
 	// Initialize keyboard shortcuts and theme
 	onMount(async () => {
