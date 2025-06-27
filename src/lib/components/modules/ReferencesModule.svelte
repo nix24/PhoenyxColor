@@ -137,7 +137,13 @@
 
 			uploadProgress[progressId] = 50;
 
-			const imageUrl = URL.createObjectURL(optimized);
+			// Convert optimized image to data URL for persistence across page refreshes
+			const imageUrl = await new Promise<string>((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result as string);
+				reader.onerror = () => reject(new Error("Failed to read optimized image"));
+				reader.readAsDataURL(optimized);
+			});
 
 			uploadProgress[progressId] = 80;
 
@@ -150,6 +156,11 @@
 				rotation: 0,
 				opacity: 1,
 				isGrayscale: false,
+				brightness: 100,
+				contrast: 100,
+				saturation: 100,
+				hueRotate: 0,
+				blur: 0,
 				createdAt: new Date(),
 			});
 
@@ -186,6 +197,14 @@
 	function removeReference(id: string) {
 		const reference = appStore.references.find((ref) => ref.id === id);
 		if (reference) {
+			// Cleanup blob URLs to prevent memory leaks (if any are still using blob URLs)
+			if (reference.src.startsWith("blob:")) {
+				URL.revokeObjectURL(reference.src);
+			}
+			if (reference.thumbnailSrc && reference.thumbnailSrc.startsWith("blob:")) {
+				URL.revokeObjectURL(reference.thumbnailSrc);
+			}
+
 			appStore.removeReference(id);
 			toast.info(`Removed "${reference.name}"`);
 
@@ -200,7 +219,18 @@
 		if (appStore.references.length === 0) return;
 
 		const count = appStore.references.length;
-		appStore.references.forEach((ref) => appStore.removeReference(ref.id));
+
+		// Cleanup blob URLs to prevent memory leaks
+		appStore.references.forEach((ref) => {
+			if (ref.src.startsWith("blob:")) {
+				URL.revokeObjectURL(ref.src);
+			}
+			if (ref.thumbnailSrc && ref.thumbnailSrc.startsWith("blob:")) {
+				URL.revokeObjectURL(ref.thumbnailSrc);
+			}
+			appStore.removeReference(ref.id);
+		});
+
 		selectedImageId = null;
 		showControls = false;
 		toast.success(`Cleared ${count} reference image(s)`);
@@ -235,8 +265,13 @@
 			rotation: 0,
 			opacity: 1,
 			isGrayscale: false,
+			brightness: 100,
+			contrast: 100,
+			saturation: 100,
+			hueRotate: 0,
+			blur: 0,
 		});
-		toast.success("Transforms reset");
+		toast.success("All transforms reset");
 	}
 
 	// Get selected reference
@@ -265,6 +300,41 @@
 		if (dlg && dlg.open) dlg.close();
 		showControls = false;
 		selectedImageId = null;
+	}
+
+	function transformFromActionSheet(id: string) {
+		closeActionSheet();
+		selectImage(id);
+	}
+
+	function buildFilterString(reference: ReferenceImage): string {
+		const filters: string[] = [];
+
+		if (reference.isGrayscale) {
+			filters.push("grayscale(100%)");
+		}
+
+		if (reference.brightness !== undefined && reference.brightness !== 100) {
+			filters.push(`brightness(${reference.brightness}%)`);
+		}
+
+		if (reference.contrast !== undefined && reference.contrast !== 100) {
+			filters.push(`contrast(${reference.contrast}%)`);
+		}
+
+		if (reference.saturation !== undefined && reference.saturation !== 100) {
+			filters.push(`saturate(${reference.saturation}%)`);
+		}
+
+		if (reference.hueRotate !== undefined && reference.hueRotate !== 0) {
+			filters.push(`hue-rotate(${reference.hueRotate}deg)`);
+		}
+
+		if (reference.blur !== undefined && reference.blur !== 0) {
+			filters.push(`blur(${reference.blur}px)`);
+		}
+
+		return filters.length > 0 ? filters.join(" ") : "none";
 	}
 </script>
 
@@ -378,7 +448,7 @@
 									alt={reference.name}
 									class="w-full h-full object-cover transition-all duration-300"
 									style:opacity={reference.opacity}
-									style:filter={reference.isGrayscale ? "grayscale(100%)" : "none"}
+									style:filter={buildFilterString(reference)}
 									style:transform="scale({reference.scale}) rotate({reference.rotation}deg)"
 									loading="lazy"
 								/>
@@ -535,228 +605,896 @@
 	<dialog id="reference-action-modal" class="modal modal-bottom sm:modal-middle">
 		{#if actionTarget}
 			<div class="modal-box">
-				<h3 class="font-bold text-lg mb-4">{actionTarget.name}</h3>
-				<div class="flex flex-col space-y-2">
+				<div class="flex items-center justify-between mb-4">
+					<h3 class="font-bold text-lg">{actionTarget.name}</h3>
+					<button class="btn btn-sm btn-circle btn-ghost" onclick={closeActionSheet}>
+						<Icon icon="material-symbols:close" class="w-4 h-4" />
+					</button>
+				</div>
+				<div class="flex flex-col space-y-3">
 					<button
-						class="btn btn-outline"
+						class="btn btn-primary btn-lg"
+						onclick={() => transformFromActionSheet(actionTarget!.id)}
+					>
+						<Icon icon="material-symbols:transform" class="w-5 h-5" />
+						Transform Image
+					</button>
+					<button
+						class="btn btn-outline btn-lg"
 						onclick={() => {
 							duplicateReference(actionTarget!.id);
 							closeActionSheet();
 						}}
 					>
+						<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
 						Duplicate
 					</button>
 					<button
-						class="btn btn-error"
+						class="btn btn-error btn-outline btn-lg"
 						onclick={() => {
 							removeReference(actionTarget!.id);
 							closeActionSheet();
 						}}
 					>
+						<Icon icon="material-symbols:delete-outline" class="w-5 h-5" />
 						Delete
 					</button>
 				</div>
-				<form method="dialog" class="modal-backdrop">
-					<button>close</button>
-				</form>
+				<div class="modal-action">
+					<button class="btn btn-ghost" onclick={closeActionSheet}>Cancel</button>
+				</div>
 			</div>
+			<form method="dialog" class="modal-backdrop">
+				<button onclick={closeActionSheet}>close</button>
+			</form>
 		{/if}
 	</dialog>
 
 	<!-- Transform modal -->
-	<dialog id="transform-modal" class="modal modal-bottom sm:modal-middle">
+	<dialog id="transform-modal" class="modal">
 		{#if selectedReference && showControls}
-			<div class="modal-box w-full max-w-4xl">
-				<div class="flex items-start gap-6 flex-col md:flex-row">
-					<!-- Large preview -->
-					<div class="flex-1 min-w-[50%]">
-						<div class="relative w-full rounded-lg bg-base-200 overflow-hidden">
+			<div class="modal-box w-11/12 max-w-7xl h-[95vh] max-h-[95vh] p-0 overflow-hidden">
+				<!-- Modal Header -->
+				<div
+					class="flex items-center justify-between p-4 md:p-6 border-b border-base-300 bg-base-100"
+				>
+					<div>
+						<h3 class="text-lg md:text-xl font-bold text-base-content">Transform Image</h3>
+						<p class="text-sm text-base-content/70">{selectedReference.name}</p>
+					</div>
+					<button class="btn btn-sm btn-circle btn-ghost" onclick={closeTransformModal}>
+						<Icon icon="material-symbols:close" class="w-5 h-5" />
+					</button>
+				</div>
+
+				<!-- Mobile Layout -->
+				<div class="md:hidden h-full flex flex-col">
+					<!-- Mobile Image Preview -->
+					<div class="flex-1 bg-base-200 p-4 overflow-auto">
+						<div class="relative w-full h-full flex items-center justify-center">
 							<img
 								src={selectedReference.src}
 								alt={selectedReference.name}
-								class="w-full h-auto object-contain"
+								class="max-w-full max-h-full object-contain"
 								style:opacity={selectedReference.opacity}
-								style:filter={selectedReference.isGrayscale ? "grayscale(100%)" : "none"}
+								style:filter={buildFilterString(selectedReference)}
 								style:transform="scale({selectedReference.scale}) rotate({selectedReference.rotation}deg)"
 							/>
 						</div>
 					</div>
-					<!-- Controls -->
-					<div class="w-full md:w-80 max-h-[80vh] overflow-y-auto space-y-6">
-						{@render transformControls(selectedReference)}
+					<!-- Mobile Controls -->
+					<div class="h-1/2 overflow-y-auto p-4 bg-base-100 border-t border-base-300">
+						{@render mobileTransformControls(selectedReference)}
 					</div>
 				</div>
-				<div class="modal-action">
-					<button class="btn" onclick={closeTransformModal}>Close</button>
+
+				<!-- Desktop Layout -->
+				<div class="hidden md:flex h-full">
+					<!-- Desktop Image Preview -->
+					<div class="flex-1 bg-base-200 p-6 overflow-auto">
+						<div class="relative w-full h-full flex items-center justify-center">
+							<img
+								src={selectedReference.src}
+								alt={selectedReference.name}
+								class="max-w-full max-h-full object-contain"
+								style:opacity={selectedReference.opacity}
+								style:filter={buildFilterString(selectedReference)}
+								style:transform="scale({selectedReference.scale}) rotate({selectedReference.rotation}deg)"
+							/>
+						</div>
+					</div>
+					<!-- Desktop Controls -->
+					<div class="w-80 xl:w-96 h-full overflow-y-auto p-6 bg-base-100 border-l border-base-300">
+						{@render desktopTransformControls(selectedReference)}
+					</div>
 				</div>
 			</div>
+			<form method="dialog" class="modal-backdrop">
+				<button onclick={closeTransformModal}>close</button>
+			</form>
 		{/if}
 	</dialog>
 </div>
 
-{#snippet transformControls(reference: ReferenceImage)}
-	<!-- Image Preview -->
-	<div class="relative aspect-video bg-base-200 rounded-lg overflow-hidden mb-4">
-		<img
-			src={reference.thumbnailSrc || reference.src}
-			alt={reference.name}
-			class="w-full h-full object-cover"
-			style:opacity={reference.opacity}
-			style:filter={reference.isGrayscale ? "grayscale(100%)" : "none"}
-			style:transform="scale({reference.scale}) rotate({reference.rotation}deg)"
-		/>
-	</div>
-
-	<!-- Rotation -->
-	<div class="space-y-2">
-		<div class="flex items-center justify-between">
-			<label for="rotation-range" class="text-sm font-medium text-base-content">Rotation</label>
-			<span class="text-sm text-base-content/70">{reference.rotation}°</span>
-		</div>
-		<input
-			type="range"
-			min="0"
-			max="360"
-			step="5"
-			value={reference.rotation}
-			class="range range-primary"
-			oninput={(e) => {
-				const value = parseInt((e.target as HTMLInputElement)?.value || "0");
-				updateImageProperty(reference.id, "rotation", value);
-			}}
-		/>
-		<div class="flex justify-between gap-2">
-			<button
-				class="btn btn-xs btn-outline"
-				onclick={() => updateImageProperty(reference.id, "rotation", reference.rotation - 90)}
-			>
-				<Icon icon="material-symbols:rotate-left" class="w-3 h-3" />
-				-90°
-			</button>
-			<button
-				class="btn btn-xs btn-outline"
-				onclick={() => updateImageProperty(reference.id, "rotation", reference.rotation + 90)}
-			>
-				<Icon icon="material-symbols:rotate-right" class="w-3 h-3" />
-				+90°
-			</button>
-		</div>
-	</div>
-
-	<!-- Scale -->
-	<div class="space-y-2">
-		<div class="flex items-center justify-between">
-			<label for="scale-range" class="text-sm font-medium text-base-content">Scale</label>
-			<span class="text-sm text-base-content/70">{Math.round(reference.scale * 100)}%</span>
-		</div>
-		<input
-			type="range"
-			min="0.1"
-			max="3"
-			step="0.1"
-			value={reference.scale}
-			class="range range-primary"
-			oninput={(e) => {
-				const value = parseFloat((e.target as HTMLInputElement)?.value || "1");
-				updateImageProperty(reference.id, "scale", value);
-			}}
-		/>
-		<div class="flex justify-between gap-2">
-			<button
-				class="btn btn-xs btn-outline"
-				onclick={() => updateImageProperty(reference.id, "scale", 0.5)}
-			>
-				50%
-			</button>
-			<button
-				class="btn btn-xs btn-outline"
-				onclick={() => updateImageProperty(reference.id, "scale", 1)}
-			>
-				100%
-			</button>
-			<button
-				class="btn btn-xs btn-outline"
-				onclick={() => updateImageProperty(reference.id, "scale", 2)}
-			>
-				200%
-			</button>
-		</div>
-	</div>
-
-	<!-- Opacity -->
-	<div class="space-y-2">
-		<div class="flex items-center justify-between">
-			<label for="opacity-range" class="text-sm font-medium text-base-content">Opacity</label>
-			<span class="text-sm text-base-content/70">{Math.round(reference.opacity * 100)}%</span>
-		</div>
-		<input
-			type="range"
-			min="0"
-			max="1"
-			step="0.05"
-			value={reference.opacity}
-			class="range range-primary"
-			oninput={(e) => {
-				const value = parseFloat((e.target as HTMLInputElement)?.value || "1");
-				updateImageProperty(reference.id, "opacity", value);
-			}}
-		/>
-		<div class="flex justify-between gap-2">
-			<button
-				class="btn btn-xs btn-outline"
-				onclick={() => updateImageProperty(reference.id, "opacity", 0.25)}
-			>
-				25%
-			</button>
-			<button
-				class="btn btn-xs btn-outline"
-				onclick={() => updateImageProperty(reference.id, "opacity", 0.5)}
-			>
-				50%
-			</button>
-			<button
-				class="btn btn-xs btn-outline"
-				onclick={() => updateImageProperty(reference.id, "opacity", 1)}
-			>
-				100%
-			</button>
-		</div>
-	</div>
-
-	<!-- Effects -->
-	<div class="space-y-3">
-		<h4 class="text-sm font-medium text-base-content">Effects</h4>
-
-		<!-- Grayscale Toggle -->
-		<label class="flex items-center justify-between cursor-pointer">
-			<span class="text-sm text-base-content/70">Grayscale</span>
+{#snippet mobileTransformControls(reference: ReferenceImage)}
+	<div class="space-y-6">
+		<!-- Rotation -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="mobile-rotation-{reference.id}" class="text-base font-medium text-base-content"
+					>Rotation</label
+				>
+				<span class="text-base text-base-content/70 font-mono">{reference.rotation}°</span>
+			</div>
 			<input
-				type="checkbox"
-				checked={reference.isGrayscale}
-				onchange={(e) => {
-					const checked = (e.target as HTMLInputElement)?.checked || false;
-					updateImageProperty(reference.id, "isGrayscale", checked);
+				id="mobile-rotation-{reference.id}"
+				type="range"
+				min="0"
+				max="360"
+				step="5"
+				value={reference.rotation}
+				class="range range-primary range-lg"
+				oninput={(e) => {
+					const value = parseInt((e.target as HTMLInputElement)?.value || "0");
+					updateImageProperty(reference.id, "rotation", value);
 				}}
-				class="toggle toggle-primary toggle-sm"
 			/>
-		</label>
+			<div class="flex justify-between gap-2">
+				<button
+					class="btn btn-sm btn-outline flex-1"
+					onclick={() => updateImageProperty(reference.id, "rotation", reference.rotation - 90)}
+				>
+					<Icon icon="material-symbols:rotate-left" class="w-4 h-4" />
+					-90°
+				</button>
+				<button
+					class="btn btn-sm btn-outline flex-1"
+					onclick={() => updateImageProperty(reference.id, "rotation", reference.rotation + 90)}
+				>
+					<Icon icon="material-symbols:rotate-right" class="w-4 h-4" />
+					+90°
+				</button>
+			</div>
+		</div>
+
+		<!-- Scale -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="mobile-scale-{reference.id}" class="text-base font-medium text-base-content"
+					>Scale</label
+				>
+				<span class="text-base text-base-content/70 font-mono"
+					>{Math.round(reference.scale * 100)}%</span
+				>
+			</div>
+			<input
+				id="mobile-scale-{reference.id}"
+				type="range"
+				min="0.1"
+				max="3"
+				step="0.1"
+				value={reference.scale}
+				class="range range-primary range-lg"
+				oninput={(e) => {
+					const value = parseFloat((e.target as HTMLInputElement)?.value || "1");
+					updateImageProperty(reference.id, "scale", value);
+				}}
+			/>
+			<div class="grid grid-cols-3 gap-2">
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "scale", 0.5)}
+				>
+					50%
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "scale", 1)}
+				>
+					100%
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "scale", 2)}
+				>
+					200%
+				</button>
+			</div>
+		</div>
+
+		<!-- Opacity -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="mobile-opacity-{reference.id}" class="text-base font-medium text-base-content"
+					>Opacity</label
+				>
+				<span class="text-base text-base-content/70 font-mono"
+					>{Math.round(reference.opacity * 100)}%</span
+				>
+			</div>
+			<input
+				id="mobile-opacity-{reference.id}"
+				type="range"
+				min="0"
+				max="1"
+				step="0.05"
+				value={reference.opacity}
+				class="range range-primary range-lg"
+				oninput={(e) => {
+					const value = parseFloat((e.target as HTMLInputElement)?.value || "1");
+					updateImageProperty(reference.id, "opacity", value);
+				}}
+			/>
+			<div class="grid grid-cols-3 gap-2">
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "opacity", 0.25)}
+				>
+					25%
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "opacity", 0.5)}
+				>
+					50%
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "opacity", 1)}
+				>
+					100%
+				</button>
+			</div>
+		</div>
+
+		<!-- Brightness -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label
+					for="mobile-brightness-{reference.id}"
+					class="text-base font-medium text-base-content">Brightness</label
+				>
+				<span class="text-base text-base-content/70 font-mono">{reference.brightness || 100}%</span>
+			</div>
+			<input
+				id="mobile-brightness-{reference.id}"
+				type="range"
+				min="0"
+				max="200"
+				step="5"
+				value={reference.brightness || 100}
+				class="range range-primary range-lg"
+				oninput={(e) => {
+					const value = parseInt((e.target as HTMLInputElement)?.value || "100");
+					updateImageProperty(reference.id, "brightness", value);
+				}}
+			/>
+			<div class="grid grid-cols-3 gap-2">
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "brightness", 50)}
+				>
+					50%
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "brightness", 100)}
+				>
+					100%
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "brightness", 150)}
+				>
+					150%
+				</button>
+			</div>
+		</div>
+
+		<!-- Contrast -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="mobile-contrast-{reference.id}" class="text-base font-medium text-base-content"
+					>Contrast</label
+				>
+				<span class="text-base text-base-content/70 font-mono">{reference.contrast || 100}%</span>
+			</div>
+			<input
+				id="mobile-contrast-{reference.id}"
+				type="range"
+				min="0"
+				max="200"
+				step="5"
+				value={reference.contrast || 100}
+				class="range range-primary range-lg"
+				oninput={(e) => {
+					const value = parseInt((e.target as HTMLInputElement)?.value || "100");
+					updateImageProperty(reference.id, "contrast", value);
+				}}
+			/>
+			<div class="grid grid-cols-3 gap-2">
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "contrast", 50)}
+				>
+					50%
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "contrast", 100)}
+				>
+					100%
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "contrast", 150)}
+				>
+					150%
+				</button>
+			</div>
+		</div>
+
+		<!-- Saturation -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label
+					for="mobile-saturation-{reference.id}"
+					class="text-base font-medium text-base-content">Saturation</label
+				>
+				<span class="text-base text-base-content/70 font-mono">{reference.saturation || 100}%</span>
+			</div>
+			<input
+				id="mobile-saturation-{reference.id}"
+				type="range"
+				min="0"
+				max="200"
+				step="5"
+				value={reference.saturation || 100}
+				class="range range-primary range-lg"
+				oninput={(e) => {
+					const value = parseInt((e.target as HTMLInputElement)?.value || "100");
+					updateImageProperty(reference.id, "saturation", value);
+				}}
+			/>
+			<div class="grid grid-cols-3 gap-2">
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "saturation", 0)}
+				>
+					0%
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "saturation", 100)}
+				>
+					100%
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "saturation", 150)}
+				>
+					150%
+				</button>
+			</div>
+		</div>
+
+		<!-- Hue Rotate -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="mobile-hue-{reference.id}" class="text-base font-medium text-base-content"
+					>Hue Shift</label
+				>
+				<span class="text-base text-base-content/70 font-mono">{reference.hueRotate || 0}°</span>
+			</div>
+			<input
+				id="mobile-hue-{reference.id}"
+				type="range"
+				min="0"
+				max="360"
+				step="10"
+				value={reference.hueRotate || 0}
+				class="range range-primary range-lg"
+				oninput={(e) => {
+					const value = parseInt((e.target as HTMLInputElement)?.value || "0");
+					updateImageProperty(reference.id, "hueRotate", value);
+				}}
+			/>
+			<div class="grid grid-cols-4 gap-2">
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "hueRotate", 0)}
+				>
+					0°
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "hueRotate", 90)}
+				>
+					90°
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "hueRotate", 180)}
+				>
+					180°
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "hueRotate", 270)}
+				>
+					270°
+				</button>
+			</div>
+		</div>
+
+		<!-- Blur -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="mobile-blur-{reference.id}" class="text-base font-medium text-base-content"
+					>Blur</label
+				>
+				<span class="text-base text-base-content/70 font-mono">{reference.blur || 0}px</span>
+			</div>
+			<input
+				id="mobile-blur-{reference.id}"
+				type="range"
+				min="0"
+				max="10"
+				step="0.5"
+				value={reference.blur || 0}
+				class="range range-primary range-lg"
+				oninput={(e) => {
+					const value = parseFloat((e.target as HTMLInputElement)?.value || "0");
+					updateImageProperty(reference.id, "blur", value);
+				}}
+			/>
+			<div class="grid grid-cols-3 gap-2">
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "blur", 0)}
+				>
+					0px
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "blur", 2)}
+				>
+					2px
+				</button>
+				<button
+					class="btn btn-sm btn-outline"
+					onclick={() => updateImageProperty(reference.id, "blur", 5)}
+				>
+					5px
+				</button>
+			</div>
+		</div>
+
+		<!-- Effects -->
+		<div class="space-y-3">
+			<h4 class="text-base font-medium text-base-content">Effects</h4>
+			<label class="flex items-center justify-between cursor-pointer p-3 bg-base-200 rounded-lg">
+				<span class="text-base text-base-content">Grayscale</span>
+				<input
+					type="checkbox"
+					checked={reference.isGrayscale}
+					onchange={(e) => {
+						const checked = (e.target as HTMLInputElement)?.checked || false;
+						updateImageProperty(reference.id, "isGrayscale", checked);
+					}}
+					class="toggle toggle-primary toggle-lg"
+				/>
+			</label>
+		</div>
+
+		<!-- Action Buttons -->
+		<div class="space-y-3 pt-4 border-t border-base-300">
+			<button class="btn btn-outline w-full" onclick={() => resetTransforms(reference.id)}>
+				<Icon icon="material-symbols:refresh" class="w-5 h-5" />
+				Reset All Transforms
+			</button>
+			<div class="grid grid-cols-2 gap-3">
+				<button class="btn btn-outline" onclick={() => duplicateReference(reference.id)}>
+					<Icon icon="material-symbols:content-copy" class="w-4 h-4" />
+					Duplicate
+				</button>
+				<button class="btn btn-error btn-outline" onclick={() => removeReference(reference.id)}>
+					<Icon icon="material-symbols:delete-outline" class="w-4 h-4" />
+					Delete
+				</button>
+			</div>
+		</div>
 	</div>
+{/snippet}
 
-	<!-- Action Buttons -->
-	<div class="flex flex-col gap-2 pt-4 border-t border-base-300">
-		<button class="btn btn-sm btn-outline" onclick={() => resetTransforms(reference.id)}>
-			<Icon icon="material-symbols:refresh" class="w-4 h-4" />
-			Reset Transforms
-		</button>
+{#snippet desktopTransformControls(reference: ReferenceImage)}
+	<div class="space-y-6">
+		<!-- Rotation -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="desktop-rotation-{reference.id}" class="text-sm font-medium text-base-content"
+					>Rotation</label
+				>
+				<span class="text-sm text-base-content/70 font-mono">{reference.rotation}°</span>
+			</div>
+			<input
+				id="desktop-rotation-{reference.id}"
+				type="range"
+				min="0"
+				max="360"
+				step="5"
+				value={reference.rotation}
+				class="range range-primary"
+				oninput={(e) => {
+					const value = parseInt((e.target as HTMLInputElement)?.value || "0");
+					updateImageProperty(reference.id, "rotation", value);
+				}}
+			/>
+			<div class="flex justify-between gap-2">
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "rotation", reference.rotation - 90)}
+				>
+					<Icon icon="material-symbols:rotate-left" class="w-3 h-3" />
+					-90°
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "rotation", reference.rotation + 90)}
+				>
+					<Icon icon="material-symbols:rotate-right" class="w-3 h-3" />
+					+90°
+				</button>
+			</div>
+		</div>
 
-		<button class="btn btn-sm btn-outline" onclick={() => duplicateReference(reference.id)}>
-			<Icon icon="material-symbols:content-copy" class="w-4 h-4" />
-			Duplicate Image
-		</button>
+		<!-- Scale -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="desktop-scale-{reference.id}" class="text-sm font-medium text-base-content"
+					>Scale</label
+				>
+				<span class="text-sm text-base-content/70 font-mono"
+					>{Math.round(reference.scale * 100)}%</span
+				>
+			</div>
+			<input
+				id="desktop-scale-{reference.id}"
+				type="range"
+				min="0.1"
+				max="3"
+				step="0.1"
+				value={reference.scale}
+				class="range range-primary"
+				oninput={(e) => {
+					const value = parseFloat((e.target as HTMLInputElement)?.value || "1");
+					updateImageProperty(reference.id, "scale", value);
+				}}
+			/>
+			<div class="flex justify-between gap-2">
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "scale", 0.5)}
+				>
+					50%
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "scale", 1)}
+				>
+					100%
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "scale", 2)}
+				>
+					200%
+				</button>
+			</div>
+		</div>
 
-		<button class="btn btn-sm btn-error btn-outline" onclick={() => removeReference(reference.id)}>
-			<Icon icon="material-symbols:delete-outline" class="w-4 h-4" />
-			Delete Image
-		</button>
+		<!-- Opacity -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="desktop-opacity-{reference.id}" class="text-sm font-medium text-base-content"
+					>Opacity</label
+				>
+				<span class="text-sm text-base-content/70 font-mono"
+					>{Math.round(reference.opacity * 100)}%</span
+				>
+			</div>
+			<input
+				id="desktop-opacity-{reference.id}"
+				type="range"
+				min="0"
+				max="1"
+				step="0.05"
+				value={reference.opacity}
+				class="range range-primary"
+				oninput={(e) => {
+					const value = parseFloat((e.target as HTMLInputElement)?.value || "1");
+					updateImageProperty(reference.id, "opacity", value);
+				}}
+			/>
+			<div class="flex justify-between gap-2">
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "opacity", 0.25)}
+				>
+					25%
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "opacity", 0.5)}
+				>
+					50%
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "opacity", 1)}
+				>
+					100%
+				</button>
+			</div>
+		</div>
+
+		<!-- Brightness -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="desktop-brightness-{reference.id}" class="text-sm font-medium text-base-content"
+					>Brightness</label
+				>
+				<span class="text-sm text-base-content/70 font-mono">{reference.brightness || 100}%</span>
+			</div>
+			<input
+				id="desktop-brightness-{reference.id}"
+				type="range"
+				min="0"
+				max="200"
+				step="5"
+				value={reference.brightness || 100}
+				class="range range-primary"
+				oninput={(e) => {
+					const value = parseInt((e.target as HTMLInputElement)?.value || "100");
+					updateImageProperty(reference.id, "brightness", value);
+				}}
+			/>
+			<div class="flex justify-between gap-2">
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "brightness", 50)}
+				>
+					50%
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "brightness", 100)}
+				>
+					100%
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "brightness", 150)}
+				>
+					150%
+				</button>
+			</div>
+		</div>
+
+		<!-- Contrast -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="desktop-contrast-{reference.id}" class="text-sm font-medium text-base-content"
+					>Contrast</label
+				>
+				<span class="text-sm text-base-content/70 font-mono">{reference.contrast || 100}%</span>
+			</div>
+			<input
+				id="desktop-contrast-{reference.id}"
+				type="range"
+				min="0"
+				max="200"
+				step="5"
+				value={reference.contrast || 100}
+				class="range range-primary"
+				oninput={(e) => {
+					const value = parseInt((e.target as HTMLInputElement)?.value || "100");
+					updateImageProperty(reference.id, "contrast", value);
+				}}
+			/>
+			<div class="flex justify-between gap-2">
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "contrast", 50)}
+				>
+					50%
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "contrast", 100)}
+				>
+					100%
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "contrast", 150)}
+				>
+					150%
+				</button>
+			</div>
+		</div>
+
+		<!-- Saturation -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="desktop-saturation-{reference.id}" class="text-sm font-medium text-base-content"
+					>Saturation</label
+				>
+				<span class="text-sm text-base-content/70 font-mono">{reference.saturation || 100}%</span>
+			</div>
+			<input
+				id="desktop-saturation-{reference.id}"
+				type="range"
+				min="0"
+				max="200"
+				step="5"
+				value={reference.saturation || 100}
+				class="range range-primary"
+				oninput={(e) => {
+					const value = parseInt((e.target as HTMLInputElement)?.value || "100");
+					updateImageProperty(reference.id, "saturation", value);
+				}}
+			/>
+			<div class="flex justify-between gap-2">
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "saturation", 0)}
+				>
+					0%
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "saturation", 100)}
+				>
+					100%
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "saturation", 150)}
+				>
+					150%
+				</button>
+			</div>
+		</div>
+
+		<!-- Hue Rotate -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="desktop-hue-{reference.id}" class="text-sm font-medium text-base-content"
+					>Hue Shift</label
+				>
+				<span class="text-sm text-base-content/70 font-mono">{reference.hueRotate || 0}°</span>
+			</div>
+			<input
+				id="desktop-hue-{reference.id}"
+				type="range"
+				min="0"
+				max="360"
+				step="10"
+				value={reference.hueRotate || 0}
+				class="range range-primary"
+				oninput={(e) => {
+					const value = parseInt((e.target as HTMLInputElement)?.value || "0");
+					updateImageProperty(reference.id, "hueRotate", value);
+				}}
+			/>
+			<div class="flex justify-between gap-2">
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "hueRotate", 0)}
+				>
+					0°
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "hueRotate", 90)}
+				>
+					90°
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "hueRotate", 180)}
+				>
+					180°
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "hueRotate", 270)}
+				>
+					270°
+				</button>
+			</div>
+		</div>
+
+		<!-- Blur -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<label for="desktop-blur-{reference.id}" class="text-sm font-medium text-base-content"
+					>Blur</label
+				>
+				<span class="text-sm text-base-content/70 font-mono">{reference.blur || 0}px</span>
+			</div>
+			<input
+				id="desktop-blur-{reference.id}"
+				type="range"
+				min="0"
+				max="10"
+				step="0.5"
+				value={reference.blur || 0}
+				class="range range-primary"
+				oninput={(e) => {
+					const value = parseFloat((e.target as HTMLInputElement)?.value || "0");
+					updateImageProperty(reference.id, "blur", value);
+				}}
+			/>
+			<div class="flex justify-between gap-2">
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "blur", 0)}
+				>
+					0px
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "blur", 2)}
+				>
+					2px
+				</button>
+				<button
+					class="btn btn-xs btn-outline"
+					onclick={() => updateImageProperty(reference.id, "blur", 5)}
+				>
+					5px
+				</button>
+			</div>
+		</div>
+
+		<!-- Effects -->
+		<div class="space-y-3">
+			<h4 class="text-sm font-medium text-base-content">Effects</h4>
+			<label class="flex items-center justify-between cursor-pointer">
+				<span class="text-sm text-base-content/70">Grayscale</span>
+				<input
+					type="checkbox"
+					checked={reference.isGrayscale}
+					onchange={(e) => {
+						const checked = (e.target as HTMLInputElement)?.checked || false;
+						updateImageProperty(reference.id, "isGrayscale", checked);
+					}}
+					class="toggle toggle-primary toggle-sm"
+				/>
+			</label>
+		</div>
+
+		<!-- Action Buttons -->
+		<div class="flex flex-col gap-2 pt-4 border-t border-base-300">
+			<button class="btn btn-sm btn-outline" onclick={() => resetTransforms(reference.id)}>
+				<Icon icon="material-symbols:refresh" class="w-4 h-4" />
+				Reset Transforms
+			</button>
+
+			<button class="btn btn-sm btn-outline" onclick={() => duplicateReference(reference.id)}>
+				<Icon icon="material-symbols:content-copy" class="w-4 h-4" />
+				Duplicate Image
+			</button>
+
+			<button
+				class="btn btn-sm btn-error btn-outline"
+				onclick={() => removeReference(reference.id)}
+			>
+				<Icon icon="material-symbols:delete-outline" class="w-4 h-4" />
+				Delete Image
+			</button>
+		</div>
 	</div>
 {/snippet}

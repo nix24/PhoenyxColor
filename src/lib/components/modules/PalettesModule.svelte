@@ -834,6 +834,36 @@
 	);
 
 	// Color extraction from images
+	function buildFilterString(reference: any): string {
+		const filters: string[] = [];
+
+		if (reference.isGrayscale) {
+			filters.push("grayscale(100%)");
+		}
+
+		if (reference.brightness !== undefined && reference.brightness !== 100) {
+			filters.push(`brightness(${reference.brightness}%)`);
+		}
+
+		if (reference.contrast !== undefined && reference.contrast !== 100) {
+			filters.push(`contrast(${reference.contrast}%)`);
+		}
+
+		if (reference.saturation !== undefined && reference.saturation !== 100) {
+			filters.push(`saturate(${reference.saturation}%)`);
+		}
+
+		if (reference.hueRotate !== undefined && reference.hueRotate !== 0) {
+			filters.push(`hue-rotate(${reference.hueRotate}deg)`);
+		}
+
+		if (reference.blur !== undefined && reference.blur !== 0) {
+			filters.push(`blur(${reference.blur}px)`);
+		}
+
+		return filters.length > 0 ? filters.join(" ") : "none";
+	}
+
 	async function extractColorsFromImage(
 		imageUrl: string,
 		numColors: number = 5
@@ -860,6 +890,44 @@
 			img.onerror = () => reject(new Error("Failed to load image"));
 			img.crossOrigin = "anonymous";
 			img.src = imageUrl;
+		});
+	}
+
+	async function extractColorsFromTransformedImage(
+		reference: any,
+		numColors: number
+	): Promise<string[]> {
+		return new Promise((resolve, reject) => {
+			const canvas = document.createElement("canvas");
+			const ctx = canvas.getContext("2d");
+			const img = new Image();
+
+			img.onload = () => {
+				// Scale down image for performance while maintaining aspect ratio
+				const maxSize = 200;
+				const scale = Math.min(maxSize / img.width, maxSize / img.height);
+				canvas.width = img.width * scale;
+				canvas.height = img.height * scale;
+
+				// Apply CSS filters to canvas context
+				const filterString = buildFilterString(reference);
+				if (filterString !== "none") {
+					ctx!.filter = filterString;
+				}
+
+				// Apply opacity through globalAlpha
+				ctx!.globalAlpha = reference.opacity || 1;
+
+				ctx!.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+				const imageData = ctx!.getImageData(0, 0, canvas.width, canvas.height);
+				const colors = extractDominantColors(imageData, numColors);
+				resolve(colors);
+			};
+
+			img.onerror = () => reject(new Error("Failed to load image"));
+			img.crossOrigin = "anonymous";
+			img.src = reference.src;
 		});
 	}
 
@@ -983,8 +1051,8 @@
 		}
 
 		try {
-			toast.info("Extracting colors from image...");
-			const colors = await extractColorsFromImage(reference.src, extractSlots);
+			toast.info("Extracting colors from transformed image...");
+			const colors = await extractColorsFromTransformedImage(reference, extractSlots);
 
 			// Create new palette with extracted colors - truncate name to avoid validation errors
 			const baseName = reference.name.split(".")[0]; // Remove file extension

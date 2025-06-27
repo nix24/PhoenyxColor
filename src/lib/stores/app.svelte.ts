@@ -16,6 +16,11 @@ export interface ReferenceImage {
 	rotation: number;
 	opacity: number;
 	isGrayscale: boolean;
+	brightness?: number; // 0-200, default 100
+	contrast?: number; // 0-200, default 100
+	saturation?: number; // 0-200, default 100
+	hueRotate?: number; // 0-360, default 0
+	blur?: number; // 0-10, default 0
 	createdAt: Date;
 	fileSize?: number;
 	dimensions?: { width: number; height: number };
