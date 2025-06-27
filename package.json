@@ -47,6 +47,7 @@
 	"dependencies": {
 		"@iconify/svelte": "^5.0.0",
 		"@types/file-saver": "^2.0.7",
+		"@vercel/analytics": "^1.5.0",
 		"chroma-js": "^3.1.2",
 		"colord": "^2.9.3",
 		"eslint": "^9.27.0",
