@@ -10,6 +10,7 @@
 	import chroma from "chroma-js";
 	import AdvancedColorPicker from "$lib/components/common/AdvancedColorPicker.svelte";
 	import EyedropperTool from "$lib/components/common/EyedropperTool.svelte";
+	import { orderColorsForGradient, rgbToHex } from "$lib/utils/colorUtils";
 
 	const { saveAs } = pkg;
 
@@ -113,19 +114,6 @@
 			error:
 				"Invalid color format. Use HEX (#FF0000 or #FF0000FF), RGB (rgb(255,0,0) or rgba(255,0,0,0.5)), or HSL (hsl(0,100%,50%) or hsla(0,100%,50%,0.5))",
 		};
-	}
-
-	function rgbToHex(r: number, g: number, b: number): string {
-		return (
-			"#" +
-			[r, g, b]
-				.map((x) => {
-					const hex = x.toString(16);
-					return hex.length === 1 ? "0" + hex : hex;
-				})
-				.join("")
-				.toUpperCase()
-		);
 	}
 
 	function hslToHex(h: number, s: number, l: number): string {
@@ -897,9 +885,12 @@
 
 		// Use k-means clustering to find dominant colors
 		const clusters = kMeansColors(pixels, Math.min(numColors, pixels.length));
-		return clusters.map((cluster) =>
+		const extractedColors = clusters.map((cluster) =>
 			rgbToHex(Math.round(cluster[0]), Math.round(cluster[1]), Math.round(cluster[2]))
 		);
+
+		// Sort colors using perceptual color ordering for better gradient flow
+		return orderColorsForGradient(extractedColors);
 	}
 
 	function kMeansColors(pixels: number[][], k: number, maxIterations: number = 20): number[][] {

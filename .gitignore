@@ -24,3 +24,6 @@ vite.config.ts.timestamp-*
 
 #any lock file to the gitignore using *
 *.lock
+
+#repomix files (any file with repomix in the name)
+repomix*

@@ -10,6 +10,7 @@
 	import chroma from "chroma-js";
 	import tinygradient from "tinygradient";
 	import { dndzone } from "svelte-dnd-action";
+	import { orderColorsForGradient } from "$lib/utils/colorUtils";
 
 	const { saveAs } = pkg;
 
@@ -304,9 +305,12 @@
 			return;
 		}
 
-		const stops: GradientStop[] = palette.colors.map((color, index) => ({
+		// Sort colors using perceptual color ordering for better gradient flow
+		const colors = orderColorsForGradient(palette.colors);
+
+		const stops: GradientStop[] = colors.map((color: string, index: number) => ({
 			color,
-			position: (index / (palette.colors.length - 1)) * 100,
+			position: (index / (colors.length - 1)) * 100,
 		}));
 
 		try {
@@ -627,6 +631,7 @@
 										type="button"
 										class="flex items-center gap-3 p-2"
 										disabled={palette.colors.length < 2}
+										title="Generate gradient with perceptually ordered colors"
 									>
 										<div class="flex gap-1">
 											{#each palette.colors.slice(0, 4) as color}
@@ -641,7 +646,7 @@
 												{palette.name}
 											</p>
 											<p class="text-xs text-base-content/60">
-												{palette.colors.length} colors
+												{palette.colors.length} colors • Optimized
 											</p>
 										</div>
 									</button>

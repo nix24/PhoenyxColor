@@ -259,6 +259,21 @@ export class PersistenceService {
 				}
 			});
 
+			// After removing phoenyxcolor keys, also clear theme-related keys that may be left behind
+			const themeKeys: string[] = Object.keys(localStorage).filter(
+				(key) => key.includes("theme") || key.includes("daisy")
+			);
+
+			themeKeys.forEach((key) => {
+				try {
+					localStorage.removeItem(key);
+					console.log(`✅ Removed theme key: ${key}`);
+				} catch (keyError) {
+					console.warn(`⚠️ Failed to remove theme key ${key}:`, keyError);
+					overallSuccess = false;
+				}
+			});
+
 			// Clear sessionStorage
 			const sessionKeysToRemove: string[] = [];
 			for (let i = 0; i < sessionStorage.length; i++) {

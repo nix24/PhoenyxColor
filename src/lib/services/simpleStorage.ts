@@ -1,5 +1,7 @@
 import type { AppState } from "$lib/stores/app.svelte";
 import { browser } from "$app/environment";
+import { toast } from "svelte-sonner";
+import { safeSet, safeGet } from "$lib/utils/storageUtils";
 
 const STORAGE_KEY = "phoenyxcolor-simple-storage";
 const VERSION = "1.0";
@@ -13,6 +15,12 @@ export interface SimpleStorageData {
 export class SimpleStorageService {
 	private static instance: SimpleStorageService;
 
+	// Hold pending state and debounce handle for write coalescing
+	private pendingState: AppState | null = null;
+	private saveTimer: number | null = null;
+	private pendingResolvers: ((value: boolean) => void)[] = [];
+	private static readonly DEBOUNCE_MS = 300;
+
 	static getInstance(): SimpleStorageService {
 		if (!SimpleStorageService.instance) {
 			SimpleStorageService.instance = new SimpleStorageService();
@@ -20,11 +28,39 @@ export class SimpleStorageService {
 		return SimpleStorageService.instance;
 	}
 
-	async saveState(state: AppState): Promise<boolean> {
+	/**
+	 * Public saveState – debounced by default.
+	 * Pass { immediate: true } to bypass debounce (used by auto-save timer).
+	 */
+	async saveState(state: AppState, opts: { immediate?: boolean } = {}): Promise<boolean> {
 		if (!browser) return false;
 
+		if (opts.immediate) {
+			return await this.performSave(state);
+		}
+
+		return new Promise<boolean>((resolve) => {
+			this.pendingState = state;
+			this.pendingResolvers.push(resolve);
+
+			if (this.saveTimer) clearTimeout(this.saveTimer);
+
+			this.saveTimer = window.setTimeout(async () => {
+				const result = await this.performSave(this.pendingState!);
+				this.pendingState = null;
+				// Flush all awaiting resolvers
+				this.pendingResolvers.forEach((r) => r(result));
+				this.pendingResolvers = [];
+			}, SimpleStorageService.DEBOUNCE_MS);
+		});
+	}
+
+	/**
+	 * Actual synchronous save logic (stringify + write).
+	 */
+	private async performSave(state: AppState): Promise<boolean> {
 		try {
-			console.log("🔄 Simple storage: Saving state...");
+			console.log("🔄 Simple storage: Saving state (flush)…");
 
 			// Only save persistent data
 			const persistentState: Partial<AppState> = {
@@ -48,14 +84,18 @@ export class SimpleStorageService {
 				state: persistentState,
 			};
 
-			const jsonString = JSON.stringify(storageData);
-			localStorage.setItem(STORAGE_KEY, jsonString);
+			const ok = safeSet(STORAGE_KEY, storageData);
+			if (!ok) {
+				toast.error("Failed to save – storage quota may be full");
+				return false;
+			}
 
 			console.log("✅ Simple storage: Data saved successfully");
-			console.log("💾 Saved data size:", jsonString.length, "characters");
-
 			return true;
-		} catch (error) {
+		} catch (error: any) {
+			if (error?.name === "QuotaExceededError") {
+				toast.error("Storage quota exceeded. Please export or clear data.");
+			}
 			console.error("❌ Simple storage: Save failed:", error);
 			return false;
 		}
@@ -67,13 +107,12 @@ export class SimpleStorageService {
 		try {
 			console.log("🔄 Simple storage: Loading state...");
 
-			const stored = localStorage.getItem(STORAGE_KEY);
-			if (!stored) {
+			const storageData = safeGet<SimpleStorageData>(STORAGE_KEY);
+			if (!storageData) {
 				console.log("📦 Simple storage: No data found");
 				return null;
 			}
 
-			const storageData: SimpleStorageData = JSON.parse(stored);
 			console.log("📦 Simple storage: Loaded data version:", storageData.version);
 
 			if (!storageData.state) {
@@ -144,6 +183,12 @@ export class SimpleStorageService {
 			);
 
 			console.log("🎨 Theme-related keys found:", themeKeys);
+
+			// Remove theme-related keys as part of the cleanup
+			themeKeys.forEach((key) => {
+				localStorage.removeItem(key);
+				console.log("🗑️ Removed theme key:", key);
+			});
 
 			console.log("✅ Simple storage: All storage cleared");
 			return true;

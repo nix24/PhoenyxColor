@@ -24,6 +24,9 @@
 	];
 	const MAX_FILES_AT_ONCE = 20;
 
+	// Mobile action sheet handling
+	let actionTarget: ReferenceImage | null = $state(null);
+
 	function validateFile(file: File): { valid: boolean; error?: string } {
 		if (!ALLOWED_TYPES.includes(file.type)) {
 			return { valid: false, error: `Unsupported file type: ${file.type}` };
@@ -167,8 +170,16 @@
 		if (selectedImageId) {
 			viewMode = "transform";
 			showControls = true;
+			// Open transform modal
+			const dlg = document.getElementById("transform-modal") as HTMLDialogElement | null;
+			if (dlg && !dlg.open) {
+				dlg.showModal();
+			}
 		} else {
 			showControls = false;
+			// Close modal if open
+			const dlg = document.getElementById("transform-modal") as HTMLDialogElement | null;
+			if (dlg && dlg.open) dlg.close();
 		}
 	}
 
@@ -232,6 +243,29 @@
 	const selectedReference = $derived(
 		selectedImageId ? appStore.references.find((ref) => ref.id === selectedImageId) : null
 	);
+
+	function closeActionSheet() {
+		const dlg = document.getElementById("reference-action-modal") as HTMLDialogElement | null;
+		if (dlg && dlg.open) dlg.close();
+		actionTarget = null;
+	}
+
+	function handleImageClick(reference: ReferenceImage) {
+		if (window.innerWidth < 768) {
+			actionTarget = reference;
+			const dlg = document.getElementById("reference-action-modal") as HTMLDialogElement;
+			dlg.showModal();
+		} else {
+			selectImage(reference.id);
+		}
+	}
+
+	function closeTransformModal() {
+		const dlg = document.getElementById("transform-modal") as HTMLDialogElement | null;
+		if (dlg && dlg.open) dlg.close();
+		showControls = false;
+		selectedImageId = null;
+	}
 </script>
 
 <div class="h-full flex flex-col bg-base-100">
@@ -318,7 +352,7 @@
 			<!-- Image Gallery -->
 			<div class="h-full overflow-y-auto p-4">
 				<div
-					class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+					class="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
 				>
 					{#each appStore.references as reference (reference.id)}
 						<div class="relative group">
@@ -328,13 +362,13 @@
 								reference.id
 									? 'ring-4 ring-primary ring-offset-2 ring-offset-base-100'
 									: 'hover:scale-105'}"
-								onclick={() => selectImage(reference.id)}
+								onclick={() => handleImageClick(reference)}
 								role="button"
 								tabindex="0"
 								onkeydown={(e) => {
 									if (e.key === "Enter" || e.key === " ") {
 										e.preventDefault();
-										selectImage(reference.id);
+										handleImageClick(reference);
 									}
 								}}
 							>
@@ -351,7 +385,7 @@
 
 								<!-- Overlay on hover/selection -->
 								<div
-									class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center"
+									class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center pointer-events-none"
 								>
 									{#if selectedImageId === reference.id}
 										<div
@@ -364,7 +398,7 @@
 											class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2"
 										>
 											<button
-												class="btn btn-sm btn-circle btn-primary"
+												class="hidden md:inline-flex btn btn-xs md:btn-sm btn-circle btn-primary pointer-events-auto"
 												onclick={(e) => {
 													e.stopPropagation();
 													duplicateReference(reference.id);
@@ -374,7 +408,7 @@
 												<Icon icon="material-symbols:content-copy" class="w-4 h-4" />
 											</button>
 											<button
-												class="btn btn-sm btn-circle btn-error"
+												class="hidden md:inline-flex btn btn-xs md:btn-sm btn-circle btn-error pointer-events-auto"
 												onclick={(e) => {
 													e.stopPropagation();
 													removeReference(reference.id);
@@ -448,58 +482,7 @@
 				</div>
 			</div>
 
-			<!-- Transform Controls Panel (Mobile-first bottom sheet / Desktop sidebar) -->
-			{#if showControls && selectedReference}
-				<div class="absolute inset-x-0 bottom-0 md:right-0 md:top-0 md:w-80 md:inset-x-auto">
-					<!-- Mobile: Bottom Sheet -->
-					<div
-						class="md:hidden bg-base-100 border-t border-base-300 shadow-lg p-4 max-h-80 overflow-y-auto"
-					>
-						<div class="flex items-center justify-between mb-4">
-							<h3 class="font-semibold text-base-content">Transform: {selectedReference.name}</h3>
-							<button
-								class="btn btn-sm btn-circle btn-ghost"
-								onclick={() => {
-									showControls = false;
-									selectedImageId = null;
-								}}
-							>
-								<Icon icon="material-symbols:close" class="w-4 h-4" />
-							</button>
-						</div>
-
-						<!-- Controls Content -->
-						<div class="space-y-4">
-							{@render transformControls(selectedReference)}
-						</div>
-					</div>
-
-					<!-- Desktop: Right Sidebar -->
-					<div
-						class="hidden md:block bg-base-100 border-l border-base-300 shadow-lg h-full overflow-y-auto"
-					>
-						<div class="p-4 border-b border-base-300">
-							<div class="flex items-center justify-between">
-								<h3 class="font-semibold text-base-content">Transform Controls</h3>
-								<button
-									class="btn btn-sm btn-circle btn-ghost"
-									onclick={() => {
-										showControls = false;
-										selectedImageId = null;
-									}}
-								>
-									<Icon icon="material-symbols:close" class="w-4 h-4" />
-								</button>
-							</div>
-							<p class="text-sm text-base-content/70 mt-1">{selectedReference.name}</p>
-						</div>
-
-						<div class="p-4 space-y-6">
-							{@render transformControls(selectedReference)}
-						</div>
-					</div>
-				</div>
-			{/if}
+			<!-- (Legacy transform panel hidden; replaced by modal) -->
 		{:else}
 			<!-- Empty State -->
 			<div class="flex items-center justify-center h-full p-4">
@@ -547,6 +530,68 @@
 		class="hidden"
 		onchange={handleFileSelect}
 	/>
+
+	<!-- Mobile action sheet modal -->
+	<dialog id="reference-action-modal" class="modal modal-bottom sm:modal-middle">
+		{#if actionTarget}
+			<div class="modal-box">
+				<h3 class="font-bold text-lg mb-4">{actionTarget.name}</h3>
+				<div class="flex flex-col space-y-2">
+					<button
+						class="btn btn-outline"
+						onclick={() => {
+							duplicateReference(actionTarget!.id);
+							closeActionSheet();
+						}}
+					>
+						Duplicate
+					</button>
+					<button
+						class="btn btn-error"
+						onclick={() => {
+							removeReference(actionTarget!.id);
+							closeActionSheet();
+						}}
+					>
+						Delete
+					</button>
+				</div>
+				<form method="dialog" class="modal-backdrop">
+					<button>close</button>
+				</form>
+			</div>
+		{/if}
+	</dialog>
+
+	<!-- Transform modal -->
+	<dialog id="transform-modal" class="modal modal-bottom sm:modal-middle">
+		{#if selectedReference && showControls}
+			<div class="modal-box w-full max-w-4xl">
+				<div class="flex items-start gap-6 flex-col md:flex-row">
+					<!-- Large preview -->
+					<div class="flex-1 min-w-[50%]">
+						<div class="relative w-full rounded-lg bg-base-200 overflow-hidden">
+							<img
+								src={selectedReference.src}
+								alt={selectedReference.name}
+								class="w-full h-auto object-contain"
+								style:opacity={selectedReference.opacity}
+								style:filter={selectedReference.isGrayscale ? "grayscale(100%)" : "none"}
+								style:transform="scale({selectedReference.scale}) rotate({selectedReference.rotation}deg)"
+							/>
+						</div>
+					</div>
+					<!-- Controls -->
+					<div class="w-full md:w-80 max-h-[80vh] overflow-y-auto space-y-6">
+						{@render transformControls(selectedReference)}
+					</div>
+				</div>
+				<div class="modal-action">
+					<button class="btn" onclick={closeTransformModal}>Close</button>
+				</div>
+			</div>
+		{/if}
+	</dialog>
 </div>
 
 {#snippet transformControls(reference: ReferenceImage)}

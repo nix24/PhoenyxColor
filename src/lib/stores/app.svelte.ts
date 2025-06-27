@@ -921,6 +921,16 @@ function createAppStore() {
 
 export const appStore = createAppStore();
 
+// Cross-tab synchronisation – reload state when another tab updates localStorage
+if (typeof window !== "undefined") {
+	window.addEventListener("storage", (e) => {
+		if (e.key === "phoenyxcolor-simple-storage" && e.newValue !== e.oldValue) {
+			console.log("🔄 Detected storage change from another tab – reloading state…");
+			appStore.loadFromStorage();
+		}
+	});
+}
+
 // Make appStore globally accessible for debugging in development
 if (typeof window !== "undefined" && import.meta.env.DEV) {
 	(window as any).appStore = appStore;
