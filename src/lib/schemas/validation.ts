@@ -60,7 +60,7 @@ export const ColorPaletteSchema = z.object({
 
 // App Settings validation
 export const AppSettingsSchema = z.object({
-	theme: z.enum(["light", "dark"]),
+	theme: z.enum(["light", "dark", "system"]),
 	defaultPaletteSlots: z.number().min(3).max(50),
 	alwaysOnTop: z.boolean(),
 	enableAnimations: z.boolean(),
@@ -71,7 +71,6 @@ export const AppSettingsSchema = z.object({
 		defaultSvgSize: DimensionsSchema,
 		compressionLevel: z.number().min(1).max(100),
 	}),
-	keyboardShortcuts: z.record(z.string()),
 	autoSave: z.boolean(),
 	autoSaveInterval: z.number().min(1).max(60),
 });

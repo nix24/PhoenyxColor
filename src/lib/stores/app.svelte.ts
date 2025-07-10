@@ -69,7 +69,7 @@ export interface TutorialState {
 }
 
 export interface AppSettings {
-	theme: "light" | "dark";
+	theme: "light" | "dark" | "system";
 	defaultPaletteSlots: number;
 	alwaysOnTop: boolean;
 	enableAnimations: boolean;
@@ -80,7 +80,6 @@ export interface AppSettings {
 		defaultSvgSize: { width: number; height: number };
 		compressionLevel: number;
 	};
-	keyboardShortcuts: { [action: string]: string };
 	autoSave: boolean;
 	autoSaveInterval: number; // minutes
 }
@@ -113,7 +112,7 @@ function createAppStore() {
 		isEyedropperActive: false,
 		globalColorBuffer: null,
 		settings: {
-			theme: "light",
+			theme: "system",
 			defaultPaletteSlots: 5,
 			alwaysOnTop: false,
 			enableAnimations: true,
@@ -123,14 +122,6 @@ function createAppStore() {
 				defaultPngResolution: 1920,
 				defaultSvgSize: { width: 800, height: 600 },
 				compressionLevel: 80,
-			},
-			keyboardShortcuts: {
-				"toggle-eyedropper": "KeyE",
-				save: "KeyS",
-				undo: "KeyZ",
-				redo: "KeyY",
-				"new-palette": "KeyN",
-				export: "KeyX",
 			},
 			autoSave: true,
 			autoSaveInterval: 5,
@@ -685,6 +676,9 @@ function createAppStore() {
 					state.gradients = loadedState.gradients;
 				}
 				if (loadedState.settings) {
+					if ("keyboardShortcuts" in loadedState.settings) {
+						delete (loadedState.settings as any).keyboardShortcuts;
+					}
 					Object.assign(state.settings, loadedState.settings);
 				}
 				if (loadedState.activePalette !== undefined) {

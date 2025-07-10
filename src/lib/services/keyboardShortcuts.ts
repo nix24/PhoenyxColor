@@ -51,13 +51,6 @@ class KeyboardShortcutsService {
 				description: "Switch to Settings",
 				category: "navigation",
 			},
-			{
-				key: "h",
-				ctrlKey: true,
-				action: () => goto("/tutorials"),
-				description: "Open Help/Tutorials",
-				category: "navigation",
-			},
 
 			// Tool shortcuts
 			{
@@ -111,14 +104,6 @@ class KeyboardShortcutsService {
 		];
 	}
 
-	registerShortcut(shortcut: ShortcutAction) {
-		this.shortcuts.push(shortcut);
-	}
-
-	unregisterShortcut(action: string) {
-		this.shortcuts = this.shortcuts.filter((s) => s.action.toString() !== action);
-	}
-
 	private getShortcutKey(shortcut: ShortcutAction): string {
 		const parts = [];
 		if (shortcut.ctrlKey) parts.push("ctrl");
@@ -166,79 +151,6 @@ class KeyboardShortcutsService {
 			document.removeEventListener("keydown", this.handleKeyDown);
 			this.isListening = false;
 		}
-	}
-
-	getAllShortcuts(): ShortcutAction[] {
-		return this.shortcuts;
-	}
-
-	getShortcutByAction(action: string): ShortcutAction | undefined {
-		return this.shortcuts.find((s) => s.action.toString() === action);
-	}
-
-	updateShortcut(
-		action: string,
-		newKey: string,
-		modifiers: {
-			ctrlKey?: boolean;
-			shiftKey?: boolean;
-			altKey?: boolean;
-		} = {}
-	) {
-		const existingShortcut = this.getShortcutByAction(action);
-		if (existingShortcut) {
-			// Remove old shortcut
-			this.unregisterShortcut(action);
-
-			// Add new shortcut with updated key
-			this.registerShortcut({
-				...existingShortcut,
-				key: newKey,
-				...modifiers,
-			});
-		}
-	}
-
-	showShortcutsHelp() {
-		// This would show a modal with all available shortcuts
-		// For now, just log them to console and show a toast
-		console.table(
-			this.getAllShortcuts().map((s) => ({
-				Action: s.description,
-				Shortcut: this.formatShortcutDisplay(s),
-			}))
-		);
-
-		toast.info("Keyboard shortcuts logged to console (F12 → Console)");
-	}
-
-	private formatShortcutDisplay(shortcut: ShortcutAction): string {
-		const parts = [];
-		if (shortcut.ctrlKey) parts.push("Ctrl");
-		if (shortcut.shiftKey) parts.push("Shift");
-		if (shortcut.altKey) parts.push("Alt");
-
-		// Convert key to display name
-		const keyName = shortcut.key.length === 1 ? shortcut.key.toUpperCase() : shortcut.key;
-		parts.push(keyName);
-
-		return parts.join(" + ");
-	}
-
-	// Method to export shortcuts for settings
-	exportShortcuts(): Record<string, string> {
-		const exported: Record<string, string> = {};
-		for (const shortcut of this.shortcuts) {
-			exported[shortcut.action.toString()] = this.formatShortcutDisplay(shortcut);
-		}
-		return exported;
-	}
-
-	// Method to import shortcuts from settings
-	importShortcuts(shortcuts: Record<string, string>) {
-		// This would parse the shortcuts and update the registered shortcuts
-		// Implementation would depend on the exact format needed
-		console.log("Importing shortcuts:", shortcuts);
 	}
 }
 

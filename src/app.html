@@ -1,9 +1,41 @@
 <!doctype html>
-<html lang="en" data-theme="cupcake">
+<html lang="en" data-theme="system">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<script>
+			// Prevent theme flicker by applying theme before page renders
+			(function () {
+				try {
+					const stored = localStorage.getItem("phoenyxcolor-simple-storage");
+					let theme = "system"; // default
+
+					if (stored) {
+						const data = JSON.parse(stored);
+						if (data?.state?.settings?.theme) {
+							theme = data.state.settings.theme;
+						}
+					}
+
+					// Apply effective theme
+					let effective = theme;
+					if (theme === "system") {
+						effective = window.matchMedia("(prefers-color-scheme: dark)").matches
+							? "dark"
+							: "light";
+					}
+
+					document.documentElement.setAttribute("data-theme", effective);
+				} catch (e) {
+					// Fallback to system theme detection
+					const effective = window.matchMedia("(prefers-color-scheme: dark)").matches
+						? "dark"
+						: "light";
+					document.documentElement.setAttribute("data-theme", effective);
+				}
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

@@ -6,46 +6,55 @@
 	import { keyboardShortcuts } from "$lib/services/keyboardShortcuts";
 	import { appStore } from "$lib/stores/app.svelte";
 	import { onMount, onDestroy } from "svelte";
+	import { browser } from "$app/environment";
 
 	let { children } = $props();
 
+	function applyTheme(theme: string) {
+		let effective = theme;
+		if (theme === "system") {
+			effective = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+		}
+		document.documentElement.setAttribute("data-theme", effective);
+	}
+
+	function handleMediaChange() {
+		applyTheme(appStore.state.settings.theme);
+	}
+
+	let mediaQuery: MediaQueryList | undefined;
+
+	$effect(() => {
+		if (!browser) return;
+		applyTheme(appStore.state.settings.theme);
+	});
+
 	// Initialize keyboard shortcuts and theme
 	onMount(async () => {
-		console.log("🚀 App initialization starting...");
-
 		keyboardShortcuts.startListening();
-		console.log("✅ Keyboard shortcuts initialized");
 
 		// Load saved state first
-		console.log("📦 Loading state from storage...");
+
 		const loaded = await appStore.loadFromStorage();
-		console.log(`📦 State loading result: ${loaded ? "SUCCESS" : "FAILED"}`);
 
 		if (loaded) {
-			console.log("📊 Loaded state:", {
-				palettes: appStore.state.palettes.length,
-				gradients: appStore.state.gradients.length,
-				references: appStore.state.references.length,
-				theme: appStore.state.settings.theme,
-			});
 		}
-
-		// Apply saved theme on app load
-		const savedTheme = appStore.state.settings.theme;
-		console.log(`🎨 Applying theme: ${savedTheme}`);
-		document.documentElement.setAttribute("data-theme", savedTheme);
 
 		// Initialize auto-save if enabled
 		if (appStore.state.settings.autoSave) {
-			console.log("💾 Starting auto-save...");
 			appStore.startAutoSave();
 		}
 
-		console.log("✅ App initialization complete");
+		// Setup media query listener for system theme changes
+		mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+		mediaQuery.addEventListener("change", handleMediaChange);
 	});
 
 	onDestroy(() => {
 		keyboardShortcuts.stopListening();
+		if (mediaQuery) {
+			mediaQuery.removeEventListener("change", handleMediaChange);
+		}
 	});
 </script>
 
