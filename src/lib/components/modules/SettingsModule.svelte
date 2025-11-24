@@ -210,6 +210,136 @@
 					</div>
 				{/if}
 			</GlassPanel>
+
+			<!-- Workspace Settings -->
+			<GlassPanel class="p-6" intensity="medium">
+				<h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+					<Icon icon="material-symbols:grid-view" class="text-phoenix-primary" />
+					Workspace
+				</h2>
+
+				<!-- Grid Toggle -->
+				<div class="form-control mb-4">
+					<label class="label cursor-pointer justify-start gap-4">
+						<input
+							type="checkbox"
+							class="toggle toggle-primary border-white/20 bg-black/30 checked:bg-phoenix-primary checked:border-phoenix-primary"
+							bind:checked={app.settings.state.workspace.showGrid}
+							onchange={handleAsyncChange(saveSettings)}
+						/>
+						<span class="label-text font-medium text-white">Show Grid</span>
+					</label>
+				</div>
+
+				{#if app.settings.state.workspace.showGrid}
+					<!-- Grid Size -->
+					<div class="form-control mb-4 ml-12">
+						<label class="label" for="grid-size">
+							<span class="label-text font-medium text-white">Grid Size (px)</span>
+						</label>
+						<input
+							id="grid-size"
+							type="number"
+							min="5"
+							max="100"
+							step="5"
+							class="input bg-black/30 border-white/10 text-white focus:border-phoenix-primary focus:outline-none w-full max-w-xs"
+							bind:value={app.settings.state.workspace.gridSize}
+							onchange={handleAsyncChange(saveSettings)}
+						/>
+					</div>
+
+					<!-- Snap to Grid -->
+					<div class="form-control mb-4 ml-12">
+						<label class="label cursor-pointer justify-start gap-4">
+							<input
+								type="checkbox"
+								class="checkbox checkbox-primary border-white/20 bg-black/30 checked:bg-phoenix-primary checked:border-phoenix-primary"
+								bind:checked={app.settings.state.workspace.snapToGrid}
+								onchange={handleAsyncChange(saveSettings)}
+							/>
+							<span class="label-text font-medium text-white">Snap to Grid</span>
+						</label>
+					</div>
+				{/if}
+
+				<!-- Rulers Toggle -->
+				<div class="form-control">
+					<label class="label cursor-pointer justify-start gap-4">
+						<input
+							type="checkbox"
+							class="toggle toggle-primary border-white/20 bg-black/30 checked:bg-phoenix-primary checked:border-phoenix-primary"
+							bind:checked={app.settings.state.workspace.showRulers}
+							onchange={handleAsyncChange(saveSettings)}
+						/>
+						<span class="label-text font-medium text-white">Show Rulers</span>
+					</label>
+				</div>
+			</GlassPanel>
+
+			<!-- Export Settings -->
+			<GlassPanel class="p-6" intensity="medium">
+				<h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+					<Icon icon="material-symbols:ios-share" class="text-phoenix-primary" />
+					Export
+				</h2>
+
+				<!-- Default Format -->
+				<div class="form-control mb-6">
+					<label class="label" for="export-format">
+						<span class="label-text font-medium text-white">Default Format</span>
+					</label>
+					<select
+						id="export-format"
+						class="select bg-black/30 border-white/10 text-white w-full focus:border-phoenix-primary focus:outline-none"
+						bind:value={app.settings.state.exportPreferences.defaultFormat}
+						onchange={handleAsyncChange(saveSettings)}
+					>
+						<option value="png">PNG</option>
+						<option value="jpeg">JPEG</option>
+						<option value="webp">WebP</option>
+						<option value="svg">SVG</option>
+					</select>
+				</div>
+
+				<!-- Default Scale -->
+				<div class="form-control mb-6">
+					<label class="label" for="export-scale">
+						<span class="label-text font-medium text-white">
+							Default Scale ({app.settings.state.exportPreferences.defaultScale}x)
+						</span>
+					</label>
+					<input
+						id="export-scale"
+						type="range"
+						min="1"
+						max="4"
+						step="0.5"
+						class="range range-primary range-sm"
+						bind:value={app.settings.state.exportPreferences.defaultScale}
+						onchange={handleAsyncChange(saveSettings)}
+					/>
+					<div class="w-full flex justify-between text-xs px-2 mt-2 text-text-muted">
+						<span>1x</span>
+						<span>2x</span>
+						<span>3x</span>
+						<span>4x</span>
+					</div>
+				</div>
+
+				<!-- Include Background -->
+				<div class="form-control">
+					<label class="label cursor-pointer justify-start gap-4">
+						<input
+							type="checkbox"
+							class="toggle toggle-primary border-white/20 bg-black/30 checked:bg-phoenix-primary checked:border-phoenix-primary"
+							bind:checked={app.settings.state.exportPreferences.includeBackground}
+							onchange={handleAsyncChange(saveSettings)}
+						/>
+						<span class="label-text font-medium text-white">Include Background</span>
+					</label>
+				</div>
+			</GlassPanel>
 		</div>
 
 		<!-- Data Management -->

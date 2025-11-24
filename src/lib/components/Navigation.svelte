@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 	import { goto } from "$app/navigation";
 	import Icon from "@iconify/svelte";
 	import { onMount } from "svelte";
@@ -44,7 +44,7 @@
 	let isMobileMenuOpen = $state(false);
 
 	// Get current active path
-	let currentPath = $derived($page?.url?.pathname ?? "/");
+	let currentPath = $derived(page?.url?.pathname ?? "/");
 
 	// Initialize theme-change on mount
 	onMount(() => {

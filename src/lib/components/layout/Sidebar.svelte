@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 	import { goto } from "$app/navigation";
 	import Icon from "@iconify/svelte";
 	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
@@ -37,7 +37,7 @@
 		},
 	];
 
-	let currentPath = $derived($page?.url?.pathname ?? "/");
+	let currentPath = $derived(page?.url?.pathname ?? "/");
 	let hoveredItem: string | null = $state(null);
 
 	function navigateTo(path: string) {

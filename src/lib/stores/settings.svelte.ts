@@ -7,8 +7,17 @@ export interface AppSettings {
     enableAnimations: boolean;
     globalEyedropperEnabled: boolean;
     referenceBoardSavePath: string | null;
+    workspace: {
+        showGrid: boolean;
+        snapToGrid: boolean;
+        gridSize: number;
+        showRulers: boolean;
+    };
     exportPreferences: {
-        defaultPngResolution: number;
+        defaultFormat: "png" | "jpeg" | "webp" | "svg";
+        defaultScale: number;
+        includeBackground: boolean;
+        defaultPngResolution: number; // Keeping for backward compatibility if needed, or remove if unused
         defaultSvgSize: { width: number; height: number };
         compressionLevel: number;
     };
@@ -23,7 +32,16 @@ const DEFAULT_SETTINGS: AppSettings = {
     enableAnimations: true,
     globalEyedropperEnabled: false,
     referenceBoardSavePath: null,
+    workspace: {
+        showGrid: true,
+        snapToGrid: false,
+        gridSize: 20,
+        showRulers: true,
+    },
     exportPreferences: {
+        defaultFormat: "png",
+        defaultScale: 1,
+        includeBackground: true,
         defaultPngResolution: 1920,
         defaultSvgSize: { width: 800, height: 600 },
         compressionLevel: 80,
