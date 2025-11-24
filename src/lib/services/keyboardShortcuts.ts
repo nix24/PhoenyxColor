@@ -1,6 +1,7 @@
-import { appStore } from "$lib/stores/app.svelte";
+import { app } from "$lib/stores/root.svelte";
 import { goto } from "$app/navigation";
 import { toast } from "svelte-sonner";
+import { PersistenceService } from "$lib/services/persistence";
 
 export interface ShortcutAction {
 	key: string;
@@ -56,7 +57,7 @@ class KeyboardShortcutsService {
 			{
 				key: "e",
 				ctrlKey: true,
-				action: () => appStore.toggleEyedropper(),
+				action: () => app.toggleEyedropper(),
 				description: "Toggle Eyedropper",
 				category: "tools",
 			},
@@ -65,14 +66,28 @@ class KeyboardShortcutsService {
 			{
 				key: "z",
 				ctrlKey: true,
-				action: () => appStore.undo(),
+				action: () => {
+					// Context aware undo
+					const path = window.location.pathname;
+					if (path.includes("/palettes")) app.palettes.history.undo(app.palettes.palettes);
+					else if (path.includes("/references")) app.references.history.undo(app.references.references);
+					else if (path.includes("/gradients")) app.gradients.history.undo(app.gradients.gradients);
+					else toast.info("Undo not available here");
+				},
 				description: "Undo",
 				category: "editing",
 			},
 			{
 				key: "y",
 				ctrlKey: true,
-				action: () => appStore.redo(),
+				action: () => {
+					// Context aware redo
+					const path = window.location.pathname;
+					if (path.includes("/palettes")) app.palettes.history.redo(app.palettes.palettes);
+					else if (path.includes("/references")) app.references.history.redo(app.references.references);
+					else if (path.includes("/gradients")) app.gradients.history.redo(app.gradients.gradients);
+					else toast.info("Redo not available here");
+				},
 				description: "Redo",
 				category: "editing",
 			},
@@ -80,7 +95,14 @@ class KeyboardShortcutsService {
 				key: "z",
 				ctrlKey: true,
 				shiftKey: true,
-				action: () => appStore.redo(),
+				action: () => {
+					// Context aware redo (Alt)
+					const path = window.location.pathname;
+					if (path.includes("/palettes")) app.palettes.history.redo(app.palettes.palettes);
+					else if (path.includes("/references")) app.references.history.redo(app.references.references);
+					else if (path.includes("/gradients")) app.gradients.history.redo(app.gradients.gradients);
+					else toast.info("Redo not available here");
+				},
 				description: "Redo (Alt)",
 				category: "editing",
 			},
@@ -89,7 +111,14 @@ class KeyboardShortcutsService {
 			{
 				key: "s",
 				ctrlKey: true,
-				action: () => appStore.saveToStorage(),
+				action: () => {
+					Promise.all([
+						app.palettes.save(),
+						app.references.save(),
+						app.gradients.save(),
+						app.settings.save()
+					]).then(() => toast.success("Saved all changes"));
+				},
 				description: "Save",
 				category: "export",
 			},
@@ -97,7 +126,7 @@ class KeyboardShortcutsService {
 				key: "e",
 				ctrlKey: true,
 				shiftKey: true,
-				action: () => appStore.exportData(),
+				action: () => PersistenceService.getInstance().exportData(app),
 				description: "Export Data",
 				category: "export",
 			},

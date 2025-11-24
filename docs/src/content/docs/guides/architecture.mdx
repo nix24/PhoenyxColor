@@ -1,0 +1,70 @@
+---
+title: Architecture Guide
+description: Overview of the PhoenyxColor application architecture and state management.
+---
+
+# Architecture Overview
+
+PhoenyxColor uses a modular state management approach built on top of Svelte 5's runes system. The core of the application state is managed through a central `RootStore` which orchestrates several specialized sub-stores.
+
+## Core Concepts
+
+### RootStore
+
+The `RootStore` serves as the single source of truth for the application's global state. It initializes and holds references to all feature-specific stores.
+
+```typescript
+// src/lib/stores/root.svelte.ts
+export class RootStore {
+    settings = new SettingsStore();
+    palettes = new PaletteStore();
+    references = new ReferenceStore();
+    gradients = new GradientStore();
+
+    // Global UI state
+    isEyedropperActive = $state(false);
+    globalColorBuffer = $state<string | null>(null);
+}
+```
+
+The application exports a singleton instance of this store as `app`, which can be imported directly into components.
+
+```typescript
+import { app } from "$lib/stores/root.svelte";
+```
+
+### Modular Stores
+
+Each major feature has its own dedicated store class. These stores handle their own logic, data persistence, and state mutations.
+
+- **PaletteStore**: Manages color palettes, including creation, updates, and deletion. It handles history (undo/redo) for palette operations.
+- **SettingsStore**: Manages application preferences and configuration.
+- **ReferenceStore**: Handles reference images and associated data.
+- **GradientStore**: Manages gradient definitions and manipulations.
+
+### Persistence
+
+Data persistence is handled via a `storage` service (likely wrapping IndexedDB or LocalStorage), which the individual stores use to save and load their state.
+
+## Usage Pattern
+
+Components should import the `app` singleton to access state.
+
+```svelte
+<script>
+  import { app } from "$lib/stores/root.svelte";
+
+  function handleColorPick() {
+    app.toggleEyedropper();
+  }
+</script>
+
+<button onclick={handleColorPick}>
+  {app.isEyedropperActive ? 'Cancel' : 'Pick Color'}
+</button>
+```
+
+## Deprecation Notice
+
+> [!WARNING]
+> The file `src/lib/stores/app.svelte.ts` is deprecated and contains the legacy architecture. Please use `src/lib/stores/root.svelte.ts` and the modular stores instead.

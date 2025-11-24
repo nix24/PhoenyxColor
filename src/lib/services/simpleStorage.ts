@@ -1,22 +1,35 @@
-import type { AppState } from "$lib/stores/app.svelte";
+// import type { AppState } from "$lib/stores/app.svelte";
+// import { RootStore } from "$lib/stores/root.svelte";
 import { browser } from "$app/environment";
 import { toast } from "svelte-sonner";
 import { safeSet, safeGet } from "$lib/utils/storageUtils";
+import type { ReferenceImage, ColorPalette, Gradient, AppSettings, TutorialState } from "$lib/stores/app.svelte";
 
 const STORAGE_KEY = "phoenyxcolor-simple-storage";
 const VERSION = "1.0";
 
+// Define the shape of the serialized state (matching what the adapter produces)
+export interface SerializableState {
+	references: { references: ReferenceImage[] } | ReferenceImage[];
+	palettes: { palettes: ColorPalette[] } | ColorPalette[];
+	gradients: { gradients: Gradient[] } | Gradient[];
+	settings: { state: AppSettings } | AppSettings;
+	activePalette: string | null;
+	activeGradient: string | null;
+	tutorialState: TutorialState;
+}
+
 export interface SimpleStorageData {
 	version: string;
 	timestamp: string;
-	state: Partial<AppState>;
+	state: Partial<SerializableState>;
 }
 
 export class SimpleStorageService {
 	private static instance: SimpleStorageService;
 
 	// Hold pending state and debounce handle for write coalescing
-	private pendingState: AppState | null = null;
+	private pendingState: any | null = null;
 	private saveTimer: number | null = null;
 	private pendingResolvers: ((value: boolean) => void)[] = [];
 	private static readonly DEBOUNCE_MS = 300;
@@ -32,7 +45,7 @@ export class SimpleStorageService {
 	 * Public saveState – debounced by default.
 	 * Pass { immediate: true } to bypass debounce (used by auto-save timer).
 	 */
-	async saveState(state: AppState, opts: { immediate?: boolean } = {}): Promise<boolean> {
+	async saveState(state: any, opts: { immediate?: boolean } = {}): Promise<boolean> {
 		if (!browser) return false;
 
 		if (opts.immediate) {
@@ -58,24 +71,30 @@ export class SimpleStorageService {
 	/**
 	 * Actual synchronous save logic (stringify + write).
 	 */
-	private async performSave(state: AppState): Promise<boolean> {
+	private async performSave(state: any): Promise<boolean> {
 		try {
 			console.log("🔄 Simple storage: Saving state (flush)…");
 
 			// Only save persistent data
-			const persistentState: Partial<AppState> = {
-				references: state.references || [],
-				palettes: state.palettes || [],
-				gradients: state.gradients || [],
+			// Only save persistent data - handle both RootStore structure and Adapter structure
+			const references = state.references?.references || state.references || [];
+			const palettes = state.palettes?.palettes || state.palettes || [];
+			const gradients = state.gradients?.gradients || state.gradients || [];
+			const settings = state.settings?.state || state.settings;
+
+			const persistentState: Partial<SerializableState> = {
+				references,
+				palettes,
+				gradients,
 				activePalette: state.activePalette,
 				activeGradient: state.activeGradient,
-				settings: state.settings,
-				tutorialState: {
+				settings,
+				tutorialState: state.tutorialState ? {
 					...state.tutorialState,
 					isActive: false, // Don't persist active tutorial state
 					currentStep: 0,
 					currentModule: null,
-				},
+				} : undefined,
 			};
 
 			const storageData: SimpleStorageData = {
@@ -101,7 +120,7 @@ export class SimpleStorageService {
 		}
 	}
 
-	async loadState(): Promise<Partial<AppState> | null> {
+	async loadState(): Promise<any | null> {
 		if (!browser) return null;
 
 		try {
@@ -146,9 +165,9 @@ export class SimpleStorageService {
 
 			console.log("✅ Simple storage: Data loaded successfully");
 			console.log("📊 Loaded data:", {
-				references: processedState.references?.length || 0,
-				palettes: processedState.palettes?.length || 0,
-				gradients: processedState.gradients?.length || 0,
+				references: (processedState.references as any[])?.length || 0,
+				palettes: (processedState.palettes as any[])?.length || 0,
+				gradients: (processedState.gradients as any[])?.length || 0,
 			});
 
 			return processedState;

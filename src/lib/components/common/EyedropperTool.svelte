@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { appStore } from "$lib/stores/app.svelte";
+	import { app } from "$lib/stores/root.svelte";
 	import Icon from "@iconify/svelte";
 	import { toast } from "svelte-sonner";
 	import { onMount, onDestroy } from "svelte";
@@ -50,7 +50,7 @@
 
 		try {
 			isActive = true;
-			appStore.toggleEyedropper();
+			app.toggleEyedropper();
 
 			// Create EyeDropper instance
 			const eyeDropper = new (window as any).EyeDropper();
@@ -66,16 +66,16 @@
 				const pickedColor = result.sRGBHex;
 
 				// Store in global color buffer
-				appStore.setGlobalColor(pickedColor);
+				app.setGlobalColor(pickedColor);
 
 				// Auto-add to active palette if enabled and palette exists
-				if (autoAddToPalette && appStore.state.activePalette) {
-					const activePalette = appStore.palettes.find(
-						(p) => p.id === appStore.state.activePalette
+				if (autoAddToPalette && app.palettes.activePaletteId) {
+					const activePalette = app.palettes.palettes.find(
+						(p) => p.id === app.palettes.activePaletteId
 					);
 					if (activePalette && activePalette.colors.length < activePalette.maxSlots) {
 						if (!activePalette.colors.includes(pickedColor)) {
-							appStore.addColorToPalette(activePalette.id, pickedColor);
+							app.palettes.addColor(activePalette.id, pickedColor);
 							toast.success(`Color ${pickedColor} added to "${activePalette.name}"`);
 						} else {
 							toast.info(`Color ${pickedColor} already exists in palette`);
@@ -107,8 +107,8 @@
 		document.body.style.cursor = "";
 		document.body.classList.remove("eyedropper-active");
 		// Always ensure the app store state is synchronized
-		if (appStore.state.isEyedropperActive) {
-			appStore.toggleEyedropper();
+		if (app.isEyedropperActive) {
+			app.toggleEyedropper();
 		}
 	}
 
@@ -116,7 +116,7 @@
 	async function startFallbackEyedropper() {
 		try {
 			isActive = true;
-			appStore.toggleEyedropper();
+			app.toggleEyedropper();
 
 			// Request screen capture
 			const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -178,14 +178,16 @@
 			const pickedColor = rgbToHex(r, g, b);
 
 			// Store in global color buffer
-			appStore.setGlobalColor(pickedColor);
+			app.setGlobalColor(pickedColor);
 
 			// Auto-add to active palette if enabled and palette exists
-			if (autoAddToPalette && appStore.state.activePalette) {
-				const activePalette = appStore.palettes.find((p) => p.id === appStore.state.activePalette);
+			if (autoAddToPalette && app.palettes.activePaletteId) {
+				const activePalette = app.palettes.palettes.find(
+					(p) => p.id === app.palettes.activePaletteId
+				);
 				if (activePalette && activePalette.colors.length < activePalette.maxSlots) {
 					if (!activePalette.colors.includes(pickedColor)) {
-						appStore.addColorToPalette(activePalette.id, pickedColor);
+						app.palettes.addColor(activePalette.id, pickedColor);
 						toast.success(`Color ${pickedColor} added to "${activePalette.name}"`);
 					} else {
 						toast.info(`Color ${pickedColor} already exists in palette`);

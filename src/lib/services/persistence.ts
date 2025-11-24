@@ -1,4 +1,8 @@
-import type { AppState } from "$lib/stores/app.svelte";
+import type { RootStore } from "$lib/stores/root.svelte";
+import type { ReferenceImage } from "$lib/stores/references.svelte";
+import type { ColorPalette } from "$lib/stores/palettes.svelte";
+import type { Gradient } from "$lib/stores/gradients.svelte";
+import type { AppSettings } from "$lib/stores/settings.svelte";
 import { toast } from "svelte-sonner";
 import { browser } from "$app/environment";
 import { validateAppData } from "$lib/schemas/validation";
@@ -11,7 +15,18 @@ const STORAGE_VERSION = "1.1";
 export interface StorageData {
 	version: string;
 	timestamp: string;
-	state: Partial<AppState>;
+	data: {
+		references: ReferenceImage[];
+		palettes: ColorPalette[];
+		gradients: Gradient[];
+		settings: AppSettings;
+		tutorialState: {
+			hasSeenWelcome: boolean;
+			hasSeenPaletteTutorial: boolean;
+			hasSeenGradientTutorial: boolean;
+			hasSeenReferenceTutorial: boolean;
+		};
+	};
 }
 
 export class PersistenceService {
@@ -28,7 +43,7 @@ export class PersistenceService {
 	/**
 	 * Export application data to JSON file
 	 */
-	async exportData(state: AppState): Promise<boolean> {
+	async exportData(app: RootStore): Promise<boolean> {
 		if (!browser) return false;
 
 		try {
@@ -36,11 +51,16 @@ export class PersistenceService {
 				version: STORAGE_VERSION,
 				timestamp: new Date().toISOString(),
 				data: {
-					references: state.references || [],
-					palettes: state.palettes || [],
-					gradients: state.gradients || [],
-					settings: state.settings,
-					tutorialState: state.tutorialState,
+					references: app.references.references || [],
+					palettes: app.palettes.palettes || [],
+					gradients: app.gradients.gradients || [],
+					settings: app.settings.state,
+					tutorialState: {
+						hasSeenWelcome: false,
+						hasSeenPaletteTutorial: false,
+						hasSeenGradientTutorial: false,
+						hasSeenReferenceTutorial: false,
+					}, // TODO: Move tutorial state to settings or its own store
 				},
 			};
 
@@ -69,7 +89,7 @@ export class PersistenceService {
 	/**
 	 * Import application data from JSON file with validation
 	 */
-	async importData(): Promise<Partial<AppState> | null> {
+	async importData(): Promise<Partial<StorageData["data"]> | null> {
 		if (!browser) return null;
 
 		return new Promise((resolve) => {
@@ -125,9 +145,9 @@ export class PersistenceService {
 		});
 	}
 
-	private validateAndSanitizeState(data: any): Partial<AppState> | null {
+	private validateAndSanitizeState(data: any): Partial<StorageData["data"]> | null {
 		try {
-			const sanitized: Partial<AppState> = {};
+			const sanitized: Partial<StorageData["data"]> = {};
 
 			// Validate and sanitize references
 			if (Array.isArray(data.references)) {

@@ -170,11 +170,23 @@ function createAppStore() {
 		state.redoStack = [];
 	}
 
+	// Adapter to convert legacy AppState to RootStore for persistence
+	function adaptToRootStore(currentState: AppState): any {
+		return {
+			references: { references: currentState.references },
+			palettes: { palettes: currentState.palettes },
+			gradients: { gradients: currentState.gradients },
+			settings: { state: currentState.settings },
+			activePalette: currentState.activePalette,
+			activeGradient: currentState.activeGradient,
+			// Mock methods required by RootStore but not used during simple persistence
+			toggleEyedropper: () => { },
+			setGlobalColor: () => { },
+			clearGlobalColor: () => { },
+		};
+	}
+
 	return {
-		// Getters
-		get state() {
-			return state;
-		},
 		get references() {
 			return state.references;
 		},
@@ -605,7 +617,7 @@ function createAppStore() {
 					theme: state.settings.theme,
 				});
 
-				const success = await storageService.saveState(state);
+				const success = await storageService.saveState(adaptToRootStore(state));
 				if (success) {
 					this.markSaved();
 					console.log("✅ Data saved successfully to storage");
@@ -711,8 +723,10 @@ function createAppStore() {
 			}
 		},
 
+
+
 		async exportData(): Promise<boolean> {
-			return await persistenceService.exportData(state);
+			return await persistenceService.exportData(adaptToRootStore(state));
 		},
 
 		async importData(): Promise<boolean> {

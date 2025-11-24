@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { appStore } from "$lib/stores/app.svelte";
+	import { app } from "$lib/stores/root.svelte";
+	import { storage } from "$lib/services/storage";
 	import Icon from "@iconify/svelte";
 	import { onMount } from "svelte";
 
@@ -39,9 +40,9 @@
 				},
 				backup: backupData,
 				currentState: {
-					palettes: appStore.state.palettes.length,
-					references: appStore.state.references.length,
-					gradients: appStore.state.gradients.length,
+					palettes: app.palettes.palettes.length,
+					references: app.references.references.length,
+					gradients: app.gradients.gradients.length,
 				},
 			};
 		} catch (error) {
@@ -51,21 +52,29 @@
 
 	async function testSave() {
 		console.log("🧪 Manual save test...");
-		const result = await appStore.saveToStorage();
+		const result = await Promise.all([
+			app.palettes.save(),
+			app.references.save(),
+			app.gradients.save(),
+		]);
 		console.log("🧪 Save result:", result);
 		await refreshStorageInfo();
 	}
 
 	async function testLoad() {
 		console.log("🧪 Manual load test...");
-		const result = await appStore.loadFromStorage();
+		const result = await Promise.all([
+			app.palettes.load(),
+			app.references.load(),
+			app.gradients.load(),
+		]);
 		console.log("🧪 Load result:", result);
 		await refreshStorageInfo();
 	}
 
 	async function clearAll() {
 		console.log("🧪 Clearing all storage...");
-		await appStore.nuclearClearStorage();
+		await storage.clear();
 		localStorage.removeItem("phoenyxcolor-immediate-backup");
 		await refreshStorageInfo();
 	}
@@ -73,7 +82,8 @@
 	async function hardReset() {
 		if (confirm("Are you sure? This will clear ALL data and reload the page.")) {
 			console.log("🚨 Hard reset initiated...");
-			await appStore.hardReset();
+			await storage.clear();
+			window.location.reload();
 		}
 	}
 

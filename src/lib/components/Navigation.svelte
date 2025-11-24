@@ -6,7 +6,7 @@
 	import { themeChange } from "theme-change";
 	import EyedropperTool from "$lib/components/common/EyedropperTool.svelte";
 	import { toast } from "svelte-sonner";
-	import { appStore } from "$lib/stores/app.svelte";
+	import { app } from "$lib/stores/root.svelte";
 
 	interface NavItem {
 		id: string;
@@ -44,7 +44,7 @@
 	let isMobileMenuOpen = $state(false);
 
 	// Get current active path
-	let currentPath = $derived($page.url.pathname);
+	let currentPath = $derived($page?.url?.pathname ?? "/");
 
 	// Initialize theme-change on mount
 	onMount(() => {
@@ -147,33 +147,33 @@
 	<div class="navbar-end">
 		<div class="flex items-center space-x-1">
 			<!-- Global Color Buffer Display -->
-			{#if appStore.state.globalColorBuffer}
+			{#if app.globalColorBuffer}
 				<div
 					class="hidden sm:flex items-center space-x-2 px-3 py-1 bg-base-200 rounded-lg border border-base-300"
 				>
 					<div
 						onkeydown={(e) => {
 							if (e.key === "Enter") {
-								navigator.clipboard.writeText(appStore.state.globalColorBuffer!);
-								toast.success(`Copied ${appStore.state.globalColorBuffer}!`);
+								navigator.clipboard.writeText(app.globalColorBuffer!);
+								toast.success(`Copied ${app.globalColorBuffer}!`);
 							}
 						}}
 						role="button"
 						tabindex="0"
 						class="w-6 h-6 rounded border border-base-300 cursor-pointer"
-						style:background-color={appStore.state.globalColorBuffer}
+						style:background-color={app.globalColorBuffer}
 						onclick={() => {
-							navigator.clipboard.writeText(appStore.state.globalColorBuffer!);
-							toast.success(`Copied ${appStore.state.globalColorBuffer}!`);
+							navigator.clipboard.writeText(app.globalColorBuffer!);
+							toast.success(`Copied ${app.globalColorBuffer}!`);
 						}}
-						title="Click to copy: {appStore.state.globalColorBuffer}"
+						title="Click to copy: {app.globalColorBuffer}"
 					></div>
 					<span class="text-xs font-mono text-base-content/70">
-						{appStore.state.globalColorBuffer}
+						{app.globalColorBuffer}
 					</span>
 					<button
 						class="btn btn-xs btn-ghost"
-						onclick={() => appStore.clearGlobalColor()}
+						onclick={() => app.clearGlobalColor()}
 						title="Clear global color"
 						aria-label="Clear global color buffer"
 					>
@@ -225,7 +225,7 @@
 		</div>
 
 		<!-- Mobile Global Color Buffer -->
-		{#if appStore.state.globalColorBuffer}
+		{#if app.globalColorBuffer}
 			<div class="px-4 pb-4">
 				<div
 					class="flex items-center space-x-2 px-3 py-2 bg-base-200 rounded-lg border border-base-300"
@@ -235,18 +235,18 @@
 						type="button"
 						aria-label="Copy global color"
 						class="w-6 h-6 rounded border border-base-300 cursor-pointer"
-						style:background-color={appStore.state.globalColorBuffer}
+						style:background-color={app.globalColorBuffer}
 						onclick={() => {
-							navigator.clipboard.writeText(appStore.state.globalColorBuffer!);
+							navigator.clipboard.writeText(app.globalColorBuffer!);
 						}}
-						title="Click to copy: {appStore.state.globalColorBuffer}"
+						title="Click to copy: {app.globalColorBuffer}"
 					></button>
 					<span class="text-xs font-mono text-base-content/70 flex-1">
-						{appStore.state.globalColorBuffer}
+						{app.globalColorBuffer}
 					</span>
 					<button
 						class="btn btn-xs btn-ghost"
-						onclick={() => appStore.clearGlobalColor()}
+						onclick={() => app.clearGlobalColor()}
 						title="Clear global color"
 						aria-label="Clear global color buffer"
 					>
