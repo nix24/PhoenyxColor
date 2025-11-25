@@ -1,24 +1,16 @@
 <script lang="ts">
 	import { app } from "$lib/stores/root.svelte";
 	import type { ColorPalette } from "$lib/stores/palettes.svelte";
-	import { validatePalette, validateColor } from "$lib/schemas/validation";
 	import pkg from "file-saver";
 	import Icon from "@iconify/svelte";
 	import { toast } from "svelte-sonner";
-	import { onMount } from "svelte";
-	import { dndzone } from "svelte-dnd-action";
-	import chroma from "chroma-js";
 	import AdvancedColorPicker from "$lib/components/common/AdvancedColorPicker.svelte";
 	import EyedropperTool from "$lib/components/common/EyedropperTool.svelte";
-	import {
-		orderColorsForGradient,
-		rgbToHex,
-		orderColorsByHueLightness,
-		getColorLightness,
-	} from "$lib/utils/colorUtils";
+	import { orderColorsByHueLightness, getColorLightness, rgbToHex } from "$lib/utils/colorUtils";
 	import { extractPalette } from "$lib/utils/color-engine";
 	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
 	import { cn } from "$lib/utils/cn";
+	import { validatePalette } from "$lib/schemas/validation";
 
 	const { saveAs } = pkg;
 
@@ -1165,306 +1157,315 @@
 	<!-- Main Content -->
 	<div class="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden">
 		<!-- Palettes List -->
-		<GlassPanel class="w-full lg:w-80 flex flex-col overflow-hidden" intensity="low">
-			<div class="p-4 border-b border-white/5 bg-black/20">
-				<h3 class="font-semibold text-white">
-					Palettes ({filteredPalettes.length})
-				</h3>
-			</div>
+		<GlassPanel class="w-full lg:w-80 overflow-hidden" intensity="low">
+			<div class="flex flex-col h-full">
+				<div class="p-4 border-b border-white/5 bg-black/20">
+					<h3 class="font-semibold text-white">
+						Palettes ({filteredPalettes.length})
+					</h3>
+				</div>
 
-			<div class="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-				{#each filteredPalettes as palette (palette.id)}
-					<div
-						class={cn(
-							"p-3 rounded-xl cursor-pointer transition-all duration-200 border",
-							app.palettes.activePaletteId === palette.id
-								? "bg-phoenix-primary/20 border-phoenix-primary/50 shadow-[0_0_15px_rgba(255,0,127,0.2)]"
-								: "bg-transparent border-transparent hover:bg-white/5 hover:border-white/10"
-						)}
-						onclick={() => app.palettes.setActive(palette.id)}
-						role="button"
-						tabindex="0"
-						onkeydown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault();
-								app.palettes.setActive(palette.id);
-							}
-						}}
-					>
-						<!-- Palette Header -->
-						<div class="flex items-center justify-between mb-2">
-							<div class="flex-1 min-w-0">
-								<h4
-									class={cn(
-										"font-medium truncate text-sm",
-										app.palettes.activePaletteId === palette.id ? "text-white" : "text-text-muted"
-									)}
-									title={palette.name}
-								>
-									{palette.name}
-								</h4>
-								<p class="text-[10px] text-text-muted/60 uppercase tracking-wider">
-									{palette.colors.length}/{palette.maxSlots} colors
-								</p>
+				<div class="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+					{#each filteredPalettes as palette (palette.id)}
+						<div
+							class={cn(
+								"p-3 rounded-xl cursor-pointer transition-all duration-200 border",
+								app.palettes.activePaletteId === palette.id
+									? "bg-phoenix-primary/20 border-phoenix-primary/50 shadow-[0_0_15px_rgba(255,0,127,0.2)]"
+									: "bg-transparent border-transparent hover:bg-white/5 hover:border-white/10"
+							)}
+							onclick={() => app.palettes.setActive(palette.id)}
+							role="button"
+							tabindex="0"
+							onkeydown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									app.palettes.setActive(palette.id);
+								}
+							}}
+						>
+							<!-- Palette Header -->
+							<div class="flex items-center justify-between mb-2">
+								<div class="flex-1 min-w-0">
+									<h4
+										class={cn(
+											"font-medium truncate text-sm",
+											app.palettes.activePaletteId === palette.id ? "text-white" : "text-text-muted"
+										)}
+										title={palette.name}
+									>
+										{palette.name}
+									</h4>
+									<p class="text-[10px] text-text-muted/60 uppercase tracking-wider">
+										{palette.colors.length}/{palette.maxSlots} colors
+									</p>
+								</div>
+
+								<div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+									<!-- Actions (only visible on hover/active could be better, but keeping simple for now) -->
+								</div>
 							</div>
 
-							<div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-								<!-- Actions (only visible on hover/active could be better, but keeping simple for now) -->
+							<!-- Mini Color Swatches -->
+							<div class="flex gap-0.5 h-2 rounded overflow-hidden bg-black/20">
+								{#each palette.colors.slice(0, 10) as color}
+									<div class="flex-1 h-full" style:background-color={color}></div>
+								{/each}
+								{#if palette.colors.length === 0}
+									<div class="w-full h-full bg-white/5"></div>
+								{/if}
 							</div>
 						</div>
+					{/each}
 
-						<!-- Mini Color Swatches -->
-						<div class="flex gap-0.5 h-2 rounded overflow-hidden bg-black/20">
-							{#each palette.colors.slice(0, 10) as color}
-								<div class="flex-1 h-full" style:background-color={color}></div>
-							{/each}
-							{#if palette.colors.length === 0}
-								<div class="w-full h-full bg-white/5"></div>
-							{/if}
+					{#if app.palettes.palettes.length === 0}
+						<div class="text-center py-8 text-text-muted/50">
+							<Icon
+								icon="material-symbols:palette-outline"
+								class="h-12 w-12 mx-auto mb-2 opacity-30"
+							/>
+							<p>No palettes yet</p>
 						</div>
-					</div>
-				{/each}
-
-				{#if app.palettes.palettes.length === 0}
-					<div class="text-center py-8 text-text-muted/50">
-						<Icon
-							icon="material-symbols:palette-outline"
-							class="h-12 w-12 mx-auto mb-2 opacity-30"
-						/>
-						<p>No palettes yet</p>
-					</div>
-				{:else if filteredPalettes.length === 0}
-					<div class="text-center py-8 text-text-muted/50">
-						<Icon icon="material-symbols:search-off" class="h-12 w-12 mx-auto mb-2 opacity-30" />
-						<p>No matches found</p>
-					</div>
-				{/if}
+					{:else if filteredPalettes.length === 0}
+						<div class="text-center py-8 text-text-muted/50">
+							<Icon icon="material-symbols:search-off" class="h-12 w-12 mx-auto mb-2 opacity-30" />
+							<p>No matches found</p>
+						</div>
+					{/if}
+				</div>
 			</div>
 		</GlassPanel>
 
 		<!-- Palette Editor -->
-		<GlassPanel class="flex-1 flex flex-col overflow-hidden relative" intensity="medium">
-			{#if app.palettes.activePaletteId}
-				<div class="p-4 md:p-6 flex-1 overflow-y-auto custom-scrollbar">
-					<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-						<div>
-							<h3 class="text-2xl font-bold text-white tracking-wide">
-								{app.palettes.activePalette?.name}
-							</h3>
-							<div class="flex items-center gap-2 mt-1">
-								<span class="badge badge-sm bg-phoenix-primary/20 text-phoenix-primary border-none">
-									{app.palettes.activePalette?.colors.length} Colors
-								</span>
-								{#each app.palettes.activePalette?.tags || [] as tag}
-									<span class="badge badge-sm badge-ghost text-text-muted">{tag}</span>
+		<GlassPanel class="flex-1 overflow-hidden relative" intensity="medium">
+			<div class="flex flex-col h-full">
+				{#if app.palettes.activePaletteId}
+					<div class="p-4 md:p-6 flex-1 overflow-y-auto custom-scrollbar">
+						<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+							<div>
+								<h3 class="text-2xl font-bold text-white tracking-wide">
+									{app.palettes.activePalette?.name}
+								</h3>
+								<div class="flex items-center gap-2 mt-1">
+									<span
+										class="badge badge-sm bg-phoenix-primary/20 text-phoenix-primary border-none"
+									>
+										{app.palettes.activePalette?.colors.length} Colors
+									</span>
+									{#each app.palettes.activePalette?.tags || [] as tag}
+										<span class="badge badge-sm badge-ghost text-text-muted">{tag}</span>
+									{/each}
+								</div>
+							</div>
+
+							<!-- Actions Toolbar -->
+							<div class="flex flex-wrap items-center gap-2">
+								<button
+									class="btn btn-sm btn-ghost text-text-muted hover:text-white"
+									onclick={importPaletteFile}
+									title="Import"
+								>
+									<Icon icon="material-symbols:file-upload" class="h-4 w-4" />
+								</button>
+
+								<div class="dropdown dropdown-end">
+									<button
+										class="btn btn-sm btn-ghost text-text-muted hover:text-white"
+										tabindex="0"
+									>
+										<Icon icon="material-symbols:download" class="h-4 w-4" />
+									</button>
+									<ul
+										class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-[1] w-52 p-2 shadow-xl backdrop-blur-xl"
+									>
+										<li>
+											<button
+												onclick={() => exportPalette(app.palettes.activePalette!, "json")}
+												class="text-text-muted hover:text-white hover:bg-white/5">JSON</button
+											>
+										</li>
+										<li>
+											<button
+												onclick={() => exportPalette(app.palettes.activePalette!, "css")}
+												class="text-text-muted hover:text-white hover:bg-white/5">CSS</button
+											>
+										</li>
+										<li>
+											<button
+												onclick={() => exportPalette(app.palettes.activePalette!, "png")}
+												class="text-text-muted hover:text-white hover:bg-white/5">PNG Image</button
+											>
+										</li>
+									</ul>
+								</div>
+
+								<div class="h-4 w-px bg-white/10 mx-1"></div>
+
+								<button
+									class="btn btn-sm btn-ghost text-error hover:bg-error/10"
+									onclick={() => {
+										if (confirm("Are you sure you want to delete this palette?")) {
+											app.palettes.remove(app.palettes.activePalette!.id);
+										}
+									}}
+									title="Delete Palette"
+								>
+									<Icon icon="material-symbols:delete-outline" class="h-4 w-4" />
+								</button>
+							</div>
+						</div>
+
+						<!-- Harmony Generator -->
+						<div class="mb-8 p-4 rounded-xl bg-black/20 border border-white/5">
+							<h4 class="text-sm font-medium text-text-muted mb-3 uppercase tracking-wider">
+								Generate Harmony
+							</h4>
+							<div class="flex flex-wrap gap-2">
+								{#each ["complementary", "analogous", "triadic", "monochromatic", "split-complementary"] as harmony}
+									<button
+										class="btn btn-xs btn-outline border-white/10 text-text-muted hover:text-white hover:border-phoenix-primary hover:bg-phoenix-primary/10 capitalize"
+										onclick={() =>
+											fillPaletteWithHarmony(app.palettes.activePalette!.id, harmony as any)}
+									>
+										{harmony.replace("-", " ")}
+									</button>
 								{/each}
 							</div>
 						</div>
 
-						<!-- Actions Toolbar -->
-						<div class="flex flex-wrap items-center gap-2">
+						<!-- Sorting & Grid -->
+						<div class="flex justify-end gap-2 mb-2">
 							<button
-								class="btn btn-sm btn-ghost text-text-muted hover:text-white"
-								onclick={importPaletteFile}
-								title="Import"
-							>
-								<Icon icon="material-symbols:file-upload" class="h-4 w-4" />
-							</button>
-
-							<div class="dropdown dropdown-end">
-								<button class="btn btn-sm btn-ghost text-text-muted hover:text-white" tabindex="0">
-									<Icon icon="material-symbols:download" class="h-4 w-4" />
-								</button>
-								<ul
-									class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-[1] w-52 p-2 shadow-xl backdrop-blur-xl"
-								>
-									<li>
-										<button
-											onclick={() => exportPalette(app.palettes.activePalette!, "json")}
-											class="text-text-muted hover:text-white hover:bg-white/5">JSON</button
-										>
-									</li>
-									<li>
-										<button
-											onclick={() => exportPalette(app.palettes.activePalette!, "css")}
-											class="text-text-muted hover:text-white hover:bg-white/5">CSS</button
-										>
-									</li>
-									<li>
-										<button
-											onclick={() => exportPalette(app.palettes.activePalette!, "png")}
-											class="text-text-muted hover:text-white hover:bg-white/5">PNG Image</button
-										>
-									</li>
-								</ul>
-							</div>
-
-							<div class="h-4 w-px bg-white/10 mx-1"></div>
-
-							<button
-								class="btn btn-sm btn-ghost text-error hover:bg-error/10"
+								class="btn btn-xs btn-ghost text-text-muted hover:text-white"
 								onclick={() => {
-									if (confirm("Are you sure you want to delete this palette?")) {
-										app.palettes.remove(app.palettes.activePalette!.id);
+									if (app.palettes.activePalette) {
+										const sorted = orderColorsByHueLightness(app.palettes.activePalette.colors);
+										app.palettes.update(app.palettes.activePalette.id, { colors: sorted });
+										toast.success("Sorted by Hue & Lightness");
 									}
 								}}
-								title="Delete Palette"
+								title="Sort by Hue"
 							>
-								<Icon icon="material-symbols:delete-outline" class="h-4 w-4" />
+								<Icon icon="material-symbols:sort" class="w-4 h-4" />
+								Sort Hue
+							</button>
+							<button
+								class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+								onclick={() => {
+									if (app.palettes.activePalette) {
+										const sorted = [...app.palettes.activePalette.colors].sort((a, b) => {
+											return getColorLightness(a) - getColorLightness(b);
+										});
+										app.palettes.update(app.palettes.activePalette.id, { colors: sorted });
+										toast.success("Sorted by Lightness");
+									}
+								}}
+								title="Sort by Lightness"
+							>
+								<Icon icon="material-symbols:format-list-bulleted" class="w-4 h-4" />
+								Sort Lightness
 							</button>
 						</div>
-					</div>
 
-					<!-- Harmony Generator -->
-					<div class="mb-8 p-4 rounded-xl bg-black/20 border border-white/5">
-						<h4 class="text-sm font-medium text-text-muted mb-3 uppercase tracking-wider">
-							Generate Harmony
-						</h4>
-						<div class="flex flex-wrap gap-2">
-							{#each ["complementary", "analogous", "triadic", "monochromatic", "split-complementary"] as harmony}
+						<div
+							class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-8 p-1"
+						>
+							{#each app.palettes.activePalette!.colors as color, index}
+								<div class="group relative">
+									<button
+										class="aspect-square rounded-xl shadow-lg cursor-pointer w-full transition-all duration-300 hover:scale-105 hover:shadow-phoenix-primary/20 hover:z-10 relative overflow-hidden"
+										style:background-color={color}
+										onclick={() => copyColor(color)}
+										oncontextmenu={(e) =>
+											showContextMenu(e, app.palettes.activePalette!.id, index, color)}
+										type="button"
+									>
+										<!-- Shine effect -->
+										<div
+											class="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+										></div>
+
+										<!-- Copy Icon Overlay -->
+										<div
+											class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+										>
+											<div class="bg-black/50 backdrop-blur-sm p-2 rounded-full text-white">
+												<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
+											</div>
+										</div>
+									</button>
+
+									<div class="mt-2 text-center">
+										<p
+											class="text-xs font-mono text-text-muted group-hover:text-white transition-colors select-all"
+										>
+											{formatColor(color, "hex")}
+										</p>
+									</div>
+								</div>
+							{/each}
+
+							<!-- Add Slots -->
+							{#each Array(Math.max(0, app.palettes.activePalette!.maxSlots - app.palettes.activePalette!.colors.length)) as _}
 								<button
-									class="btn btn-xs btn-outline border-white/10 text-text-muted hover:text-white hover:border-phoenix-primary hover:bg-phoenix-primary/10 capitalize"
-									onclick={() =>
-										fillPaletteWithHarmony(app.palettes.activePalette!.id, harmony as any)}
+									class="aspect-square rounded-xl border-2 border-dashed border-white/10 hover:border-phoenix-primary/50 hover:bg-white/5 transition-all duration-300 flex items-center justify-center group"
+									onclick={() => addColorToPalette(app.palettes.activePalette!.id, selectedColor)}
+									type="button"
 								>
-									{harmony.replace("-", " ")}
+									<Icon
+										icon="material-symbols:add"
+										class="w-8 h-8 text-text-muted/30 group-hover:text-phoenix-primary transition-colors"
+									/>
 								</button>
 							{/each}
 						</div>
-					</div>
 
-					<!-- Sorting & Grid -->
-					<div class="flex justify-end gap-2 mb-2">
-						<button
-							class="btn btn-xs btn-ghost text-text-muted hover:text-white"
-							onclick={() => {
-								if (app.palettes.activePalette) {
-									const sorted = orderColorsByHueLightness(app.palettes.activePalette.colors);
-									app.palettes.update(app.palettes.activePalette.id, { colors: sorted });
-									toast.success("Sorted by Hue & Lightness");
-								}
-							}}
-							title="Sort by Hue"
-						>
-							<Icon icon="material-symbols:sort" class="w-4 h-4" />
-							Sort Hue
-						</button>
-						<button
-							class="btn btn-xs btn-ghost text-text-muted hover:text-white"
-							onclick={() => {
-								if (app.palettes.activePalette) {
-									const sorted = [...app.palettes.activePalette.colors].sort((a, b) => {
-										return getColorLightness(a) - getColorLightness(b);
-									});
-									app.palettes.update(app.palettes.activePalette.id, { colors: sorted });
-									toast.success("Sorted by Lightness");
-								}
-							}}
-							title="Sort by Lightness"
-						>
-							<Icon icon="material-symbols:format-list-bulleted" class="w-4 h-4" />
-							Sort Lightness
-						</button>
-					</div>
-
-					<div
-						class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-8 max-h-[400px] overflow-y-auto custom-scrollbar p-1"
-					>
-						{#each app.palettes.activePalette!.colors as color, index}
-							<div class="group relative">
-								<button
-									class="aspect-square rounded-xl shadow-lg cursor-pointer w-full transition-all duration-300 hover:scale-105 hover:shadow-phoenix-primary/20 hover:z-10 relative overflow-hidden"
-									style:background-color={color}
-									onclick={() => copyColor(color)}
-									oncontextmenu={(e) =>
-										showContextMenu(e, app.palettes.activePalette!.id, index, color)}
-									type="button"
-								>
-									<!-- Shine effect -->
-									<div
-										class="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-									></div>
-
-									<!-- Copy Icon Overlay -->
-									<div
-										class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-									>
-										<div class="bg-black/50 backdrop-blur-sm p-2 rounded-full text-white">
-											<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
-										</div>
-									</div>
-								</button>
-
-								<div class="mt-2 text-center">
-									<p
-										class="text-xs font-mono text-text-muted group-hover:text-white transition-colors select-all"
-									>
-										{formatColor(color, "hex")}
-									</p>
+						<!-- Recent Colors (History) -->
+						{#if colorHistory.length > 0}
+							<div class="border-t border-white/5 pt-6">
+								<h4 class="text-sm font-medium text-text-muted mb-4 uppercase tracking-wider">
+									Recent Colors
+								</h4>
+								<div class="flex flex-wrap gap-2">
+									{#each colorHistory.slice(0, 12) as color}
+										<button
+											class="w-8 h-8 rounded-full border border-white/10 cursor-pointer hover:scale-110 transition-transform shadow-sm"
+											style:background-color={color}
+											onclick={() => {
+												selectedColor = color;
+												updateSelectedColorFromPicker();
+											}}
+											title={color}
+											type="button"
+										></button>
+									{/each}
 								</div>
 							</div>
-						{/each}
-
-						<!-- Add Slots -->
-						{#each Array(Math.max(0, app.palettes.activePalette!.maxSlots - app.palettes.activePalette!.colors.length)) as _}
+						{/if}
+					</div>
+				{:else}
+					<div class="flex items-center justify-center h-full">
+						<div class="text-center text-text-muted/50">
+							<div
+								class="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 animate-float"
+							>
+								<Icon icon="material-symbols:palette-outline" class="h-12 w-12 opacity-50" />
+							</div>
+							<h3 class="text-xl font-bold text-white mb-2">No Palette Selected</h3>
+							<p class="mb-6 max-w-xs mx-auto">
+								Select a palette from the list or create a new one to start designing.
+							</p>
 							<button
-								class="aspect-square rounded-xl border-2 border-dashed border-white/10 hover:border-phoenix-primary/50 hover:bg-white/5 transition-all duration-300 flex items-center justify-center group"
-								onclick={() => addColorToPalette(app.palettes.activePalette!.id, selectedColor)}
+								class="btn btn-primary bg-gradient-to-r from-phoenix-primary to-phoenix-violet border-none text-white shadow-lg hover:shadow-phoenix-primary/50"
+								onclick={() => (showCreateDialog = true)}
 								type="button"
 							>
-								<Icon
-									icon="material-symbols:add"
-									class="w-8 h-8 text-text-muted/30 group-hover:text-phoenix-primary transition-colors"
-								/>
+								Create Palette
 							</button>
-						{/each}
-					</div>
-
-					<!-- Recent Colors (History) -->
-					{#if colorHistory.length > 0}
-						<div class="border-t border-white/5 pt-6">
-							<h4 class="text-sm font-medium text-text-muted mb-4 uppercase tracking-wider">
-								Recent Colors
-							</h4>
-							<div class="flex flex-wrap gap-2">
-								{#each colorHistory.slice(0, 12) as color}
-									<button
-										class="w-8 h-8 rounded-full border border-white/10 cursor-pointer hover:scale-110 transition-transform shadow-sm"
-										style:background-color={color}
-										onclick={() => {
-											selectedColor = color;
-											updateSelectedColorFromPicker();
-										}}
-										title={color}
-										type="button"
-									></button>
-								{/each}
-							</div>
 						</div>
-					{/if}
-				</div>
-			{:else}
-				<div class="flex items-center justify-center h-full">
-					<div class="text-center text-text-muted/50">
-						<div
-							class="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 animate-float"
-						>
-							<Icon icon="material-symbols:palette-outline" class="h-12 w-12 opacity-50" />
-						</div>
-						<h3 class="text-xl font-bold text-white mb-2">No Palette Selected</h3>
-						<p class="mb-6 max-w-xs mx-auto">
-							Select a palette from the list or create a new one to start designing.
-						</p>
-						<button
-							class="btn btn-primary bg-gradient-to-r from-phoenix-primary to-phoenix-violet border-none text-white shadow-lg hover:shadow-phoenix-primary/50"
-							onclick={() => (showCreateDialog = true)}
-							type="button"
-						>
-							Create Palette
-						</button>
 					</div>
-				</div>
-			{/if}
+				{/if}
+			</div>
 		</GlassPanel>
 	</div>
 </div>
