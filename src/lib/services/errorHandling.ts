@@ -162,7 +162,7 @@ export class ErrorHandlingService {
 							typeof stop.position === "number" &&
 							stop.position >= 0 &&
 							stop.position <= 100 &&
-							this.validateHexColor(stop.color).isValid
+							this.validateHexColor(stop.color).isValid,
 					),
 				message: "All gradient stops must have valid positions (0-100) and colors",
 			},
@@ -290,7 +290,7 @@ export class ErrorHandlingService {
 				acc[type] = this.errorLog.filter((error) => error.type === type).length;
 				return acc;
 			},
-			{} as Record<ErrorType, number>
+			{} as Record<ErrorType, number>,
 		);
 
 		return {

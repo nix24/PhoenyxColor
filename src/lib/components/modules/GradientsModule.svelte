@@ -8,7 +8,7 @@
 	import { onMount } from "svelte";
 	import { colord } from "colord";
 	import chroma from "chroma-js";
-	import tinygradient from "tinygradient";
+
 	import { dndzone } from "svelte-dnd-action";
 	import { orderColorsForGradient } from "$lib/utils/colorUtils";
 	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
@@ -299,6 +299,8 @@
 		}
 	}
 
+	let interpolateGradient = $state(true);
+
 	// Generate from palette
 	function generateFromPalette(paletteId: string) {
 		const palette = app.palettes.palettes.find((p) => p.id === paletteId);
@@ -308,7 +310,11 @@
 		}
 
 		// Sort colors using perceptual color ordering for better gradient flow
-		const colors = orderColorsForGradient(palette.colors);
+		let colors = orderColorsForGradient(palette.colors);
+
+		if (interpolateGradient && colors.length < 5) {
+			colors = chroma.scale(colors).mode("lch").colors(5);
+		}
 
 		const stops: GradientStop[] = colors.map((color: string, index: number) => ({
 			color,
@@ -425,7 +431,7 @@
 		let gradientDef = "";
 
 		switch (gradient.type) {
-			case "linear":
+			case "linear": {
 				const angle = gradient.angle || 45;
 				const x1 = 50 - 50 * Math.cos((angle * Math.PI) / 180);
 				const y1 = 50 - 50 * Math.sin((angle * Math.PI) / 180);
@@ -435,6 +441,7 @@
                     ${gradient.stops.map((stop) => `<stop offset="${stop.position}%" stop-color="${stop.color}"/>`).join("\n")}
                 </linearGradient>`;
 				break;
+			}
 			case "radial":
 				gradientDef = `<radialGradient id="${gradientId}" cx="${gradient.centerX || 50}%" cy="${gradient.centerY || 50}%" r="50%">
                     ${gradient.stops.map((stop) => `<stop offset="${stop.position}%" stop-color="${stop.color}"/>`).join("\n")}
@@ -468,16 +475,18 @@
 
 		try {
 			switch (format) {
-				case "css":
+				case "css": {
 					const css = `background: ${generateCSSGradient(gradient)};`;
 					await navigator.clipboard.writeText(css);
 					toast.success("CSS copied to clipboard!");
 					break;
-				case "json":
+				}
+				case "json": {
 					const json = JSON.stringify(gradient, null, 2);
 					const jsonBlob = new Blob([json], { type: "application/json;charset=utf-8" });
 					saveAs(jsonBlob, `${gradient.name}.json`);
 					break;
+				}
 				case "png":
 					await exportAsPNG(gradient);
 					break;
@@ -500,9 +509,9 @@
 		canvas.height = previewSize.height;
 
 		// Create gradient based on type
-		let grad;
+		let grad: CanvasGradient;
 		switch (gradient.type) {
-			case "linear":
+			case "linear": {
 				const angle = ((gradient.angle || 45) * Math.PI) / 180;
 				const x1 = canvas.width / 2 - (Math.cos(angle) * canvas.width) / 2;
 				const y1 = canvas.height / 2 - (Math.sin(angle) * canvas.height) / 2;
@@ -510,7 +519,8 @@
 				const y2 = canvas.height / 2 + (Math.sin(angle) * canvas.height) / 2;
 				grad = ctx.createLinearGradient(x1, y1, x2, y2);
 				break;
-			case "radial":
+			}
+			case "radial": {
 				const centerX = ((gradient.centerX || 50) / 100) * canvas.width;
 				const centerY = ((gradient.centerY || 50) / 100) * canvas.height;
 				grad = ctx.createRadialGradient(
@@ -522,6 +532,7 @@
 					Math.max(canvas.width, canvas.height) / 2
 				);
 				break;
+			}
 			default:
 				grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
 		}
@@ -556,11 +567,12 @@
 	}
 
 	function handleStopDndFinalize(e: CustomEvent) {
-		if (app.gradients.activeGradient) {
-			app.gradients.activeGradient.stops = e.detail.items;
+		const activeGradient = app.gradients.activeGradient;
+		if (activeGradient) {
+			activeGradient.stops = e.detail.items;
 			// Update positions based on new order
-			app.gradients.activeGradient.stops.forEach((stop, index) => {
-				stop.position = (index / (app.gradients.activeGradient!.stops.length - 1)) * 100;
+			activeGradient.stops.forEach((stop, index) => {
+				stop.position = (index / (activeGradient.stops.length - 1)) * 100;
 			});
 			toast.success("Color stops reordered!");
 		}
@@ -570,7 +582,7 @@
 <div class="h-full flex flex-col gap-4">
 	<!-- Enhanced Header -->
 	<GlassPanel
-		class="flex flex-col md:flex-row md:items-center justify-between p-6 gap-4 shrink-0"
+		class="flex flex-col md:flex-row md:items-center justify-between p-6 gap-4 shrink-0 overflow-visible z-20"
 		intensity="low"
 	>
 		<div>
@@ -627,8 +639,18 @@
 							From Palette
 						</button>
 						<ul
-							class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-[1] w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
+							class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-[100] w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
 						>
+							<div class="p-2 border-b border-white/10 mb-2">
+								<label class="label cursor-pointer justify-start gap-2 p-0">
+									<input
+										type="checkbox"
+										class="checkbox checkbox-xs checkbox-primary"
+										bind:checked={interpolateGradient}
+									/>
+									<span class="label-text text-xs text-white">Smooth Gradient</span>
+								</label>
+							</div>
 							{#each app.palettes.palettes as palette (palette.id)}
 								<li>
 									<button

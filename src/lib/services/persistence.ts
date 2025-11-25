@@ -281,7 +281,7 @@ export class PersistenceService {
 
 			// After removing phoenyxcolor keys, also clear theme-related keys that may be left behind
 			const themeKeys: string[] = Object.keys(localStorage).filter(
-				(key) => key.includes("theme") || key.includes("daisy")
+				(key) => key.includes("theme") || key.includes("daisy"),
 			);
 
 			themeKeys.forEach((key) => {

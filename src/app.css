@@ -1,6 +1,6 @@
 @import "tailwindcss";
-@plugin '@tailwindcss/forms';
-@plugin '@tailwindcss/typography';
+@plugin "@tailwindcss/forms";
+@plugin "@tailwindcss/typography";
 @plugin "daisyui" {
 	themes:
 		light --default,
@@ -36,19 +36,24 @@
 	--color-void-deep: #0a0810;
 	--color-glass: rgba(20, 20, 30, 0.6);
 	--color-glass-border: rgba(255, 255, 255, 0.08);
-	--color-phoenix-primary: #FF007F;
-	--color-phoenix-violet: #7F00FF;
-	--color-phoenix-accent: #FFD700;
-	--color-text-main: #FFFFFF;
-	--color-text-muted: #A0A0C0;
+	--color-phoenix-primary: #ff007f;
+	--color-phoenix-violet: #7f00ff;
+	--color-phoenix-accent: #ffd700;
+	--color-text-main: #ffffff;
+	--color-text-muted: #a0a0c0;
 
 	/* Animations */
 	--animate-float: float 6s ease-in-out infinite;
 	--animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-	
+
 	@keyframes float {
-		0%, 100% { transform: translateY(0); }
-		50% { transform: translateY(-10px); }
+		0%,
+		100% {
+			transform: translateY(0);
+		}
+		50% {
+			transform: translateY(-10px);
+		}
 	}
 }
 
@@ -59,15 +64,15 @@
 	--color-void-deep: #0a0810;
 	--color-glass: rgba(20, 20, 30, 0.6);
 	--color-glass-border: rgba(255, 255, 255, 0.08);
-	
+
 	/* Accents */
-	--color-phoenix-primary: #FF007F; /* Electric Magenta */
-	--color-phoenix-violet: #7F00FF; /* Deep Violet */
-	--color-phoenix-accent: #FFD700; /* Cyber Yellow */
-	
+	--color-phoenix-primary: #ff007f; /* Electric Magenta */
+	--color-phoenix-violet: #7f00ff; /* Deep Violet */
+	--color-phoenix-accent: #ffd700; /* Cyber Yellow */
+
 	/* Text */
-	--color-text-main: #FFFFFF;
-	--color-text-muted: #A0A0C0;
+	--color-text-main: #ffffff;
+	--color-text-muted: #a0a0c0;
 
 	/* Animation Curves (Osu! style - snappy but smooth) */
 	--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
@@ -75,7 +80,8 @@
 }
 
 /* Base Styles */
-html, body {
+html,
+body {
 	background-color: var(--color-void);
 	color: var(--color-text-main);
 	font-family: "Montserrat", system-ui, sans-serif;
@@ -97,12 +103,19 @@ body::before {
 }
 
 /* Typography Overrides */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
 	font-family: "Montserrat", sans-serif;
 	letter-spacing: 0.02em;
 }
 
-code, pre, .font-mono {
+code,
+pre,
+.font-mono {
 	font-family: "JetBrains Mono", monospace;
 }
 
@@ -112,7 +125,7 @@ code, pre, .font-mono {
 	backdrop-filter: blur(16px);
 	-webkit-backdrop-filter: blur(16px);
 	border: 1px solid var(--color-glass-border);
-	box-shadow: 
+	box-shadow:
 		0 4px 30px rgba(0, 0, 0, 0.1),
 		inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
@@ -125,7 +138,7 @@ code, pre, .font-mono {
 	background: rgba(30, 30, 45, 0.7);
 	border-color: rgba(255, 255, 255, 0.15);
 	transform: translateY(-2px);
-	box-shadow: 
+	box-shadow:
 		0 10px 40px rgba(0, 0, 0, 0.2),
 		inset 0 1px 0 rgba(255, 255, 255, 0.1),
 		0 0 20px rgba(127, 0, 255, 0.1); /* Subtle violet bloom */

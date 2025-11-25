@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ReferencesModule from "$lib/components/modules/ReferencesModule.svelte";
+import ReferencesModule from "$lib/components/modules/ReferencesModule.svelte";
 </script>
 
 <svelte:head>

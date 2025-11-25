@@ -4,30 +4,26 @@ import { ReferenceStore } from "./references.svelte";
 import { GradientStore } from "./gradients.svelte";
 
 export class RootStore {
-    settings = new SettingsStore();
-    palettes = new PaletteStore();
-    references = new ReferenceStore();
-    gradients = new GradientStore();
+	settings = new SettingsStore();
+	palettes = new PaletteStore();
+	references = new ReferenceStore();
+	gradients = new GradientStore();
 
-    // Global UI state
-    isEyedropperActive = $state(false);
-    globalColorBuffer = $state<string | null>(null);
+	// Global UI state
+	isEyedropperActive = $state(false);
+	globalColorBuffer = $state<string | null>(null);
 
-    constructor() {
-        // Initialize or coordinate stores if needed
-    }
+	toggleEyedropper() {
+		this.isEyedropperActive = !this.isEyedropperActive;
+	}
 
-    toggleEyedropper() {
-        this.isEyedropperActive = !this.isEyedropperActive;
-    }
+	setGlobalColor(color: string) {
+		this.globalColorBuffer = color;
+	}
 
-    setGlobalColor(color: string) {
-        this.globalColorBuffer = color;
-    }
-
-    clearGlobalColor() {
-        this.globalColorBuffer = null;
-    }
+	clearGlobalColor() {
+		this.globalColorBuffer = null;
+	}
 }
 
 // Create singleton instance

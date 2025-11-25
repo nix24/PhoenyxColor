@@ -70,7 +70,8 @@ class KeyboardShortcutsService {
 					// Context aware undo
 					const path = window.location.pathname;
 					if (path.includes("/palettes")) app.palettes.history.undo(app.palettes.palettes);
-					else if (path.includes("/references")) app.references.history.undo(app.references.references);
+					else if (path.includes("/references"))
+						app.references.history.undo(app.references.references);
 					else if (path.includes("/gradients")) app.gradients.history.undo(app.gradients.gradients);
 					else toast.info("Undo not available here");
 				},
@@ -84,7 +85,8 @@ class KeyboardShortcutsService {
 					// Context aware redo
 					const path = window.location.pathname;
 					if (path.includes("/palettes")) app.palettes.history.redo(app.palettes.palettes);
-					else if (path.includes("/references")) app.references.history.redo(app.references.references);
+					else if (path.includes("/references"))
+						app.references.history.redo(app.references.references);
 					else if (path.includes("/gradients")) app.gradients.history.redo(app.gradients.gradients);
 					else toast.info("Redo not available here");
 				},
@@ -99,7 +101,8 @@ class KeyboardShortcutsService {
 					// Context aware redo (Alt)
 					const path = window.location.pathname;
 					if (path.includes("/palettes")) app.palettes.history.redo(app.palettes.palettes);
-					else if (path.includes("/references")) app.references.history.redo(app.references.references);
+					else if (path.includes("/references"))
+						app.references.history.redo(app.references.references);
 					else if (path.includes("/gradients")) app.gradients.history.redo(app.gradients.gradients);
 					else toast.info("Redo not available here");
 				},
@@ -116,7 +119,7 @@ class KeyboardShortcutsService {
 						app.palettes.save(),
 						app.references.save(),
 						app.gradients.save(),
-						app.settings.save()
+						app.settings.save(),
 					]).then(() => toast.success("Saved all changes"));
 				},
 				description: "Save",

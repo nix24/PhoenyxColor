@@ -3,7 +3,13 @@
 import { browser } from "$app/environment";
 import { toast } from "svelte-sonner";
 import { safeSet, safeGet } from "$lib/utils/storageUtils";
-import type { ReferenceImage, ColorPalette, Gradient, AppSettings, TutorialState } from "$lib/stores/app.svelte";
+import type {
+	ReferenceImage,
+	ColorPalette,
+	Gradient,
+	AppSettings,
+	TutorialState,
+} from "$lib/stores/app.svelte";
 
 const STORAGE_KEY = "phoenyxcolor-simple-storage";
 const VERSION = "1.0";
@@ -59,10 +65,12 @@ export class SimpleStorageService {
 			if (this.saveTimer) clearTimeout(this.saveTimer);
 
 			this.saveTimer = window.setTimeout(async () => {
-				const result = await this.performSave(this.pendingState!);
+				const result = await this.performSave(this.pendingState);
 				this.pendingState = null;
 				// Flush all awaiting resolvers
-				this.pendingResolvers.forEach((r) => r(result));
+				for (const r of this.pendingResolvers) {
+					r(result);
+				}
 				this.pendingResolvers = [];
 			}, SimpleStorageService.DEBOUNCE_MS);
 		});
@@ -89,12 +97,14 @@ export class SimpleStorageService {
 				activePalette: state.activePalette,
 				activeGradient: state.activeGradient,
 				settings,
-				tutorialState: state.tutorialState ? {
-					...state.tutorialState,
-					isActive: false, // Don't persist active tutorial state
-					currentStep: 0,
-					currentModule: null,
-				} : undefined,
+				tutorialState: state.tutorialState
+					? {
+							...state.tutorialState,
+							isActive: false, // Don't persist active tutorial state
+							currentStep: 0,
+							currentModule: null,
+						}
+					: undefined,
 			};
 
 			const storageData: SimpleStorageData = {
@@ -185,7 +195,7 @@ export class SimpleStorageService {
 
 			// Get all localStorage keys that start with 'phoenyxcolor'
 			const keysToRemove = Object.keys(localStorage).filter((key) =>
-				key.startsWith("phoenyxcolor")
+				key.startsWith("phoenyxcolor"),
 			);
 
 			console.log("🧹 Found keys to remove:", keysToRemove);
@@ -198,7 +208,7 @@ export class SimpleStorageService {
 
 			// Also clear any theme data that might be stored
 			const themeKeys = Object.keys(localStorage).filter(
-				(key) => key.includes("theme") || key.includes("daisy")
+				(key) => key.includes("theme") || key.includes("daisy"),
 			);
 
 			console.log("🎨 Theme-related keys found:", themeKeys);

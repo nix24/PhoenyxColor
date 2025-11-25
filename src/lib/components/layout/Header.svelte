@@ -1,21 +1,21 @@
 <script lang="ts">
-	import { app } from "$lib/stores/root.svelte";
-	import Icon from "@iconify/svelte";
-	import { toast } from "svelte-sonner";
-	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
+import { app } from "$lib/stores/root.svelte";
+import Icon from "@iconify/svelte";
+import { toast } from "svelte-sonner";
+import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
 
-	let { title = "PhoenyxColor" } = $props();
+let { title = "PhoenyxColor" } = $props();
 
-	function copyGlobalColor() {
-		if (app.globalColorBuffer) {
-			navigator.clipboard.writeText(app.globalColorBuffer);
-			toast.success(`Copied ${app.globalColorBuffer}!`);
-		}
+function copyGlobalColor() {
+	if (app.globalColorBuffer) {
+		navigator.clipboard.writeText(app.globalColorBuffer);
+		toast.success(`Copied ${app.globalColorBuffer}!`);
 	}
+}
 
-	function clearGlobalColor() {
-		app.clearGlobalColor();
-	}
+function clearGlobalColor() {
+	app.clearGlobalColor();
+}
 </script>
 
 <header class="h-16 flex items-center justify-between px-6 py-2 z-30">

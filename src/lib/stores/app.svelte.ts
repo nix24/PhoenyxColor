@@ -148,7 +148,7 @@ function createAppStore() {
 		moduleId: string,
 		actionType: string,
 		prevState: any,
-		nextState: any
+		nextState: any,
 	): UndoRedoAction {
 		return {
 			id: crypto.randomUUID(),
@@ -180,9 +180,9 @@ function createAppStore() {
 			activePalette: currentState.activePalette,
 			activeGradient: currentState.activeGradient,
 			// Mock methods required by RootStore but not used during simple persistence
-			toggleEyedropper: () => { },
-			setGlobalColor: () => { },
-			clearGlobalColor: () => { },
+			toggleEyedropper: () => {},
+			setGlobalColor: () => {},
+			clearGlobalColor: () => {},
 		};
 	}
 
@@ -238,7 +238,7 @@ function createAppStore() {
 			// Auto-save after adding reference (only if not clearing)
 			if (!clearingInProgress && state.settings.autoSave) {
 				this.saveToStorage().catch((error) =>
-					console.error("Auto-save failed after adding reference:", error)
+					console.error("Auto-save failed after adding reference:", error),
 				);
 			}
 		},
@@ -266,7 +266,7 @@ function createAppStore() {
 				// Auto-save after removing reference (only if not clearing)
 				if (!clearingInProgress && state.settings.autoSave) {
 					this.saveToStorage().catch((error) =>
-						console.error("Auto-save failed after removing reference:", error)
+						console.error("Auto-save failed after removing reference:", error),
 					);
 				}
 			}
@@ -367,7 +367,7 @@ function createAppStore() {
 			// Auto-save after removing palette (only if not clearing)
 			if (!clearingInProgress && state.settings.autoSave) {
 				this.saveToStorage().catch((error) =>
-					console.error("Auto-save failed after removing palette:", error)
+					console.error("Auto-save failed after removing palette:", error),
 				);
 			}
 		},
@@ -391,7 +391,7 @@ function createAppStore() {
 				// Auto-save after adding color (only if not clearing)
 				if (!clearingInProgress && state.settings.autoSave) {
 					this.saveToStorage().catch((error) =>
-						console.error("Auto-save failed after adding color:", error)
+						console.error("Auto-save failed after adding color:", error),
 					);
 				}
 			}
@@ -409,7 +409,7 @@ function createAppStore() {
 				// Auto-save after updating color (only if not clearing)
 				if (!clearingInProgress && state.settings.autoSave) {
 					this.saveToStorage().catch((error) =>
-						console.error("Auto-save failed after updating color:", error)
+						console.error("Auto-save failed after updating color:", error),
 					);
 				}
 			}
@@ -558,7 +558,8 @@ function createAppStore() {
 		undo() {
 			if (state.undoStack.length === 0) return;
 
-			const action = state.undoStack.pop()!;
+			const action = state.undoStack.pop();
+			if (!action) return;
 			state.redoStack.push(action);
 
 			// Apply the previous state based on module
@@ -578,7 +579,8 @@ function createAppStore() {
 		redo() {
 			if (state.redoStack.length === 0) return;
 
-			const action = state.redoStack.pop()!;
+			const action = state.redoStack.pop();
+			if (!action) return;
 			state.undoStack.push(action);
 
 			// Apply the next state based on module
@@ -649,7 +651,7 @@ function createAppStore() {
 							console.log(
 								"🆘 Found immediate backup with",
 								backup.palettes?.length || 0,
-								"palettes"
+								"palettes",
 							);
 
 							if (backup.palettes && backup.palettes.length > 0) {
@@ -661,7 +663,7 @@ function createAppStore() {
 								console.log(
 									"🆘 Restored from immediate backup:",
 									state.palettes.length,
-									"palettes"
+									"palettes",
 								);
 								this.markSaved();
 								return true;
@@ -723,8 +725,6 @@ function createAppStore() {
 			}
 		},
 
-
-
 		async exportData(): Promise<boolean> {
 			return await persistenceService.exportData(adaptToRootStore(state));
 		},
@@ -744,7 +744,7 @@ function createAppStore() {
 			if (state.settings.autoSave) {
 				persistenceService.startAutoSave(
 					() => this.saveToStorage(),
-					state.settings.autoSaveInterval
+					state.settings.autoSaveInterval,
 				);
 			}
 		},

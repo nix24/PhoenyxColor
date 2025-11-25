@@ -142,7 +142,9 @@
 				ctx?.drawImage(video, 0, 0);
 
 				// Stop video stream
-				stream.getTracks().forEach((track) => track.stop());
+				for (const track of stream.getTracks()) {
+					track.stop();
+				}
 
 				// Add click listener for color picking
 				document.addEventListener("click", handleCanvasClick);
@@ -217,7 +219,7 @@
 			[r, g, b]
 				.map((x) => {
 					const hex = x.toString(16);
-					return hex.length === 1 ? "0" + hex : hex;
+					return hex.length === 1 ? `0${hex}` : hex;
 				})
 				.join("")
 				.toUpperCase()

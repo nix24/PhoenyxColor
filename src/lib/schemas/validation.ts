@@ -117,7 +117,7 @@ export function validateGradient(gradient: unknown): {
 		return { valid: true, data: validatedGradient };
 	} catch (error) {
 		if (error instanceof z.ZodError) {
-			return { valid: false, error: error.errors[0]?.message || "Invalid gradient data" };
+			return { valid: false, error: error.issues[0]?.message || "Invalid gradient data" };
 		}
 		return { valid: false, error: "Unknown validation error" };
 	}
@@ -129,7 +129,7 @@ export function validatePalette(palette: unknown): { valid: boolean; error?: str
 		return { valid: true, data: validatedPalette };
 	} catch (error) {
 		if (error instanceof z.ZodError) {
-			return { valid: false, error: error.errors[0]?.message || "Invalid palette data" };
+			return { valid: false, error: error.issues[0]?.message || "Invalid palette data" };
 		}
 		return { valid: false, error: "Unknown validation error" };
 	}
@@ -141,7 +141,7 @@ export function validateAppData(data: unknown): { valid: boolean; error?: string
 		return { valid: true, data: validatedData };
 	} catch (error) {
 		if (error instanceof z.ZodError) {
-			return { valid: false, error: error.errors[0]?.message || "Invalid export data format" };
+			return { valid: false, error: error.issues[0]?.message || "Invalid export data format" };
 		}
 		return { valid: false, error: "Unknown validation error" };
 	}

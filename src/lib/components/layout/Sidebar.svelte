@@ -1,48 +1,48 @@
 <script lang="ts">
-	import { page } from "$app/state";
-	import { goto } from "$app/navigation";
-	import Icon from "@iconify/svelte";
-	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
-	import { cn } from "$lib/utils/cn";
+import { page } from "$app/state";
+import { goto } from "$app/navigation";
+import Icon from "@iconify/svelte";
+import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
+import { cn } from "$lib/utils/cn";
 
-	interface NavItem {
-		id: string;
-		path: string;
-		label: string;
-		icon: string;
-		description: string;
-	}
+interface NavItem {
+	id: string;
+	path: string;
+	label: string;
+	icon: string;
+	description: string;
+}
 
-	const navItems: NavItem[] = [
-		{
-			id: "references",
-			path: "/references",
-			label: "References",
-			icon: "material-symbols:image-outline",
-			description: "Manage reference images",
-		},
-		{
-			id: "palettes",
-			path: "/palettes",
-			label: "Palettes",
-			icon: "material-symbols:palette-outline",
-			description: "Create and edit color palettes",
-		},
-		{
-			id: "gradients",
-			path: "/gradients",
-			label: "Gradients",
-			icon: "material-symbols:gradient",
-			description: "Generate beautiful gradients",
-		},
-	];
+const navItems: NavItem[] = [
+	{
+		id: "references",
+		path: "/references",
+		label: "References",
+		icon: "material-symbols:image-outline",
+		description: "Manage reference images",
+	},
+	{
+		id: "palettes",
+		path: "/palettes",
+		label: "Palettes",
+		icon: "material-symbols:palette-outline",
+		description: "Create and edit color palettes",
+	},
+	{
+		id: "gradients",
+		path: "/gradients",
+		label: "Gradients",
+		icon: "material-symbols:gradient",
+		description: "Generate beautiful gradients",
+	},
+];
 
-	let currentPath = $derived(page?.url?.pathname ?? "/");
-	let hoveredItem: string | null = $state(null);
+let currentPath = $derived(page?.url?.pathname ?? "/");
+let hoveredItem: string | null = $state(null);
 
-	function navigateTo(path: string) {
-		goto(path);
-	}
+function navigateTo(path: string) {
+	goto(path);
+}
 </script>
 
 <aside class="h-full w-20 md:w-64 flex flex-col gap-4 p-4 z-40">

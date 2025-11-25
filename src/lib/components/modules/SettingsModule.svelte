@@ -1,113 +1,113 @@
 <script lang="ts">
-	import { app } from "$lib/stores/root.svelte";
-	import Icon from "@iconify/svelte";
-	import { toast } from "svelte-sonner";
-	import { storage } from "$lib/services/storage";
-	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
-	import { cn } from "$lib/utils/cn";
+import { app } from "$lib/stores/root.svelte";
+import Icon from "@iconify/svelte";
+import { toast } from "svelte-sonner";
+import { storage } from "$lib/services/storage";
+import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
+import { cn } from "$lib/utils/cn";
 
-	let isExporting = $state(false);
-	let isImporting = $state(false);
+let isExporting = $state(false);
+let isImporting = $state(false);
 
-	// Helper function for async onChange handlers
-	function handleAsyncChange(handler: () => Promise<void>) {
-		return () => {
-			handler().catch((error) => {
-				console.error("Error in async change handler:", error);
-				toast.error("Failed to save changes. Please try again.");
-			});
+// Helper function for async onChange handlers
+function handleAsyncChange(handler: () => Promise<void>) {
+	return () => {
+		handler().catch((error) => {
+			console.error("Error in async change handler:", error);
+			toast.error("Failed to save changes. Please try again.");
+		});
+	};
+}
+
+// Local state for settings form - synced with store
+// We can bind directly to the store state in Svelte 5, but let's keep a local copy for form handling if needed
+// Actually, for settings, direct binding is often cleaner in Svelte 5
+
+const themeOptions = [
+	{ value: "system", label: "System" },
+	{ value: "light", label: "Light" },
+	{ value: "dark", label: "Dark" },
+];
+
+async function saveSettings() {
+	try {
+		console.log("💾 Saving settings from UI...");
+
+		// In the new architecture, changes to app.settings.state are reactive
+		// We just need to trigger a save to persistence
+		await app.settings.save();
+
+		// Apply theme change to DOM
+		document.documentElement.setAttribute("data-theme", app.settings.state.theme);
+
+		toast.success("Settings saved successfully!");
+	} catch (error) {
+		console.error("Failed to save settings:", error);
+		toast.error("Failed to save settings. Please try again.");
+	}
+}
+
+async function exportSettings() {
+	isExporting = true;
+	try {
+		// TODO: Implement export in new architecture
+		// For now, we can just export the settings
+		const data = {
+			settings: app.settings.state,
+			palettes: app.palettes.palettes,
+			references: app.references.references,
+			gradients: app.gradients.gradients,
 		};
+
+		const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = `phoenyx-backup-${new Date().toISOString().split("T")[0]}.json`;
+		a.click();
+		URL.revokeObjectURL(url);
+		toast.success("Data exported successfully");
+	} catch (error) {
+		console.error("Failed to export data:", error);
+		toast.error("Failed to export data. Please try again.");
+	} finally {
+		isExporting = false;
 	}
+}
 
-	// Local state for settings form - synced with store
-	// We can bind directly to the store state in Svelte 5, but let's keep a local copy for form handling if needed
-	// Actually, for settings, direct binding is often cleaner in Svelte 5
-
-	const themeOptions = [
-		{ value: "system", label: "System" },
-		{ value: "light", label: "Light" },
-		{ value: "dark", label: "Dark" },
-	];
-
-	async function saveSettings() {
-		try {
-			console.log("💾 Saving settings from UI...");
-
-			// In the new architecture, changes to app.settings.state are reactive
-			// We just need to trigger a save to persistence
-			await app.settings.save();
-
-			// Apply theme change to DOM
-			document.documentElement.setAttribute("data-theme", app.settings.state.theme);
-
-			toast.success("Settings saved successfully!");
-		} catch (error) {
-			console.error("Failed to save settings:", error);
-			toast.error("Failed to save settings. Please try again.");
-		}
+async function importSettings() {
+	isImporting = true;
+	try {
+		// TODO: Implement proper import with validation
+		toast.info("Import functionality coming soon in next update");
+	} catch (error) {
+		console.error("Failed to import data:", error);
+		toast.error("Failed to import data. Please try again.");
+	} finally {
+		isImporting = false;
 	}
+}
 
-	async function exportSettings() {
-		isExporting = true;
-		try {
-			// TODO: Implement export in new architecture
-			// For now, we can just export the settings
-			const data = {
-				settings: app.settings.state,
-				palettes: app.palettes.palettes,
-				references: app.references.references,
-				gradients: app.gradients.gradients,
-			};
-
-			const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = url;
-			a.download = `phoenyx-backup-${new Date().toISOString().split("T")[0]}.json`;
-			a.click();
-			URL.revokeObjectURL(url);
-			toast.success("Data exported successfully");
-		} catch (error) {
-			console.error("Failed to export data:", error);
-			toast.error("Failed to export data. Please try again.");
-		} finally {
-			isExporting = false;
-		}
+async function clearAllData() {
+	if (
+		confirm("Are you sure you want to clear all application data? This action cannot be undone.")
+	) {
+		await storage.db.clear();
+		await storage.local.clear();
+		window.location.reload();
 	}
+}
 
-	async function importSettings() {
-		isImporting = true;
-		try {
-			// TODO: Implement proper import with validation
-			toast.info("Import functionality coming soon in next update");
-		} catch (error) {
-			console.error("Failed to import data:", error);
-			toast.error("Failed to import data. Please try again.");
-		} finally {
-			isImporting = false;
-		}
+async function nuclearClear() {
+	if (
+		confirm("This will completely wipe all app storage. This action cannot be undone. Continue?")
+	) {
+		await storage.db.clear();
+		await storage.local.clear();
+		toast.success("Storage cleared successfully. Reloading app...");
+		setTimeout(() => window.location.reload(), 1500);
 	}
-
-	async function clearAllData() {
-		if (
-			confirm("Are you sure you want to clear all application data? This action cannot be undone.")
-		) {
-			await storage.db.clear();
-			await storage.local.clear();
-			window.location.reload();
-		}
-	}
-
-	async function nuclearClear() {
-		if (
-			confirm("This will completely wipe all app storage. This action cannot be undone. Continue?")
-		) {
-			await storage.db.clear();
-			await storage.local.clear();
-			toast.success("Storage cleared successfully. Reloading app...");
-			setTimeout(() => window.location.reload(), 1500);
-		}
-	}
+}
 </script>
 
 <div class="h-full overflow-y-auto custom-scrollbar">

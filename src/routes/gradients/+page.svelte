@@ -1,5 +1,5 @@
 <script lang="ts">
-	import GradientsModule from "$lib/components/modules/GradientsModule.svelte";
+import GradientsModule from "$lib/components/modules/GradientsModule.svelte";
 </script>
 
 <svelte:head>

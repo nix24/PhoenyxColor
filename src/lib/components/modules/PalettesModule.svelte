@@ -10,7 +10,13 @@
 	import chroma from "chroma-js";
 	import AdvancedColorPicker from "$lib/components/common/AdvancedColorPicker.svelte";
 	import EyedropperTool from "$lib/components/common/EyedropperTool.svelte";
-	import { orderColorsForGradient, rgbToHex } from "$lib/utils/colorUtils";
+	import {
+		orderColorsForGradient,
+		rgbToHex,
+		orderColorsByHueLightness,
+		getColorLightness,
+	} from "$lib/utils/colorUtils";
+	import { extractPalette } from "$lib/utils/color-engine";
 	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
 	import { cn } from "$lib/utils/cn";
 
@@ -73,7 +79,7 @@
 			// Remove alpha channel (last 2 characters) for 8-character hex
 			color = color.substring(0, 6);
 		}
-		return "#" + color.toUpperCase();
+		return `#${color.toUpperCase()}`;
 	}
 
 	function validateAndNormalizeColor(color: string): {
@@ -186,12 +192,14 @@
 
 	function formatColor(hex: string, format: "hex" | "rgb" | "hsl" = "hex"): string {
 		switch (format) {
-			case "rgb":
+			case "rgb": {
 				const rgb = hexToRgb(hex);
 				return rgb ? `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})` : hex;
-			case "hsl":
+			}
+			case "hsl": {
 				const hsl = hexToHsl(hex);
 				return hsl ? `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)` : hex;
+			}
 			default:
 				return hex;
 		}
@@ -227,9 +235,7 @@
 	}
 
 	function updateSelectedColorFromPicker() {
-		if (showColorPicker) {
-			selectedColor = selectedColor;
-		}
+		// No-op: Reactivity is handled by runes
 	}
 
 	function addToColorHistory(color: string) {
@@ -297,7 +303,11 @@
 			return;
 		}
 
-		const normalizedColor = validation.color!;
+		const normalizedColor = validation.color;
+		if (!normalizedColor) {
+			toast.error("Invalid color");
+			return;
+		}
 
 		if (isDuplicateColor(paletteId, normalizedColor)) {
 			toast.warning("This color is already in the palette");
@@ -765,7 +775,8 @@
 					// Basic CSS variable parsing (example: --color-var: #RRGGBB;)
 					const colors: string[] = [];
 					const regex = /--(?:[\w-]+):\s*(#[A-Fa-f0-9]{3,6});/g;
-					let match;
+
+					let match: RegExpExecArray | null;
 					while ((match = regex.exec(text)) !== null) {
 						if (isValidHexColor(match[1])) {
 							colors.push(normalizeHexColor(match[1]));
@@ -782,7 +793,7 @@
 				}
 				// Add other format parsers here (ASE, etc.) if implemented
 
-				if (importedPalette && importedPalette.colors && importedPalette.colors.length > 0) {
+				if (importedPalette?.colors && importedPalette.colors.length > 0) {
 					// Ensure unique name
 					let finalName = importedPalette.name || "Imported Palette";
 					let counter = 1;
@@ -809,8 +820,8 @@
 		if (event.key === "Enter") {
 			const input = event.target as HTMLInputElement;
 			const validation = validateAndNormalizeColor(input.value);
-			if (validation.valid) {
-				selectedColor = validation.color!;
+			if (validation.valid && validation.color) {
+				selectedColor = validation.color;
 				updateSelectedColorFromPicker();
 			} else {
 				toast.error(validation.error || "Invalid color");
@@ -863,29 +874,15 @@
 		imageUrl: string,
 		numColors: number = 5
 	): Promise<string[]> {
-		return new Promise((resolve, reject) => {
-			const canvas = document.createElement("canvas");
-			const ctx = canvas.getContext("2d");
-			const img = new Image();
-
-			img.onload = () => {
-				// Scale down image for performance while maintaining aspect ratio
-				const maxSize = 200;
-				const scale = Math.min(maxSize / img.width, maxSize / img.height);
-				canvas.width = img.width * scale;
-				canvas.height = img.height * scale;
-
-				ctx!.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-				const imageData = ctx!.getImageData(0, 0, canvas.width, canvas.height);
-				const colors = extractDominantColors(imageData, numColors);
-				resolve(colors);
-			};
-
-			img.onerror = () => reject(new Error("Failed to load image"));
-			img.crossOrigin = "anonymous";
-			img.src = imageUrl;
-		});
+		try {
+			return await extractPalette(imageUrl, {
+				colorCount: numColors,
+				quality: "balanced",
+			});
+		} catch (error) {
+			console.error("Failed to extract colors:", error);
+			return [];
+		}
 	}
 
 	async function extractColorsFromTransformedImage(
@@ -897,132 +894,45 @@
 			const ctx = canvas.getContext("2d");
 			const img = new Image();
 
-			img.onload = () => {
+			img.onload = async () => {
 				// Scale down image for performance while maintaining aspect ratio
 				const maxSize = 200;
 				const scale = Math.min(maxSize / img.width, maxSize / img.height);
 				canvas.width = img.width * scale;
 				canvas.height = img.height * scale;
 
+				if (!ctx) {
+					reject(new Error("Failed to create canvas context"));
+					return;
+				}
+
 				// Apply CSS filters to canvas context
 				const filterString = buildFilterString(reference);
 				if (filterString !== "none") {
-					ctx!.filter = filterString;
+					ctx.filter = filterString;
 				}
 
 				// Apply opacity through globalAlpha
-				ctx!.globalAlpha = reference.opacity || 1;
+				ctx.globalAlpha = reference.opacity || 1;
 
-				ctx!.drawImage(img, 0, 0, canvas.width, canvas.height);
+				ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-				const imageData = ctx!.getImageData(0, 0, canvas.width, canvas.height);
-				const colors = extractDominantColors(imageData, numColors);
-				resolve(colors);
+				try {
+					const dataUrl = canvas.toDataURL();
+					const colors = await extractPalette(dataUrl, {
+						colorCount: numColors,
+						quality: "balanced",
+					});
+					resolve(colors);
+				} catch (error) {
+					reject(error);
+				}
 			};
 
 			img.onerror = () => reject(new Error("Failed to load image"));
 			img.crossOrigin = "anonymous";
 			img.src = reference.src;
 		});
-	}
-
-	function extractDominantColors(imageData: ImageData, numColors: number): string[] {
-		const pixels: number[][] = [];
-		const data = imageData.data;
-
-		// Sample pixels (skip some for performance)
-		for (let i = 0; i < data.length; i += 16) {
-			// Sample every 4th pixel
-			const r = data[i];
-			const g = data[i + 1];
-			const b = data[i + 2];
-			const a = data[i + 3];
-
-			// Skip transparent pixels
-			if (a > 128) {
-				pixels.push([r, g, b]);
-			}
-		}
-
-		if (pixels.length === 0) return ["#000000"];
-
-		// Use k-means clustering to find dominant colors
-		const clusters = kMeansColors(pixels, Math.min(numColors, pixels.length));
-		const extractedColors = clusters.map((cluster) =>
-			rgbToHex(Math.round(cluster[0]), Math.round(cluster[1]), Math.round(cluster[2]))
-		);
-
-		// Sort colors using perceptual color ordering for better gradient flow
-		return orderColorsForGradient(extractedColors);
-	}
-
-	function kMeansColors(pixels: number[][], k: number, maxIterations: number = 20): number[][] {
-		if (pixels.length === 0) return [];
-		if (k >= pixels.length) return pixels;
-
-		// Initialize centroids randomly
-		let centroids: number[][] = [];
-		for (let i = 0; i < k; i++) {
-			const randomPixel = pixels[Math.floor(Math.random() * pixels.length)];
-			centroids.push([...randomPixel]);
-		}
-
-		for (let iter = 0; iter < maxIterations; iter++) {
-			// Assign pixels to nearest centroid
-			const clusters: number[][][] = Array(k)
-				.fill(null)
-				.map(() => []);
-
-			for (const pixel of pixels) {
-				let minDistance = Infinity;
-				let nearestCentroid = 0;
-
-				for (let i = 0; i < centroids.length; i++) {
-					const distance = colorDistance(pixel, centroids[i]);
-					if (distance < minDistance) {
-						minDistance = distance;
-						nearestCentroid = i;
-					}
-				}
-
-				clusters[nearestCentroid].push(pixel);
-			}
-
-			// Update centroids
-			const newCentroids: number[][] = [];
-			for (let i = 0; i < k; i++) {
-				if (clusters[i].length > 0) {
-					const avgR = clusters[i].reduce((sum, p) => sum + p[0], 0) / clusters[i].length;
-					const avgG = clusters[i].reduce((sum, p) => sum + p[1], 0) / clusters[i].length;
-					const avgB = clusters[i].reduce((sum, p) => sum + p[2], 0) / clusters[i].length;
-					newCentroids.push([avgR, avgG, avgB]);
-				} else {
-					// Keep old centroid if no pixels assigned
-					newCentroids.push([...centroids[i]]);
-				}
-			}
-
-			// Check for convergence
-			let converged = true;
-			for (let i = 0; i < k; i++) {
-				if (colorDistance(centroids[i], newCentroids[i]) > 1) {
-					converged = false;
-					break;
-				}
-			}
-
-			centroids = newCentroids;
-			if (converged) break;
-		}
-
-		return centroids;
-	}
-
-	function colorDistance(color1: number[], color2: number[]): number {
-		const dr = color1[0] - color2[0];
-		const dg = color1[1] - color2[1];
-		const db = color1[2] - color2[2];
-		return Math.sqrt(dr * dr + dg * dg + db * db);
 	}
 
 	async function startColorExtraction(referenceId: string) {
@@ -1146,7 +1056,7 @@
 <div class="h-full flex flex-col gap-4">
 	<!-- Module Header -->
 	<GlassPanel
-		class="flex flex-col md:flex-row md:items-center justify-between p-4 md:p-6 gap-4 shrink-0"
+		class="flex flex-col md:flex-row md:items-center justify-between p-4 md:p-6 gap-4 shrink-0 overflow-visible z-20"
 		intensity="low"
 	>
 		<div>
@@ -1224,7 +1134,7 @@
 						Extract Colors
 					</button>
 					<ul
-						class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-[1] w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
+						class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-[100] w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
 					>
 						{#each app.references.references as reference (reference.id)}
 							<li>
@@ -1423,9 +1333,42 @@
 						</div>
 					</div>
 
-					<!-- Color Grid -->
+					<!-- Sorting & Grid -->
+					<div class="flex justify-end gap-2 mb-2">
+						<button
+							class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+							onclick={() => {
+								if (app.palettes.activePalette) {
+									const sorted = orderColorsByHueLightness(app.palettes.activePalette.colors);
+									app.palettes.update(app.palettes.activePalette.id, { colors: sorted });
+									toast.success("Sorted by Hue & Lightness");
+								}
+							}}
+							title="Sort by Hue"
+						>
+							<Icon icon="material-symbols:sort" class="w-4 h-4" />
+							Sort Hue
+						</button>
+						<button
+							class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+							onclick={() => {
+								if (app.palettes.activePalette) {
+									const sorted = [...app.palettes.activePalette.colors].sort((a, b) => {
+										return getColorLightness(a) - getColorLightness(b);
+									});
+									app.palettes.update(app.palettes.activePalette.id, { colors: sorted });
+									toast.success("Sorted by Lightness");
+								}
+							}}
+							title="Sort by Lightness"
+						>
+							<Icon icon="material-symbols:format-list-bulleted" class="w-4 h-4" />
+							Sort Lightness
+						</button>
+					</div>
+
 					<div
-						class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-8"
+						class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-8 max-h-[400px] overflow-y-auto custom-scrollbar p-1"
 					>
 						{#each app.palettes.activePalette!.colors as color, index}
 							<div class="group relative">

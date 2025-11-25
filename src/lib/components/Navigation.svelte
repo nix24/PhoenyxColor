@@ -3,7 +3,6 @@
 	import { goto } from "$app/navigation";
 	import Icon from "@iconify/svelte";
 	import { onMount } from "svelte";
-	import { themeChange } from "theme-change";
 	import EyedropperTool from "$lib/components/common/EyedropperTool.svelte";
 	import { toast } from "svelte-sonner";
 	import { app } from "$lib/stores/root.svelte";
@@ -45,11 +44,6 @@
 
 	// Get current active path
 	let currentPath = $derived(page?.url?.pathname ?? "/");
-
-	// Initialize theme-change on mount
-	onMount(() => {
-		themeChange(false);
-	});
 
 	function closeMobileMenu() {
 		isMobileMenuOpen = false;

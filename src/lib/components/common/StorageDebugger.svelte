@@ -1,100 +1,100 @@
 <script lang="ts">
-	import { app } from "$lib/stores/root.svelte";
-	import { storage } from "$lib/services/storage";
-	import Icon from "@iconify/svelte";
-	import { onMount } from "svelte";
+import { app } from "$lib/stores/root.svelte";
+import { simpleStorageService } from "$lib/services/simpleStorage";
+import Icon from "@iconify/svelte";
+import { onMount } from "svelte";
 
-	let storageInfo = $state<any>({});
-	let isVisible = $state(false);
+let storageInfo = $state<any>({});
+let isVisible = $state(false);
 
-	async function refreshStorageInfo() {
-		try {
-			// Check localStorage
-			const localStorageKeys = Object.keys(localStorage).filter((key) =>
-				key.startsWith("phoenyxcolor")
-			);
+async function refreshStorageInfo() {
+	try {
+		// Check localStorage
+		const localStorageKeys = Object.keys(localStorage).filter((key) =>
+			key.startsWith("phoenyxcolor"),
+		);
 
-			// Check immediate backup
-			const immediateBackup = localStorage.getItem("phoenyxcolor-immediate-backup");
-			let backupData = null;
-			if (immediateBackup) {
-				try {
-					backupData = JSON.parse(immediateBackup);
-				} catch (error) {
-					console.error("Failed to parse backup:", error);
-				}
+		// Check immediate backup
+		const immediateBackup = localStorage.getItem("phoenyxcolor-immediate-backup");
+		let backupData = null;
+		if (immediateBackup) {
+			try {
+				backupData = JSON.parse(immediateBackup);
+			} catch (error) {
+				console.error("Failed to parse backup:", error);
 			}
-
-			storageInfo = {
-				localStorage: {
-					keys: localStorageKeys,
-					data: localStorageKeys.reduce((acc, key) => {
-						try {
-							const value = localStorage.getItem(key);
-							acc[key] = value ? JSON.parse(value) : value;
-						} catch {
-							acc[key] = localStorage.getItem(key);
-						}
-						return acc;
-					}, {} as any),
-				},
-				backup: backupData,
-				currentState: {
-					palettes: app.palettes.palettes.length,
-					references: app.references.references.length,
-					gradients: app.gradients.gradients.length,
-				},
-			};
-		} catch (error) {
-			console.error("Failed to refresh storage info:", error);
 		}
+
+		storageInfo = {
+			localStorage: {
+				keys: localStorageKeys,
+				data: localStorageKeys.reduce((acc, key) => {
+					try {
+						const value = localStorage.getItem(key);
+						acc[key] = value ? JSON.parse(value) : value;
+					} catch {
+						acc[key] = localStorage.getItem(key);
+					}
+					return acc;
+				}, {} as any),
+			},
+			backup: backupData,
+			currentState: {
+				palettes: app.palettes.palettes.length,
+				references: app.references.references.length,
+				gradients: app.gradients.gradients.length,
+			},
+		};
+	} catch (error) {
+		console.error("Failed to refresh storage info:", error);
 	}
+}
 
-	async function testSave() {
-		console.log("🧪 Manual save test...");
-		const result = await Promise.all([
-			app.palettes.save(),
-			app.references.save(),
-			app.gradients.save(),
-		]);
-		console.log("🧪 Save result:", result);
-		await refreshStorageInfo();
+async function testSave() {
+	console.log("🧪 Manual save test...");
+	const result = await Promise.all([
+		app.palettes.save(),
+		app.references.save(),
+		app.gradients.save(),
+	]);
+	console.log("🧪 Save result:", result);
+	await refreshStorageInfo();
+}
+
+async function testLoad() {
+	console.log("🧪 Manual load test...");
+	const result = await Promise.all([
+		app.palettes.load(),
+		app.references.load(),
+		app.gradients.load(),
+	]);
+	console.log("🧪 Load result:", result);
+	await refreshStorageInfo();
+}
+
+async function clearAll() {
+	console.log("🧪 Clearing all storage...");
+	await simpleStorageService.clearStorage();
+	localStorage.removeItem("phoenyxcolor-immediate-backup");
+	await refreshStorageInfo();
+}
+
+async function hardReset() {
+	if (confirm("Are you sure? This will clear ALL data and reload the page.")) {
+		console.log("🚨 Hard reset initiated...");
+		await simpleStorageService.clearStorage();
+		window.location.reload();
 	}
+}
 
-	async function testLoad() {
-		console.log("🧪 Manual load test...");
-		const result = await Promise.all([
-			app.palettes.load(),
-			app.references.load(),
-			app.gradients.load(),
-		]);
-		console.log("🧪 Load result:", result);
-		await refreshStorageInfo();
-	}
+onMount(() => {
+	refreshStorageInfo();
 
-	async function clearAll() {
-		console.log("🧪 Clearing all storage...");
-		await storage.clear();
-		localStorage.removeItem("phoenyxcolor-immediate-backup");
-		await refreshStorageInfo();
-	}
+	// Refresh every 2 seconds
+	const interval = setInterval(refreshStorageInfo, 2000);
 
-	async function hardReset() {
-		if (confirm("Are you sure? This will clear ALL data and reload the page.")) {
-			console.log("🚨 Hard reset initiated...");
-			await storage.clear();
-			window.location.reload();
-		}
-	}
-
-	onMount(() => {
-		refreshStorageInfo();
-
-		// Refresh every 2 seconds
-		const interval = setInterval(refreshStorageInfo, 2000);
-
-		return () => clearInterval(interval);
-	});
+	return () => clearInterval(interval);
+});
 </script>
 
 {#if isVisible}
