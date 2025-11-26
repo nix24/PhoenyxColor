@@ -587,6 +587,8 @@
 			toast.success("Color stops reordered!");
 		}
 	}
+	import { fly, scale } from "svelte/transition";
+	import { elasticOut } from "svelte/easing";
 </script>
 
 <div class="h-full flex flex-col gap-4">
@@ -621,7 +623,7 @@
 			<!-- Action Buttons -->
 			<div class="flex gap-2">
 				<button
-					class="btn btn-sm border-none bg-gradient-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300 gap-2"
+					class="btn btn-sm border-none bg-linear-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300 gap-2"
 					onclick={() => (showCreateDialog = true)}
 					type="button"
 				>
@@ -649,7 +651,7 @@
 							From Palette
 						</button>
 						<ul
-							class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-[100] w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
+							class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-100 w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
 						>
 							<div class="p-2 border-b border-white/10 mb-2">
 								<label class="label cursor-pointer justify-start gap-2 p-0">
@@ -706,7 +708,7 @@
 						Gradients ({filteredGradients.length})
 						{#if app.gradients.gradients.length > 0}
 							<button
-								class="btn btn-xs btn-ghost text-error hover:bg-error/10"
+								class="btn btn-xs btn-ghost text-error hover:bg-error/10 hover:scale-110 transition-transform duration-300"
 								onclick={async () => {
 									if (confirm("Are you sure you want to delete all gradients?")) {
 										app.gradients.gradients.forEach((g) => app.gradients.remove(g.id));
@@ -722,8 +724,9 @@
 				</div>
 
 				<div class="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-					{#each filteredGradients as gradient (gradient.id)}
+					{#each filteredGradients as gradient, i (gradient.id)}
 						<button
+							in:fly={{ y: 20, duration: 400, delay: i * 50, easing: elasticOut }}
 							class={cn(
 								"w-full text-left p-3 rounded-xl cursor-pointer transition-all duration-200 border group relative overflow-hidden",
 								app.gradients.activeGradientId === gradient.id
@@ -753,7 +756,7 @@
 											}
 										}}
 										tabindex="0"
-										class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+										class="btn btn-xs btn-ghost text-text-muted hover:text-white hover:scale-110 transition-transform duration-300"
 										onclick={(e) => {
 											e.stopPropagation();
 											exportGradient(gradient, "css");
@@ -771,7 +774,7 @@
 											}
 										}}
 										tabindex="0"
-										class="btn btn-xs btn-ghost text-error hover:bg-error/10"
+										class="btn btn-xs btn-ghost text-error hover:bg-error/10 hover:scale-110 transition-transform duration-300"
 										onclick={(e) => {
 											e.stopPropagation();
 											app.gradients.remove(gradient.id);
@@ -788,7 +791,7 @@
 								style:background={generateCSSGradient(gradient)}
 							></div>
 							<p
-								class="text-[10px] text-text-muted/60 mt-1 capitalize uppercase tracking-wider relative z-10"
+								class="text-[10px] text-text-muted/60 mt-1 capitalize tracking-wider relative z-10"
 							>
 								{gradient.type} • {gradient.stops.length} stops
 							</p>
@@ -856,7 +859,7 @@
 										Export
 									</button>
 									<ul
-										class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-[1] w-48 p-2 shadow-xl backdrop-blur-xl"
+										class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-1 w-48 p-2 shadow-xl backdrop-blur-xl"
 									>
 										<li>
 											<button
@@ -1122,7 +1125,7 @@
 							<h3 class="text-xl font-bold text-white mb-2">No Gradient Selected</h3>
 							<p class="mb-6 max-w-xs mx-auto">Create or select a gradient to start editing</p>
 							<button
-								class="btn btn-primary bg-gradient-to-r from-phoenix-primary to-phoenix-violet border-none text-white shadow-lg hover:shadow-phoenix-primary/50 gap-2"
+								class="btn btn-primary bg-linear-to-r from-phoenix-primary to-phoenix-violet border-none text-white shadow-lg hover:shadow-phoenix-primary/50 gap-2"
 								onclick={() => (showCreateDialog = true)}
 							>
 								<Icon icon="material-symbols:add" class="w-4 h-4" />
@@ -1139,7 +1142,7 @@
 <!-- Create Gradient Dialog -->
 {#if showCreateDialog}
 	<div class="modal modal-open">
-		<div class="modal-box">
+		<div in:scale={{ duration: 500, start: 0.8, easing: elasticOut }} class="modal-box">
 			<h3 class="font-bold text-lg mb-4">Create New Gradient</h3>
 
 			<div class="space-y-4">
@@ -1188,7 +1191,7 @@
 <!-- Presets Dialog -->
 {#if showPresetsDialog}
 	<div class="modal modal-open">
-		<div class="modal-box max-w-4xl">
+		<div in:scale={{ duration: 500, start: 0.8, easing: elasticOut }} class="modal-box max-w-4xl">
 			<h3 class="font-bold text-lg mb-4">Gradient Presets</h3>
 
 			<!-- Categories -->

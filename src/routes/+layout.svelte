@@ -9,7 +9,8 @@
 	import { browser } from "$app/environment";
 	import { page } from "$app/state";
 
-	import { fade } from "svelte/transition";
+	import { fly } from "svelte/transition";
+	import { cubicOut } from "svelte/easing";
 
 	let { children } = $props();
 
@@ -78,7 +79,7 @@
 		<main class="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 pt-0 scroll-smooth">
 			<div class="max-w-7xl mx-auto w-full h-full">
 				{#key page.url.pathname}
-					<div in:fade={{ duration: 300, delay: 150 }} class="h-full">
+					<div in:fly={{ y: 20, duration: 400, delay: 100, easing: cubicOut }} class="h-full">
 						{@render children()}
 					</div>
 				{/key}

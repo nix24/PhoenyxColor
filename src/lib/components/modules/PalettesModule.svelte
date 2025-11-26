@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { fly, scale } from "svelte/transition";
+	import { elasticOut } from "svelte/easing";
 	import { app } from "$lib/stores/root.svelte";
 	import type { ColorPalette } from "$lib/stores/palettes.svelte";
 	import pkg from "file-saver";
@@ -1072,7 +1074,7 @@
 			</div>
 
 			<button
-				class="btn btn-sm border-none bg-gradient-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300 w-full sm:w-auto"
+				class="btn btn-sm border-none bg-linear-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300 w-full sm:w-auto"
 				onclick={() => (showCreateDialog = true)}
 				type="button"
 				aria-label="Create new palette"
@@ -1126,7 +1128,7 @@
 						Extract Colors
 					</button>
 					<ul
-						class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-[100] w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
+						class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-100 w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
 					>
 						{#each app.references.references as reference (reference.id)}
 							<li>
@@ -1136,7 +1138,7 @@
 									class="flex items-center justify-start p-2 text-left hover:bg-white/5 rounded-lg text-text-muted hover:text-white transition-colors"
 								>
 									<div
-										class="w-8 h-8 rounded border border-white/10 bg-cover bg-center mr-3 flex-shrink-0"
+										class="w-8 h-8 rounded border border-white/10 bg-cover bg-center mr-3 shrink-0"
 										style:background-image="url({reference.src})"
 									></div>
 									<div class="flex-1 min-w-0">
@@ -1166,16 +1168,16 @@
 				</div>
 
 				<div class="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-					{#each filteredPalettes as palette (palette.id)}
-						<div
+					{#each filteredPalettes as palette, i (palette.id)}
+						<button
+							in:fly={{ y: 20, duration: 400, delay: i * 50, easing: elasticOut }}
 							class={cn(
-								"p-3 rounded-xl cursor-pointer transition-all duration-200 border",
+								"w-full text-left p-3 rounded-xl cursor-pointer transition-all duration-300 border group relative overflow-hidden",
 								app.palettes.activePaletteId === palette.id
-									? "bg-phoenix-primary/20 border-phoenix-primary/50 shadow-[0_0_15px_rgba(255,0,127,0.2)]"
-									: "bg-transparent border-transparent hover:bg-white/5 hover:border-white/10"
+									? "bg-phoenix-primary/20 border-phoenix-primary/50 shadow-[0_0_20px_rgba(255,0,127,0.3)] scale-[1.02]"
+									: "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 hover:scale-[1.02] hover:shadow-lg"
 							)}
 							onclick={() => app.palettes.setActive(palette.id)}
-							role="button"
 							tabindex="0"
 							onkeydown={(e) => {
 								if (e.key === "Enter" || e.key === " ") {
@@ -1184,6 +1186,10 @@
 								}
 							}}
 						>
+							<!-- Shine Effect -->
+							<div
+								class="absolute inset-0 bg-linear-to-tr from-white/0 via-white/5 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+							></div>
 							<!-- Palette Header -->
 							<div class="flex items-center justify-between mb-2">
 								<div class="flex-1 min-w-0">
@@ -1207,15 +1213,18 @@
 							</div>
 
 							<!-- Mini Color Swatches -->
-							<div class="flex gap-0.5 h-2 rounded overflow-hidden bg-black/20">
+							<div class="flex gap-1 h-3 mt-2">
 								{#each palette.colors.slice(0, 10) as color}
-									<div class="flex-1 h-full" style:background-color={color}></div>
+									<div
+										class="flex-1 h-full rounded-full shadow-sm border border-black/10"
+										style:background-color={color}
+									></div>
 								{/each}
 								{#if palette.colors.length === 0}
-									<div class="w-full h-full bg-white/5"></div>
+									<div class="w-full h-full bg-white/5 rounded-full"></div>
 								{/if}
 							</div>
-						</div>
+						</button>
 					{/each}
 
 					{#if app.palettes.palettes.length === 0}
@@ -1261,7 +1270,7 @@
 							<!-- Actions Toolbar -->
 							<div class="flex flex-wrap items-center gap-2">
 								<button
-									class="btn btn-sm btn-ghost text-text-muted hover:text-white"
+									class="btn btn-sm btn-ghost text-text-muted hover:text-white hover:scale-110 transition-transform duration-300"
 									onclick={importPaletteFile}
 									title="Import"
 								>
@@ -1270,13 +1279,13 @@
 
 								<div class="dropdown dropdown-end">
 									<button
-										class="btn btn-sm btn-ghost text-text-muted hover:text-white"
+										class="btn btn-sm btn-ghost text-text-muted hover:text-white hover:scale-110 transition-transform duration-300"
 										tabindex="0"
 									>
 										<Icon icon="material-symbols:download" class="h-4 w-4" />
 									</button>
 									<ul
-										class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-[1] w-52 p-2 shadow-xl backdrop-blur-xl"
+										class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-1 w-52 p-2 shadow-xl backdrop-blur-xl"
 									>
 										<li>
 											<button
@@ -1302,7 +1311,7 @@
 								<div class="h-4 w-px bg-white/10 mx-1"></div>
 
 								<button
-									class="btn btn-sm btn-ghost text-error hover:bg-error/10"
+									class="btn btn-sm btn-ghost text-error hover:bg-error/10 hover:scale-110 transition-transform duration-300 group"
 									onclick={() => {
 										if (confirm("Are you sure you want to delete this palette?")) {
 											app.palettes.remove(app.palettes.activePalette!.id);
@@ -1373,24 +1382,31 @@
 							{#each app.palettes.activePalette!.colors as color, index}
 								<div class="group relative">
 									<button
-										class="aspect-square rounded-xl shadow-lg cursor-pointer w-full transition-all duration-300 hover:scale-105 hover:shadow-phoenix-primary/20 hover:z-10 relative overflow-hidden"
+										class="aspect-square rounded-2xl shadow-lg cursor-pointer w-full transition-all duration-300 hover:scale-110 hover:rotate-2 hover:shadow-xl hover:shadow-phoenix-primary/30 hover:z-10 relative overflow-hidden border-2 border-white/10 group-active:scale-95"
 										style:background-color={color}
 										onclick={() => copyColor(color)}
 										oncontextmenu={(e) =>
 											showContextMenu(e, app.palettes.activePalette!.id, index, color)}
 										type="button"
 									>
-										<!-- Shine effect -->
+										<!-- Glass Shine -->
 										<div
-											class="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+											class="absolute inset-0 bg-linear-to-br from-white/40 to-transparent opacity-50 pointer-events-none"
+										></div>
+
+										<!-- Bottom Reflection -->
+										<div
+											class="absolute bottom-0 left-0 right-0 h-1/3 bg-linear-to-t from-black/20 to-transparent pointer-events-none"
 										></div>
 
 										<!-- Copy Icon Overlay -->
 										<div
-											class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+											class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 scale-50 group-hover:scale-100"
 										>
-											<div class="bg-black/50 backdrop-blur-sm p-2 rounded-full text-white">
-												<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
+											<div
+												class="bg-black/40 backdrop-blur-md p-2 rounded-full text-white shadow-lg border border-white/20"
+											>
+												<Icon icon="material-symbols:content-copy" class="w-6 h-6" />
 											</div>
 										</div>
 									</button>
@@ -1408,14 +1424,18 @@
 							<!-- Add Slots -->
 							{#each Array(Math.max(0, app.palettes.activePalette!.maxSlots - app.palettes.activePalette!.colors.length)) as _}
 								<button
-									class="aspect-square rounded-xl border-2 border-dashed border-white/10 hover:border-phoenix-primary/50 hover:bg-white/5 transition-all duration-300 flex items-center justify-center group"
+									class="aspect-square rounded-2xl border-2 border-dashed border-white/20 hover:border-phoenix-primary hover:bg-phoenix-primary/10 transition-all duration-300 flex items-center justify-center group hover:scale-105 active:scale-95"
 									onclick={() => addColorToPalette(app.palettes.activePalette!.id, selectedColor)}
 									type="button"
 								>
-									<Icon
-										icon="material-symbols:add"
-										class="w-8 h-8 text-text-muted/30 group-hover:text-phoenix-primary transition-colors"
-									/>
+									<div
+										class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-phoenix-primary/20 transition-colors"
+									>
+										<Icon
+											icon="material-symbols:add"
+											class="w-6 h-6 text-white/50 group-hover:text-phoenix-primary transition-colors"
+										/>
+									</div>
 								</button>
 							{/each}
 						</div>
@@ -1456,7 +1476,7 @@
 								Select a palette from the list or create a new one to start designing.
 							</p>
 							<button
-								class="btn btn-primary bg-gradient-to-r from-phoenix-primary to-phoenix-violet border-none text-white shadow-lg hover:shadow-phoenix-primary/50"
+								class="btn btn-primary bg-linear-to-r from-phoenix-primary to-phoenix-violet border-none text-white shadow-lg hover:shadow-phoenix-primary/50"
 								onclick={() => (showCreateDialog = true)}
 								type="button"
 							>
@@ -1693,7 +1713,10 @@
 			}
 		}}
 	>
-		<div class="bg-base-100 rounded-lg shadow-xl p-6 w-96 max-w-90vw">
+		<div
+			in:scale={{ duration: 500, start: 0.8, easing: elasticOut }}
+			class="bg-base-100 rounded-lg shadow-xl p-6 w-96 max-w-90vw"
+		>
 			<div class="flex items-center justify-between mb-4">
 				<h3 class="font-bold text-lg">Extract Colors from Reference</h3>
 				<button
@@ -1715,7 +1738,7 @@
 					<div class="mb-4">
 						<div class="flex items-center space-x-3 p-3 bg-base-200 rounded-lg">
 							<div
-								class="w-12 h-12 rounded border border-base-300 bg-cover bg-center flex-shrink-0"
+								class="w-12 h-12 rounded border border-base-300 bg-cover bg-center shrink-0"
 								style:background-image="url({reference.src})"
 							></div>
 							<div class="flex-1 min-w-0">

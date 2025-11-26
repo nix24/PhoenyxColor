@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { fly } from "svelte/transition";
+	import { cubicOut } from "svelte/easing";
 	import { app } from "$lib/stores/root.svelte";
 	import type { ReferenceImage } from "$lib/stores/references.svelte";
 	import Icon from "@iconify/svelte";
@@ -338,72 +340,72 @@
 			<!-- Main Canvas Area -->
 			<div class="flex-1 relative overflow-hidden flex flex-col">
 				<!-- Toolbar -->
-				<div
-					class="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-black/20 backdrop-blur-md z-10"
-				>
-					<div class="flex items-center gap-2">
-						<button class="btn btn-sm btn-ghost text-white" onclick={onClose}>
-							<Icon icon="material-symbols:arrow-back" class="w-5 h-5" />
-							Back
+				<div class="h-16 flex items-center justify-between px-6 z-10 relative">
+					<div
+						class="absolute inset-0 bg-linear-to-b from-black/40 to-transparent pointer-events-none"
+					></div>
+
+					<div class="flex items-center gap-3 relative z-10">
+						<button
+							class="btn btn-sm btn-circle btn-ghost text-white hover:bg-white/10 hover:scale-110 transition-all"
+							onclick={onClose}
+							title="Back"
+						>
+							<Icon icon="material-symbols:arrow-back" class="w-6 h-6" />
 						</button>
-						<span class="text-white/50">|</span>
-						<h2 class="text-white font-medium truncate max-w-[200px]">{image.name}</h2>
+						<div class="h-6 w-px bg-white/10 mx-1"></div>
+						<h2 class="text-white font-bold text-lg truncate max-w-[200px] tracking-wide text-glow">
+							{image.name}
+						</h2>
 					</div>
 
-					<div class="flex items-center gap-2">
-						<button
-							class="btn btn-sm btn-ghost text-white/70 hover:text-white"
-							onmousedown={() => (isComparing = true)}
-							onmouseup={() => (isComparing = false)}
-							onmouseleave={() => (isComparing = false)}
-							title="Hold to compare"
-						>
-							<Icon icon="material-symbols:compare" class="w-5 h-5" />
-						</button>
-						<button
-							class={cn(
-								"btn btn-sm btn-ghost text-white/70 hover:text-white",
-								isComparing && "text-phoenix-primary bg-white/10"
-							)}
-							onclick={() => (isComparing = !isComparing)}
-							title="Toggle Split View"
-						>
-							<Icon icon="material-symbols:splitscreen" class="w-5 h-5" />
-						</button>
-						<div class="join bg-white/5 rounded-lg border border-white/10 mr-2">
+					<div class="flex items-center gap-2 relative z-10">
+						<div class="join glass-panel p-1 border-white/5">
 							<button
-								class="btn btn-sm btn-ghost join-item px-2 text-xs"
+								class={cn(
+									"btn btn-sm btn-ghost join-item px-3 hover:bg-white/10",
+									isComparing && "text-phoenix-primary"
+								)}
+								onmousedown={() => (isComparing = true)}
+								onmouseup={() => (isComparing = false)}
+								onmouseleave={() => (isComparing = false)}
+								title="Hold to compare"
+							>
+								<Icon icon="material-symbols:compare" class="w-5 h-5" />
+							</button>
+							<button
+								class={cn(
+									"btn btn-sm btn-ghost join-item px-3 hover:bg-white/10",
+									isComparing && "text-phoenix-primary bg-white/5"
+								)}
+								onclick={() => (isComparing = !isComparing)}
+								title="Toggle Split View"
+							>
+								<Icon icon="material-symbols:splitscreen" class="w-5 h-5" />
+							</button>
+						</div>
+
+						<div class="join glass-panel p-1 border-white/5 ml-2">
+							<button
+								class="btn btn-sm btn-ghost join-item px-3 hover:bg-white/10"
 								onclick={fitToScreen}
 								title="Reset View"
 							>
 								Fit
 							</button>
 							<button
-								class="btn btn-sm btn-ghost join-item px-2 text-xs"
-								onclick={() => {
-									zoom = 1;
-									panX = 0;
-									panY = 0;
-								}}
-								title="100%"
-							>
-								100%
-							</button>
-						</div>
-						<div class="join bg-white/5 rounded-lg border border-white/10">
-							<button
-								class="btn btn-sm btn-ghost join-item px-2"
+								class="btn btn-sm btn-ghost join-item px-2 hover:bg-white/10"
 								onclick={() => (zoom = Math.max(0.1, zoom - 0.1))}
 							>
 								<Icon icon="material-symbols:remove" class="w-4 h-4" />
 							</button>
 							<span
-								class="flex items-center px-2 text-xs font-mono text-white/70 min-w-[3rem] justify-center"
+								class="flex items-center px-2 text-xs font-mono font-bold text-white/80 min-w-14 justify-center bg-black/20"
 							>
 								{Math.round(zoom * 100)}%
 							</span>
 							<button
-								class="btn btn-sm btn-ghost join-item px-2"
+								class="btn btn-sm btn-ghost join-item px-2 hover:bg-white/10"
 								onclick={() => (zoom = Math.min(5, zoom + 0.1))}
 							>
 								<Icon icon="material-symbols:add" class="w-4 h-4" />
@@ -532,7 +534,7 @@
 								class="absolute inset-0 pointer-events-none border border-white/20"
 								style:background-size="{app.settings.state.workspace.gridSize}px {app.settings.state
 									.workspace.gridSize}px"
-								style:background-image="linear-gradient(to right,rgb(255,255,255,0.2)1px,transparent 1px), linear-gradient(to bottom,rgb(255,255,255,0.2)1px,transparent 1px)"
+								style:background-image="linear-gradient(to right, rgba(255,255,255,0.1) 1px,transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.1) 1px,transparent 1px)"
 							></div>
 						{/if}
 					</div>
@@ -545,472 +547,434 @@
 				intensity="high"
 			>
 				<!-- Tabs -->
-				<div class="flex border-b border-white/10">
-					<button
-						class={cn(
-							"flex-1 py-4 text-sm font-medium transition-colors relative",
-							activeTab === "adjust" ? "text-phoenix-primary" : "text-text-muted hover:text-white"
-						)}
-						onclick={() => (activeTab = "adjust")}
-					>
-						Adjust
-						{#if activeTab === "adjust"}
-							<div
-								class="absolute bottom-0 left-0 right-0 h-0.5 bg-phoenix-primary shadow-[0_0_10px_rgba(255,0,127,0.5)]"
-							></div>
-						{/if}
-					</button>
-					<button
-						class={cn(
-							"flex-1 py-4 text-sm font-medium transition-colors relative",
-							activeTab === "transform"
-								? "text-phoenix-primary"
-								: "text-text-muted hover:text-white"
-						)}
-						onclick={() => (activeTab = "transform")}
-					>
-						Transform
-						{#if activeTab === "transform"}
-							<div
-								class="absolute bottom-0 left-0 right-0 h-0.5 bg-phoenix-primary shadow-[0_0_10px_rgba(255,0,127,0.5)]"
-							></div>
-						{/if}
-					</button>
-					<button
-						class={cn(
-							"flex-1 py-4 text-sm font-medium transition-colors relative",
-							activeTab === "filters" ? "text-phoenix-primary" : "text-text-muted hover:text-white"
-						)}
-						onclick={() => (activeTab = "filters")}
-					>
-						Colors
-						{#if activeTab === "filters"}
-							<div
-								class="absolute bottom-0 left-0 right-0 h-0.5 bg-phoenix-primary shadow-[0_0_10px_rgba(255,0,127,0.5)]"
-							></div>
-						{/if}
-					</button>
-					<button
-						class={cn(
-							"flex-1 py-4 text-sm font-medium transition-colors relative",
-							activeTab === "export" ? "text-phoenix-primary" : "text-text-muted hover:text-white"
-						)}
-						onclick={() => (activeTab = "export")}
-					>
-						Export
-						{#if activeTab === "export"}
-							<div
-								class="absolute bottom-0 left-0 right-0 h-0.5 bg-phoenix-primary shadow-[0_0_10px_rgba(255,0,127,0.5)]"
-							></div>
-						{/if}
-					</button>
+				<div class="flex p-4 gap-2 border-b border-white/5">
+					{#each ["adjust", "transform", "filters", "export"] as tab}
+						<button
+							class={cn(
+								"flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-full transition-all duration-300",
+								activeTab === tab
+									? "bg-phoenix-primary text-white shadow-lg shadow-phoenix-primary/30 scale-105"
+									: "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+							)}
+							onclick={() => (activeTab = tab as any)}
+						>
+							{tab}
+						</button>
+					{/each}
 				</div>
 
 				<!-- Controls Area -->
-				<div class="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
-					{#if activeTab === "adjust"}
-						<!-- Light -->
-						<div class="space-y-4">
-							<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">
-								Light & Color
-							</h3>
+				<div class="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-4">
+					{#key activeTab}
+						<div in:fly={{ x: 20, duration: 300, easing: cubicOut }}>
+							{#if activeTab === "adjust"}
+								<!-- Light -->
+								<div class="space-y-4">
+									<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">
+										Light & Color
+									</h3>
 
-							<div class="space-y-1">
-								<div class="flex justify-between text-xs">
-									<span class="text-white">Brightness</span>
-									<span class="text-white/50">{image.brightness}%</span>
-								</div>
-								<input
-									type="range"
-									min="0"
-									max="200"
-									value={image.brightness}
-									class="range range-xs range-primary"
-									oninput={(e) => updateProperty("brightness", parseInt(e.currentTarget.value))}
-								/>
-							</div>
-
-							<div class="space-y-1">
-								<div class="flex justify-between text-xs">
-									<span class="text-white">Contrast</span>
-									<span class="text-white/50">{image.contrast}%</span>
-								</div>
-								<input
-									type="range"
-									min="0"
-									max="200"
-									value={image.contrast}
-									class="range range-xs range-primary"
-									oninput={(e) => updateProperty("contrast", parseInt(e.currentTarget.value))}
-								/>
-							</div>
-
-							<div class="space-y-1">
-								<div class="flex justify-between text-xs">
-									<span class="text-white">Saturation</span>
-									<span class="text-white/50">{image.saturation}%</span>
-								</div>
-								<input
-									type="range"
-									min="0"
-									max="200"
-									value={image.saturation}
-									class="range range-xs range-primary"
-									oninput={(e) => updateProperty("saturation", parseInt(e.currentTarget.value))}
-								/>
-							</div>
-
-							<div class="space-y-1">
-								<div class="flex justify-between text-xs">
-									<span class="text-white">Hue</span>
-									<span class="text-white/50">{image.hueRotate}°</span>
-								</div>
-								<input
-									type="range"
-									min="0"
-									max="360"
-									value={image.hueRotate}
-									class="range range-xs range-secondary"
-									oninput={(e) => updateProperty("hueRotate", parseInt(e.currentTarget.value))}
-								/>
-							</div>
-						</div>
-
-						<!-- Effects -->
-						<div class="space-y-4 pt-4 border-t border-white/10">
-							<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">Effects</h3>
-
-							<div class="space-y-1">
-								<div class="flex justify-between text-xs">
-									<span class="text-white">Blur</span>
-									<span class="text-white/50">{image.blur}px</span>
-								</div>
-								<input
-									type="range"
-									min="0"
-									max="20"
-									value={image.blur}
-									class="range range-xs range-accent"
-									oninput={(e) => updateProperty("blur", parseInt(e.currentTarget.value))}
-								/>
-							</div>
-
-							<div class="space-y-1">
-								<div class="flex justify-between text-xs">
-									<span class="text-white">Opacity</span>
-									<span class="text-white/50">{Math.round(image.opacity * 100)}%</span>
-								</div>
-								<input
-									type="range"
-									min="0"
-									max="1"
-									step="0.01"
-									value={image.opacity}
-									class="range range-xs range-accent"
-									oninput={(e) => updateProperty("opacity", parseFloat(e.currentTarget.value))}
-								/>
-							</div>
-
-							<div class="space-y-1">
-								<div class="flex justify-between text-xs">
-									<span class="text-white">Sepia</span>
-									<span class="text-white/50">{image.sepia || 0}%</span>
-								</div>
-								<input
-									type="range"
-									min="0"
-									max="100"
-									value={image.sepia || 0}
-									class="range range-xs range-warning"
-									oninput={(e) => updateProperty("sepia", parseInt(e.currentTarget.value))}
-								/>
-							</div>
-
-							<div class="space-y-1">
-								<div class="flex justify-between text-xs">
-									<span class="text-white">Invert</span>
-									<span class="text-white/50">{image.invert || 0}%</span>
-								</div>
-								<input
-									type="range"
-									min="0"
-									max="100"
-									value={image.invert || 0}
-									class="range range-xs range-error"
-									oninput={(e) => updateProperty("invert", parseInt(e.currentTarget.value))}
-								/>
-							</div>
-
-							<div class="form-control">
-								<label class="label cursor-pointer justify-start gap-3">
-									<input
-										type="checkbox"
-										class="toggle toggle-sm toggle-primary"
-										checked={image.isGrayscale}
-										onchange={(e) => updateProperty("isGrayscale", e.currentTarget.checked)}
-									/>
-									<span class="label-text text-white">Grayscale</span>
-								</label>
-							</div>
-						</div>
-					{:else if activeTab === "transform"}
-						<div class="space-y-6">
-							<!-- Flip -->
-							<div class="space-y-2">
-								<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">Flip</h3>
-								<div class="flex gap-2">
-									<button
-										class={cn(
-											"btn btn-sm flex-1 gap-2",
-											image.flipX ? "btn-primary" : "btn-outline border-white/20 text-white"
-										)}
-										onclick={() => updateProperty("flipX", !image.flipX)}
-									>
-										<Icon icon="material-symbols:swap-horiz" class="w-5 h-5" />
-										Horizontal
-									</button>
-									<button
-										class={cn(
-											"btn btn-sm flex-1 gap-2",
-											image.flipY ? "btn-primary" : "btn-outline border-white/20 text-white"
-										)}
-										onclick={() => updateProperty("flipY", !image.flipY)}
-									>
-										<Icon icon="material-symbols:swap-vert" class="w-5 h-5" />
-										Vertical
-									</button>
-								</div>
-							</div>
-
-							<!-- Rotate -->
-							<div class="space-y-2">
-								<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">Rotate</h3>
-								<div class="flex gap-2 mb-2">
-									<button
-										class="btn btn-sm btn-outline flex-1 border-white/20 text-white"
-										onclick={() => updateProperty("rotation", image.rotation - 90)}
-									>
-										<Icon icon="material-symbols:rotate-left" class="w-5 h-5" />
-										-90°
-									</button>
-									<button
-										class="btn btn-sm btn-outline flex-1 border-white/20 text-white"
-										onclick={() => updateProperty("rotation", image.rotation + 90)}
-									>
-										<Icon icon="material-symbols:rotate-right" class="w-5 h-5" />
-										+90°
-									</button>
-								</div>
-								<div class="space-y-1">
-									<div class="flex justify-between text-xs">
-										<span class="text-white">Fine Rotation</span>
-										<span class="text-white/50">{image.rotation}°</span>
+									<div class="space-y-1">
+										<div class="flex justify-between text-xs">
+											<span class="text-white">Brightness</span>
+											<span class="text-white/50">{image.brightness}%</span>
+										</div>
+										<input
+											type="range"
+											min="0"
+											max="200"
+											value={image.brightness}
+											class="range range-xs range-primary"
+											oninput={(e) => updateProperty("brightness", parseInt(e.currentTarget.value))}
+										/>
 									</div>
-									<input
-										type="range"
-										min="0"
-										max="360"
-										value={image.rotation}
-										class="range range-xs range-primary"
-										oninput={(e) => updateProperty("rotation", parseInt(e.currentTarget.value))}
-									/>
-								</div>
-							</div>
 
-							<!-- Scale -->
-							<div class="space-y-2">
-								<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">Scale</h3>
-								<div class="space-y-1">
-									<div class="flex justify-between text-xs">
-										<span class="text-white">Image Scale</span>
-										<span class="text-white/50">{Math.round(image.scale * 100)}%</span>
+									<div class="space-y-1">
+										<div class="flex justify-between text-xs">
+											<span class="text-white">Contrast</span>
+											<span class="text-white/50">{image.contrast}%</span>
+										</div>
+										<input
+											type="range"
+											min="0"
+											max="200"
+											value={image.contrast}
+											class="range range-xs range-primary"
+											oninput={(e) => updateProperty("contrast", parseInt(e.currentTarget.value))}
+										/>
 									</div>
-									<input
-										type="range"
-										min="0.1"
-										max="3"
-										step="0.1"
-										value={image.scale}
-										class="range range-xs range-primary"
-										oninput={(e) => updateProperty("scale", parseFloat(e.currentTarget.value))}
-									/>
-								</div>
-							</div>
-						</div>
-					{:else if activeTab === "filters"}
-						<div class="space-y-6">
-							<!-- Palette Extraction -->
-							<div class="space-y-4">
-								<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">
-									Palette Extraction
-								</h3>
 
-								<div class="space-y-1">
-									<div class="flex justify-between text-xs">
-										<span class="text-white">Color Count</span>
-										<span class="text-white/50">{extractColorCount}</span>
+									<div class="space-y-1">
+										<div class="flex justify-between text-xs">
+											<span class="text-white">Saturation</span>
+											<span class="text-white/50">{image.saturation}%</span>
+										</div>
+										<input
+											type="range"
+											min="0"
+											max="200"
+											value={image.saturation}
+											class="range range-xs range-primary"
+											oninput={(e) => updateProperty("saturation", parseInt(e.currentTarget.value))}
+										/>
 									</div>
-									<input
-										type="range"
-										min="2"
-										max="32"
-										step="1"
-										bind:value={extractColorCount}
-										class="range range-xs range-primary"
-									/>
+
+									<div class="space-y-1">
+										<div class="flex justify-between text-xs">
+											<span class="text-white">Hue</span>
+											<span class="text-white/50">{image.hueRotate}°</span>
+										</div>
+										<input
+											type="range"
+											min="0"
+											max="360"
+											value={image.hueRotate}
+											class="range range-xs range-secondary"
+											oninput={(e) => updateProperty("hueRotate", parseInt(e.currentTarget.value))}
+										/>
+									</div>
 								</div>
 
-								{#if !extractedPalette}
-									<button
-										class="btn btn-primary w-full gap-2"
-										onclick={handleExtractPalette}
-										disabled={isExtracting}
-									>
-										{#if isExtracting}
-											<span class="loading loading-spinner loading-sm"></span>
-											Extracting...
+								<!-- Effects -->
+								<div class="space-y-4 pt-4 border-t border-white/10">
+									<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">Effects</h3>
+
+									<div class="space-y-1">
+										<div class="flex justify-between text-xs">
+											<span class="text-white">Blur</span>
+											<span class="text-white/50">{image.blur}px</span>
+										</div>
+										<input
+											type="range"
+											min="0"
+											max="20"
+											value={image.blur}
+											class="range range-xs range-accent"
+											oninput={(e) => updateProperty("blur", parseInt(e.currentTarget.value))}
+										/>
+									</div>
+
+									<div class="space-y-1">
+										<div class="flex justify-between text-xs">
+											<span class="text-white">Opacity</span>
+											<span class="text-white/50">{Math.round(image.opacity * 100)}%</span>
+										</div>
+										<input
+											type="range"
+											min="0"
+											max="1"
+											step="0.01"
+											value={image.opacity}
+											class="range range-xs range-accent"
+											oninput={(e) => updateProperty("opacity", parseFloat(e.currentTarget.value))}
+										/>
+									</div>
+
+									<div class="space-y-1">
+										<div class="flex justify-between text-xs">
+											<span class="text-white">Sepia</span>
+											<span class="text-white/50">{image.sepia || 0}%</span>
+										</div>
+										<input
+											type="range"
+											min="0"
+											max="100"
+											value={image.sepia || 0}
+											class="range range-xs range-warning"
+											oninput={(e) => updateProperty("sepia", parseInt(e.currentTarget.value))}
+										/>
+									</div>
+
+									<div class="space-y-1">
+										<div class="flex justify-between text-xs">
+											<span class="text-white">Invert</span>
+											<span class="text-white/50">{image.invert || 0}%</span>
+										</div>
+										<input
+											type="range"
+											min="0"
+											max="100"
+											value={image.invert || 0}
+											class="range range-xs range-error"
+											oninput={(e) => updateProperty("invert", parseInt(e.currentTarget.value))}
+										/>
+									</div>
+
+									<div class="form-control">
+										<label class="label cursor-pointer justify-start gap-3">
+											<input
+												type="checkbox"
+												class="toggle toggle-sm toggle-primary"
+												checked={image.isGrayscale}
+												onchange={(e) => updateProperty("isGrayscale", e.currentTarget.checked)}
+											/>
+											<span class="label-text text-white">Grayscale</span>
+										</label>
+									</div>
+								</div>
+							{:else if activeTab === "transform"}
+								<div class="space-y-6">
+									<!-- Flip -->
+									<div class="space-y-2">
+										<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">Flip</h3>
+										<div class="flex gap-2">
+											<button
+												class={cn(
+													"btn btn-sm flex-1 gap-2",
+													image.flipX ? "btn-primary" : "btn-outline border-white/20 text-white"
+												)}
+												onclick={() => updateProperty("flipX", !image.flipX)}
+											>
+												<Icon icon="material-symbols:swap-horiz" class="w-5 h-5" />
+												Horizontal
+											</button>
+											<button
+												class={cn(
+													"btn btn-sm flex-1 gap-2",
+													image.flipY ? "btn-primary" : "btn-outline border-white/20 text-white"
+												)}
+												onclick={() => updateProperty("flipY", !image.flipY)}
+											>
+												<Icon icon="material-symbols:swap-vert" class="w-5 h-5" />
+												Vertical
+											</button>
+										</div>
+									</div>
+
+									<!-- Rotate -->
+									<div class="space-y-2">
+										<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">Rotate</h3>
+										<div class="flex gap-2 mb-2">
+											<button
+												class="btn btn-sm btn-outline flex-1 border-white/20 text-white"
+												onclick={() => updateProperty("rotation", image.rotation - 90)}
+											>
+												<Icon icon="material-symbols:rotate-left" class="w-5 h-5" />
+												-90°
+											</button>
+											<button
+												class="btn btn-sm btn-outline flex-1 border-white/20 text-white"
+												onclick={() => updateProperty("rotation", image.rotation + 90)}
+											>
+												<Icon icon="material-symbols:rotate-right" class="w-5 h-5" />
+												+90°
+											</button>
+										</div>
+										<div class="space-y-1">
+											<div class="flex justify-between text-xs">
+												<span class="text-white">Fine Rotation</span>
+												<span class="text-white/50">{image.rotation}°</span>
+											</div>
+											<input
+												type="range"
+												min="0"
+												max="360"
+												value={image.rotation}
+												class="range range-xs range-primary"
+												oninput={(e) => updateProperty("rotation", parseInt(e.currentTarget.value))}
+											/>
+										</div>
+									</div>
+
+									<!-- Scale -->
+									<div class="space-y-2">
+										<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">Scale</h3>
+										<div class="space-y-1">
+											<div class="flex justify-between text-xs">
+												<span class="text-white">Image Scale</span>
+												<span class="text-white/50">{Math.round(image.scale * 100)}%</span>
+											</div>
+											<input
+												type="range"
+												min="0.1"
+												max="3"
+												step="0.1"
+												value={image.scale}
+												class="range range-xs range-primary"
+												oninput={(e) => updateProperty("scale", parseFloat(e.currentTarget.value))}
+											/>
+										</div>
+									</div>
+								</div>
+							{:else if activeTab === "filters"}
+								<div class="space-y-6">
+									<!-- Palette Extraction -->
+									<div class="space-y-4">
+										<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">
+											Palette Extraction
+										</h3>
+
+										<div class="space-y-1">
+											<div class="flex justify-between text-xs">
+												<span class="text-white">Color Count</span>
+												<span class="text-white/50">{extractColorCount}</span>
+											</div>
+											<input
+												type="range"
+												min="2"
+												max="32"
+												step="1"
+												bind:value={extractColorCount}
+												class="range range-xs range-primary"
+											/>
+										</div>
+
+										{#if !extractedPalette}
+											<button
+												class="btn btn-primary w-full gap-2"
+												onclick={handleExtractPalette}
+												disabled={isExtracting}
+											>
+												{#if isExtracting}
+													<span class="loading loading-spinner loading-sm"></span>
+													Extracting...
+												{:else}
+													<Icon icon="material-symbols:palette" class="w-5 h-5" />
+													Extract Palette from Image
+												{/if}
+											</button>
 										{:else}
-											<Icon icon="material-symbols:palette" class="w-5 h-5" />
-											Extract Palette from Image
-										{/if}
-									</button>
-								{:else}
-									<div class="space-y-3">
-										<div class="flex h-12 w-full rounded-lg overflow-hidden border border-white/10">
-											{#each extractedPalette as color}
+											<div class="space-y-3">
 												<div
-													class="flex-1 h-full"
-													style:background-color={color}
-													title={color}
+													class="flex h-12 w-full rounded-lg overflow-hidden border border-white/10"
+												>
+													{#each extractedPalette as color}
+														<div
+															class="flex-1 h-full"
+															style:background-color={color}
+															title={color}
+														></div>
+													{/each}
+												</div>
+
+												<div class="grid grid-cols-2 gap-2">
+													<button
+														class="btn btn-sm btn-outline text-white border-white/20"
+														onclick={handleSortPalette}
+													>
+														<Icon icon="material-symbols:sort" class="w-4 h-4" />
+														Sort (Smooth)
+													</button>
+													<button
+														class="btn btn-sm btn-outline text-white border-white/20"
+														onclick={() => (extractedPalette = null)}
+													>
+														<Icon icon="material-symbols:close" class="w-4 h-4" />
+														Clear
+													</button>
+												</div>
+
+												<button
+													class="btn btn-sm btn-success w-full gap-2 text-white"
+													onclick={handleSavePalette}
+												>
+													<Icon icon="material-symbols:save" class="w-4 h-4" />
+													Save to Palettes
+												</button>
+											</div>
+										{/if}
+									</div>
+
+									<div class="divider before:bg-white/10 after:bg-white/10"></div>
+
+									<!-- Gradient Map Controls -->
+									<div class="space-y-4">
+										<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">
+											Gradient Map
+										</h3>
+
+										<!-- Active Gradient Display -->
+										{#if app.gradients.activeGradient}
+											<div class="p-3 bg-white/5 rounded-lg border border-white/10">
+												<div class="text-xs text-white/70 mb-2">Active Gradient</div>
+												<div
+													class="h-8 w-full rounded-md mb-2"
+													style:background={getGradientBackground(app.gradients.activeGradient)}
 												></div>
-											{/each}
-										</div>
-
-										<div class="grid grid-cols-2 gap-2">
-											<button
-												class="btn btn-sm btn-outline text-white border-white/20"
-												onclick={handleSortPalette}
+												<div class="text-sm font-medium text-white truncate">
+													{app.gradients.activeGradient.name}
+												</div>
+											</div>
+										{:else if app.palettes.activePalette}
+											<div class="p-3 bg-white/5 rounded-lg border border-white/10">
+												<div class="text-xs text-white/70 mb-2">Active Palette</div>
+												<div class="flex h-8 w-full rounded-md overflow-hidden mb-2">
+													{#each app.palettes.activePalette.colors as color}
+														<div class="flex-1 h-full" style:background-color={color}></div>
+													{/each}
+												</div>
+												<div class="text-sm font-medium text-white truncate">
+													{app.palettes.activePalette.name}
+												</div>
+											</div>
+										{:else}
+											<div
+												class="p-4 bg-white/5 rounded-lg border border-dashed border-white/10 text-center"
 											>
-												<Icon icon="material-symbols:sort" class="w-4 h-4" />
-												Sort (Smooth)
-											</button>
-											<button
-												class="btn btn-sm btn-outline text-white border-white/20"
-												onclick={() => (extractedPalette = null)}
+												<p class="text-sm text-white/50">
+													Select a gradient or palette from the main app to apply it here.
+												</p>
+											</div>
+										{/if}
+
+										<!-- Opacity Slider -->
+										<div class="space-y-1">
+											<div class="flex justify-between text-xs">
+												<span class="text-white">Effect Opacity</span>
+												<span class="text-white/50"
+													>{Math.round((image.gradientMapOpacity || 0) * 100)}%</span
+												>
+											</div>
+											<input
+												type="range"
+												min="0"
+												max="1"
+												step="0.01"
+												value={image.gradientMapOpacity || 0}
+												class="range range-xs range-primary"
+												oninput={(e) =>
+													updateProperty("gradientMapOpacity", parseFloat(e.currentTarget.value))}
+											/>
+										</div>
+
+										<!-- Blend Mode -->
+										<div class="space-y-1">
+											<div class="flex justify-between text-xs">
+												<span class="text-white">Blend Mode</span>
+											</div>
+											<select
+												class="select select-sm w-full glass-panel bg-white/5 text-white border-white/10 focus:border-phoenix-primary focus:bg-black/40"
+												value={image.gradientMapBlendMode || "normal"}
+												onchange={(e) =>
+													updateProperty("gradientMapBlendMode", e.currentTarget.value)}
 											>
-												<Icon icon="material-symbols:close" class="w-4 h-4" />
-												Clear
-											</button>
-										</div>
-
-										<button
-											class="btn btn-sm btn-success w-full gap-2 text-white"
-											onclick={handleSavePalette}
-										>
-											<Icon icon="material-symbols:save" class="w-4 h-4" />
-											Save to Palettes
-										</button>
-									</div>
-								{/if}
-							</div>
-
-							<div class="divider before:bg-white/10 after:bg-white/10"></div>
-
-							<!-- Gradient Map Controls -->
-							<div class="space-y-4">
-								<h3 class="text-xs font-bold text-white/50 uppercase tracking-wider">
-									Gradient Map
-								</h3>
-
-								<!-- Active Gradient Display -->
-								{#if app.gradients.activeGradient}
-									<div class="p-3 bg-white/5 rounded-lg border border-white/10">
-										<div class="text-xs text-white/70 mb-2">Active Gradient</div>
-										<div
-											class="h-8 w-full rounded-md mb-2"
-											style:background={getGradientBackground(app.gradients.activeGradient)}
-										></div>
-										<div class="text-sm font-medium text-white truncate">
-											{app.gradients.activeGradient.name}
+												<option value="normal">Normal</option>
+												<option value="multiply">Multiply</option>
+												<option value="screen">Screen</option>
+												<option value="overlay">Overlay</option>
+												<option value="soft-light">Soft Light</option>
+												<option value="hard-light">Hard Light</option>
+												<option value="color-dodge">Color Dodge</option>
+												<option value="color-burn">Color Burn</option>
+												<option value="darken">Darken</option>
+												<option value="lighten">Lighten</option>
+												<option value="difference">Difference</option>
+												<option value="exclusion">Exclusion</option>
+												<option value="hue">Hue</option>
+												<option value="saturation">Saturation</option>
+												<option value="color">Color</option>
+												<option value="luminosity">Luminosity</option>
+											</select>
 										</div>
 									</div>
-								{:else if app.palettes.activePalette}
-									<div class="p-3 bg-white/5 rounded-lg border border-white/10">
-										<div class="text-xs text-white/70 mb-2">Active Palette</div>
-										<div class="flex h-8 w-full rounded-md overflow-hidden mb-2">
-											{#each app.palettes.activePalette.colors as color}
-												<div class="flex-1 h-full" style:background-color={color}></div>
-											{/each}
-										</div>
-										<div class="text-sm font-medium text-white truncate">
-											{app.palettes.activePalette.name}
-										</div>
-									</div>
-								{:else}
-									<div
-										class="p-4 bg-white/5 rounded-lg border border-dashed border-white/10 text-center"
-									>
-										<p class="text-sm text-white/50">
-											Select a gradient or palette from the main app to apply it here.
-										</p>
-									</div>
-								{/if}
-
-								<!-- Opacity Slider -->
-								<div class="space-y-1">
-									<div class="flex justify-between text-xs">
-										<span class="text-white">Effect Opacity</span>
-										<span class="text-white/50"
-											>{Math.round((image.gradientMapOpacity || 0) * 100)}%</span
-										>
-									</div>
-									<input
-										type="range"
-										min="0"
-										max="1"
-										step="0.01"
-										value={image.gradientMapOpacity || 0}
-										class="range range-xs range-primary"
-										oninput={(e) =>
-											updateProperty("gradientMapOpacity", parseFloat(e.currentTarget.value))}
-									/>
 								</div>
-
-								<!-- Blend Mode -->
-								<div class="space-y-1">
-									<div class="flex justify-between text-xs">
-										<span class="text-white">Blend Mode</span>
-									</div>
-									<select
-										class="select select-sm select-bordered w-full bg-black/20 text-white"
-										value={image.gradientMapBlendMode || "normal"}
-										onchange={(e) => updateProperty("gradientMapBlendMode", e.currentTarget.value)}
-									>
-										<option value="normal">Normal</option>
-										<option value="multiply">Multiply</option>
-										<option value="screen">Screen</option>
-										<option value="overlay">Overlay</option>
-										<option value="soft-light">Soft Light</option>
-										<option value="hard-light">Hard Light</option>
-										<option value="color-dodge">Color Dodge</option>
-										<option value="color-burn">Color Burn</option>
-										<option value="darken">Darken</option>
-										<option value="lighten">Lighten</option>
-										<option value="difference">Difference</option>
-										<option value="exclusion">Exclusion</option>
-										<option value="hue">Hue</option>
-										<option value="saturation">Saturation</option>
-										<option value="color">Color</option>
-										<option value="luminosity">Luminosity</option>
-									</select>
+							{:else if activeTab === "export"}
+								<div class="h-full flex flex-col">
+									<ExportPanel onExport={handleExportImage} />
 								</div>
-							</div>
+							{/if}
 						</div>
-					{:else if activeTab === "export"}
-						<div class="h-full flex flex-col">
-							<ExportPanel onExport={handleExportImage} />
-						</div>
-					{/if}
+					{/key}
 				</div>
 
 				<!-- Footer Actions -->
