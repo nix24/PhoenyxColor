@@ -1,31 +1,7 @@
 import { storage } from "$lib/services/storage";
+import type { ValidatedAppSettings } from "$lib/schemas/validation";
 
-export interface AppSettings {
-	theme: "light" | "dark" | "system";
-	defaultPaletteSlots: number;
-	alwaysOnTop: boolean;
-	enableAnimations: boolean;
-	globalEyedropperEnabled: boolean;
-	referenceBoardSavePath: string | null;
-	workspace: {
-		showGrid: boolean;
-		snapToGrid: boolean;
-		gridSize: number;
-		showRulers: boolean;
-	};
-	exportPreferences: {
-		defaultFormat: "png" | "jpeg" | "webp" | "svg";
-		defaultScale: number;
-		includeBackground: boolean;
-		defaultPngResolution: number; // Keeping for backward compatibility if needed, or remove if unused
-		defaultSvgSize: { width: number; height: number };
-		compressionLevel: number;
-	};
-	autoSave: boolean;
-	autoSaveInterval: number; // minutes
-}
-
-const DEFAULT_SETTINGS: AppSettings = {
+const DEFAULT_SETTINGS: ValidatedAppSettings = {
 	theme: "system",
 	defaultPaletteSlots: 5,
 	alwaysOnTop: false,
@@ -51,7 +27,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export class SettingsStore {
-	state = $state<AppSettings>(DEFAULT_SETTINGS);
+	state = $state<ValidatedAppSettings>(DEFAULT_SETTINGS);
 	private STORAGE_KEY = "phoenyx_settings";
 
 	constructor() {
@@ -59,7 +35,7 @@ export class SettingsStore {
 	}
 
 	async load() {
-		const saved = await storage.local.get<AppSettings>(this.STORAGE_KEY);
+		const saved = await storage.local.get<ValidatedAppSettings>(this.STORAGE_KEY);
 		if (saved) {
 			// Merge with defaults to handle new settings in future versions
 			this.state = { ...DEFAULT_SETTINGS, ...saved };
@@ -70,13 +46,13 @@ export class SettingsStore {
 		await storage.local.set(this.STORAGE_KEY, $state.snapshot(this.state));
 	}
 
-	update(updates: Partial<AppSettings>) {
+	update(updates: Partial<ValidatedAppSettings>) {
 		Object.assign(this.state, updates);
 		this.save();
 	}
 
 	// Specific actions
-	setTheme(theme: AppSettings["theme"]) {
+	setTheme(theme: ValidatedAppSettings["theme"]) {
 		this.update({ theme });
 	}
 }

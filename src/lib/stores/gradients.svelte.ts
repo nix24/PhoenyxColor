@@ -1,26 +1,12 @@
 import { storage } from "$lib/services/storage";
 import { HistoryStore } from "./history.svelte";
-
-export interface GradientStop {
-	color: string;
-	position: number; // 0-100
-}
-
-export interface Gradient {
-	id: string;
-	name: string;
-	type: "linear" | "radial" | "conic";
-	stops: GradientStop[];
-	angle?: number;
-	centerX?: number;
-	centerY?: number;
-	createdAt: Date;
-}
+import type { ValidatedGradient } from "$lib/schemas/validation";
+import type { GradientId } from "$lib/types/brands";
 
 export class GradientStore {
-	gradients = $state<Gradient[]>([]);
+	gradients = $state<ValidatedGradient[]>([]);
 	activeGradientId = $state<string | null>(null);
-	history = new HistoryStore<Gradient[]>();
+	history = new HistoryStore<ValidatedGradient[]>();
 
 	private STORAGE_KEY = "phoenyx_gradients";
 
@@ -35,7 +21,7 @@ export class GradientStore {
 	}
 
 	async load() {
-		const saved = await storage.db.get<Gradient[]>(this.STORAGE_KEY);
+		const saved = await storage.db.get<ValidatedGradient[]>(this.STORAGE_KEY);
 		if (saved) {
 			this.gradients = saved.map((g) => ({
 				...g,
@@ -48,10 +34,10 @@ export class GradientStore {
 		await storage.db.set(this.STORAGE_KEY, $state.snapshot(this.gradients));
 	}
 
-	add(gradient: Omit<Gradient, "id" | "createdAt">) {
-		const newGradient: Gradient = {
+	add(gradient: Omit<ValidatedGradient, "id" | "createdAt">) {
+		const newGradient: ValidatedGradient = {
 			...gradient,
-			id: crypto.randomUUID(),
+			id: crypto.randomUUID() as GradientId,
 			createdAt: new Date(),
 		};
 
@@ -102,26 +88,29 @@ export class GradientStore {
 		});
 	}
 
-	update(id: string, updates: Partial<Gradient>) {
+	update(id: string, updates: Partial<ValidatedGradient>) {
 		const index = this.gradients.findIndex((g) => g.id === id);
 		if (index === -1) return;
 
-		const prevState = $state.snapshot(this.gradients);
-		Object.assign(this.gradients[index], updates);
-		this.save();
+		const item = this.gradients[index];
+		if (item) {
+			const prevState = $state.snapshot(this.gradients);
+			Object.assign(item, updates);
+			this.save();
 
-		this.history.push({
-			label: "Update Gradient",
-			undo: () => {
-				this.gradients = prevState;
-				this.save();
-			},
-			redo: () => {
-				const nextState = $state.snapshot(this.gradients);
-				this.gradients = nextState;
-				this.save();
-			},
-		});
+			this.history.push({
+				label: "Update Gradient",
+				undo: () => {
+					this.gradients = prevState;
+					this.save();
+				},
+				redo: () => {
+					const nextState = $state.snapshot(this.gradients);
+					this.gradients = nextState;
+					this.save();
+				},
+			});
+		}
 	}
 
 	setActive(id: string | null) {

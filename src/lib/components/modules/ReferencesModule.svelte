@@ -1,161 +1,270 @@
 <script lang="ts">
-import { app } from "$lib/stores/root.svelte";
-import type { ReferenceImage } from "$lib/stores/references.svelte";
-import Icon from "@iconify/svelte";
-import { toast } from "svelte-sonner";
-import { performanceService } from "$lib/services/performance";
-import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
-import { cn } from "$lib/utils/cn";
-import ImageEditor from "$lib/components/modules/references/ImageEditor.svelte";
+	import { app } from "$lib/stores/root.svelte";
+	import type { ValidatedReferenceImage } from "$lib/schemas/validation";
+	import type { ReferenceId } from "$lib/types/brands";
+	import Icon from "@iconify/svelte";
+	import { toast } from "svelte-sonner";
+	import { performanceService } from "$lib/services/performance";
+	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
+	import { cn } from "$lib/utils/cn";
+	import ImageEditor from "$lib/components/modules/references/ImageEditor.svelte";
 
-let fileInput: HTMLInputElement;
-let isDragOver = $state(false);
-let uploadProgress: Record<string, number> = $state({});
-let selectedImageId: string | null = $state(null);
-let viewMode: "gallery" | "transform" = $state("gallery");
-let showControls = $state(false);
+	let fileInput: HTMLInputElement;
+	let isDragOver = $state(false);
+	let uploadProgress: Record<string, number> = $state({});
+	let selectedImageId: string | null = $state(null);
+	let viewMode: "gallery" | "transform" = $state("gallery");
+	let showControls = $state(false);
 
-// File validation constants
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const ALLOWED_TYPES = [
-	"image/jpeg",
-	"image/png",
-	"image/gif",
-	"image/webp",
-	"image/bmp",
-	"image/svg+xml",
-];
-const MAX_FILES_AT_ONCE = 20;
+	// File validation constants
+	const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+	const ALLOWED_TYPES = [
+		"image/jpeg",
+		"image/png",
+		"image/gif",
+		"image/webp",
+		"image/bmp",
+		"image/svg+xml",
+	];
+	const MAX_FILES_AT_ONCE = 20;
 
-// Mobile action sheet handling
-let actionTarget: ReferenceImage | null = $state(null);
+	// Mobile action sheet handling
+	let actionTarget: ValidatedReferenceImage | null = $state(null);
 
-function validateFile(file: File): { valid: boolean; error?: string } {
-	if (!ALLOWED_TYPES.includes(file.type)) {
-		return { valid: false, error: `Unsupported file type: ${file.type}` };
-	}
-
-	if (file.size > MAX_FILE_SIZE) {
-		return {
-			valid: false,
-			error: `File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB (max 50MB)`,
-		};
-	}
-
-	return { valid: true };
-}
-
-function handleFileSelect(event: Event) {
-	const files = (event.target as HTMLInputElement).files;
-	if (files) {
-		addFiles(Array.from(files));
-	}
-	// Reset input to allow re-selecting same file
-	if (event.target) {
-		(event.target as HTMLInputElement).value = "";
-	}
-}
-
-function handleDrop(event: DragEvent) {
-	event.preventDefault();
-	isDragOver = false;
-
-	const files = event.dataTransfer?.files;
-	if (files) {
-		addFiles(Array.from(files));
-	}
-}
-
-function handleDragOver(event: DragEvent) {
-	event.preventDefault();
-	if (!event.dataTransfer) return;
-	event.dataTransfer.dropEffect = "copy";
-	isDragOver = true;
-}
-
-function handleDragLeave(event: DragEvent) {
-	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-	const x = event.clientX;
-	const y = event.clientY;
-
-	if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-		isDragOver = false;
-	}
-}
-
-function handleDropZoneKeydown(event: KeyboardEvent) {
-	if (event.key === "Enter" || event.key === " ") {
-		event.preventDefault();
-		fileInput.click();
-	}
-}
-
-async function addFiles(files: File[]) {
-	if (files.length > MAX_FILES_AT_ONCE) {
-		toast.error(`Please select no more than ${MAX_FILES_AT_ONCE} files at once`);
-		return;
-	}
-
-	const validFiles: File[] = [];
-	let invalidCount = 0;
-
-	// Validate all files first
-	for (const file of files) {
-		const validation = validateFile(file);
-		if (!validation.valid) {
-			toast.error(`${file.name}: ${validation.error}`);
-			invalidCount++;
-			continue;
+	function validateFile(file: File): { valid: boolean; error?: string } {
+		if (!ALLOWED_TYPES.includes(file.type)) {
+			return { valid: false, error: `Unsupported file type: ${file.type}` };
 		}
 
-		validFiles.push(file);
+		if (file.size > MAX_FILE_SIZE) {
+			return {
+				valid: false,
+				error: `File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB (max 50MB)`,
+			};
+		}
+
+		return { valid: true };
 	}
 
-	if (invalidCount > 0) {
-		toast.error(`${invalidCount} file(s) were invalid and skipped`);
+	function handleFileSelect(event: Event) {
+		const files = (event.target as HTMLInputElement).files;
+		if (files) {
+			addFiles(Array.from(files));
+		}
+		// Reset input to allow re-selecting same file
+		if (event.target) {
+			(event.target as HTMLInputElement).value = "";
+		}
 	}
 
-	if (validFiles.length === 0) {
-		return;
+	function handleDrop(event: DragEvent) {
+		event.preventDefault();
+		isDragOver = false;
+
+		const files = event.dataTransfer?.files;
+		if (files) {
+			addFiles(Array.from(files));
+		}
 	}
 
-	// Process valid files
-	for (const file of validFiles) {
-		await processFile(file);
+	function handleDragOver(event: DragEvent) {
+		event.preventDefault();
+		if (!event.dataTransfer) return;
+		event.dataTransfer.dropEffect = "copy";
+		isDragOver = true;
 	}
 
-	toast.success(`Added ${validFiles.length} reference image(s)`);
-}
+	function handleDragLeave(event: DragEvent) {
+		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		const x = event.clientX;
+		const y = event.clientY;
 
-async function processFile(file: File): Promise<void> {
-	const progressId = `${file.name}-${Date.now()}`;
-	uploadProgress[progressId] = 0;
+		if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+			isDragOver = false;
+		}
+	}
 
-	try {
-		// Optimize image and generate thumbnail
-		const { optimized, thumbnail } = await performanceService.optimizeImage(file, {
-			maxWidth: 1920,
-			maxHeight: 1080,
-			quality: 0.85,
+	function handleDropZoneKeydown(event: KeyboardEvent) {
+		if (event.key === "Enter" || event.key === " ") {
+			event.preventDefault();
+			fileInput.click();
+		}
+	}
+
+	async function addFiles(files: File[]) {
+		if (files.length > MAX_FILES_AT_ONCE) {
+			toast.error(`Please select no more than ${MAX_FILES_AT_ONCE} files at once`);
+			return;
+		}
+
+		const validFiles: File[] = [];
+		let invalidCount = 0;
+
+		// Validate all files first
+		for (const file of files) {
+			const validation = validateFile(file);
+			if (!validation.valid) {
+				toast.error(`${file.name}: ${validation.error}`);
+				invalidCount++;
+				continue;
+			}
+
+			validFiles.push(file);
+		}
+
+		if (invalidCount > 0) {
+			toast.error(`${invalidCount} file(s) were invalid and skipped`);
+		}
+
+		if (validFiles.length === 0) {
+			return;
+		}
+
+		// Process valid files
+		for (const file of validFiles) {
+			await processFile(file);
+		}
+
+		toast.success(`Added ${validFiles.length} reference image(s)`);
+	}
+
+	async function processFile(file: File): Promise<void> {
+		const progressId = `${file.name}-${Date.now()}`;
+		uploadProgress[progressId] = 0;
+
+		try {
+			// Optimize image and generate thumbnail
+			const { optimized, thumbnail } = await performanceService.optimizeImage(file, {
+				maxWidth: 1920,
+				maxHeight: 1080,
+				quality: 0.85,
+			});
+
+			uploadProgress[progressId] = 50;
+
+			// Convert optimized image to data URL for persistence across page refreshes
+			const imageUrl = await new Promise<string>((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result as string);
+				reader.onerror = () => reject(new Error("Failed to read optimized image"));
+				reader.readAsDataURL(optimized);
+			});
+
+			uploadProgress[progressId] = 80;
+
+			app.references.add({
+				src: imageUrl,
+				thumbnailSrc: thumbnail,
+				name: file.name.replace(/\.[^/.]+$/, ""),
+				position: { x: 50, y: 50 },
+				scale: 1,
+				rotation: 0,
+				opacity: 1,
+				isGrayscale: false,
+				brightness: 100,
+				contrast: 100,
+				saturation: 100,
+				hueRotate: 0,
+				blur: 0,
+			});
+
+			uploadProgress[progressId] = 100;
+			toast.success(`Added "${file.name}" to references`);
+		} catch (error) {
+			console.error("Error processing file:", error);
+			toast.error(`Failed to process "${file.name}"`);
+		} finally {
+			setTimeout(() => {
+				delete uploadProgress[progressId];
+			}, 1000);
+		}
+	}
+
+	function selectImage(id: string) {
+		selectedImageId = selectedImageId === id ? null : id;
+		if (selectedImageId) {
+			viewMode = "transform";
+			showControls = true;
+			// Open transform modal
+			const dlg = document.getElementById("transform-modal") as HTMLDialogElement | null;
+			if (dlg && !dlg.open) {
+				dlg.showModal();
+			}
+		} else {
+			showControls = false;
+			// Close modal if open
+			const dlg = document.getElementById("transform-modal") as HTMLDialogElement | null;
+			if (dlg?.open) dlg.close();
+		}
+	}
+
+	function removeReference(id: string) {
+		const reference = app.references.references.find((ref) => ref.id === id);
+		if (reference) {
+			// Cleanup blob URLs to prevent memory leaks (if any are still using blob URLs)
+			if (reference.src.startsWith("blob:")) {
+				URL.revokeObjectURL(reference.src);
+			}
+			if (reference.thumbnailSrc?.startsWith("blob:")) {
+				URL.revokeObjectURL(reference.thumbnailSrc);
+			}
+
+			app.references.remove(id);
+			toast.info(`Removed "${reference.name}"`);
+
+			if (selectedImageId === id) {
+				selectedImageId = null;
+				showControls = false;
+			}
+		}
+	}
+
+	function clearAllReferences() {
+		if (app.references.references.length === 0) return;
+
+		const count = app.references.references.length;
+
+		// Cleanup blob URLs to prevent memory leaks
+		app.references.references.forEach((ref) => {
+			if (ref.src.startsWith("blob:")) {
+				URL.revokeObjectURL(ref.src);
+			}
+			if (ref.thumbnailSrc?.startsWith("blob:")) {
+				URL.revokeObjectURL(ref.thumbnailSrc);
+			}
+			app.references.remove(ref.id);
 		});
 
-		uploadProgress[progressId] = 50;
+		selectedImageId = null;
+		showControls = false;
+		toast.success(`Cleared ${count} reference image(s)`);
+	}
 
-		// Convert optimized image to data URL for persistence across page refreshes
-		const imageUrl = await new Promise<string>((resolve, reject) => {
-			const reader = new FileReader();
-			reader.onload = () => resolve(reader.result as string);
-			reader.onerror = () => reject(new Error("Failed to read optimized image"));
-			reader.readAsDataURL(optimized);
+	function duplicateReference(id: string) {
+		const reference = app.references.references.find((ref) => ref.id === id);
+		if (reference) {
+			app.references.add({
+				...reference,
+				name: `${reference.name} (Copy)`,
+				position: {
+					x: reference.position.x + 20,
+					y: reference.position.y + 20,
+				},
+			});
+			toast.success(`Duplicated "${reference.name}"`);
+		}
+	}
+
+	function updateImageProperty(id: string, property: keyof ValidatedReferenceImage, value: any) {
+		app.references.update(id, { [property]: value });
+		// Auto-save changes
+		app.references.save().catch((error) => {
+			console.error("Failed to auto-save after updating image property:", error);
 		});
+	}
 
-		uploadProgress[progressId] = 80;
-
-		app.references.add({
-			src: imageUrl,
-			thumbnailSrc: thumbnail,
-			name: file.name.replace(/\.[^/.]+$/, ""),
-			position: { x: 50, y: 50 },
+	function resetTransforms(id: string) {
+		app.references.update(id, {
 			scale: 1,
 			rotation: 0,
 			opacity: 1,
@@ -165,172 +274,64 @@ async function processFile(file: File): Promise<void> {
 			saturation: 100,
 			hueRotate: 0,
 			blur: 0,
+			sepia: 0,
+			invert: 0,
+			flipX: false,
+			flipY: false,
 		});
-
-		uploadProgress[progressId] = 100;
-		toast.success(`Added "${file.name}" to references`);
-	} catch (error) {
-		console.error("Error processing file:", error);
-		toast.error(`Failed to process "${file.name}"`);
-	} finally {
-		setTimeout(() => {
-			delete uploadProgress[progressId];
-		}, 1000);
+		toast.success("All transforms reset");
 	}
-}
 
-function selectImage(id: string) {
-	selectedImageId = selectedImageId === id ? null : id;
-	if (selectedImageId) {
-		viewMode = "transform";
-		showControls = true;
-		// Open transform modal
-		const dlg = document.getElementById("transform-modal") as HTMLDialogElement | null;
-		if (dlg && !dlg.open) {
-			dlg.showModal();
-		}
-	} else {
-		showControls = false;
-		// Close modal if open
-		const dlg = document.getElementById("transform-modal") as HTMLDialogElement | null;
+	// Get selected reference
+	const selectedReference = $derived(
+		selectedImageId ? app.references.references.find((ref) => ref.id === selectedImageId) : null
+	);
+
+	function closeActionSheet() {
+		const dlg = document.getElementById("reference-action-modal") as HTMLDialogElement | null;
 		if (dlg?.open) dlg.close();
+		actionTarget = null;
 	}
-}
 
-function removeReference(id: string) {
-	const reference = app.references.references.find((ref) => ref.id === id);
-	if (reference) {
-		// Cleanup blob URLs to prevent memory leaks (if any are still using blob URLs)
-		if (reference.src.startsWith("blob:")) {
-			URL.revokeObjectURL(reference.src);
-		}
-		if (reference.thumbnailSrc?.startsWith("blob:")) {
-			URL.revokeObjectURL(reference.thumbnailSrc);
-		}
-
-		app.references.remove(id);
-		toast.info(`Removed "${reference.name}"`);
-
-		if (selectedImageId === id) {
-			selectedImageId = null;
-			showControls = false;
+	function handleImageClick(reference: ValidatedReferenceImage) {
+		if (window.innerWidth < 768) {
+			actionTarget = reference;
+			const dlg = document.getElementById("reference-action-modal") as HTMLDialogElement;
+			dlg.showModal();
+		} else {
+			selectImage(reference.id);
 		}
 	}
-}
 
-function clearAllReferences() {
-	if (app.references.references.length === 0) return;
-
-	const count = app.references.references.length;
-
-	// Cleanup blob URLs to prevent memory leaks
-	app.references.references.forEach((ref) => {
-		if (ref.src.startsWith("blob:")) {
-			URL.revokeObjectURL(ref.src);
-		}
-		if (ref.thumbnailSrc?.startsWith("blob:")) {
-			URL.revokeObjectURL(ref.thumbnailSrc);
-		}
-		app.references.remove(ref.id);
-	});
-
-	selectedImageId = null;
-	showControls = false;
-	toast.success(`Cleared ${count} reference image(s)`);
-}
-
-function duplicateReference(id: string) {
-	const reference = app.references.references.find((ref) => ref.id === id);
-	if (reference) {
-		app.references.add({
-			...reference,
-			name: `${reference.name} (Copy)`,
-			position: {
-				x: reference.position.x + 20,
-				y: reference.position.y + 20,
-			},
-		});
-		toast.success(`Duplicated "${reference.name}"`);
+	function closeTransformModal() {
+		showControls = false;
+		selectedImageId = null;
 	}
-}
 
-function updateImageProperty(id: string, property: keyof ReferenceImage, value: any) {
-	app.references.update(id, { [property]: value });
-	// Auto-save changes
-	app.references.save().catch((error) => {
-		console.error("Failed to auto-save after updating image property:", error);
-	});
-}
-
-function resetTransforms(id: string) {
-	app.references.update(id, {
-		scale: 1,
-		rotation: 0,
-		opacity: 1,
-		isGrayscale: false,
-		brightness: 100,
-		contrast: 100,
-		saturation: 100,
-		hueRotate: 0,
-		blur: 0,
-		sepia: 0,
-		invert: 0,
-		flipX: false,
-		flipY: false,
-	});
-	toast.success("All transforms reset");
-}
-
-// Get selected reference
-const selectedReference = $derived(
-	selectedImageId ? app.references.references.find((ref) => ref.id === selectedImageId) : null,
-);
-
-function closeActionSheet() {
-	const dlg = document.getElementById("reference-action-modal") as HTMLDialogElement | null;
-	if (dlg?.open) dlg.close();
-	actionTarget = null;
-}
-
-function handleImageClick(reference: ReferenceImage) {
-	if (window.innerWidth < 768) {
-		actionTarget = reference;
-		const dlg = document.getElementById("reference-action-modal") as HTMLDialogElement;
-		dlg.showModal();
-	} else {
-		selectImage(reference.id);
+	function transformFromActionSheet(id: string) {
+		closeActionSheet();
+		selectImage(id);
 	}
-}
 
-function closeTransformModal() {
-	showControls = false;
-	selectedImageId = null;
-}
+	function buildFilterString(reference: ValidatedReferenceImage): string {
+		const filters: string[] = [];
 
-function transformFromActionSheet(id: string) {
-	closeActionSheet();
-	selectImage(id);
-}
+		if (reference.isGrayscale) filters.push("grayscale(100%)");
+		if (reference.sepia) filters.push(`sepia(${reference.sepia}%)`);
+		if (reference.invert) filters.push(`invert(${reference.invert}%)`);
+		if (reference.brightness !== undefined && reference.brightness !== 100)
+			filters.push(`brightness(${reference.brightness}%)`);
+		if (reference.contrast !== undefined && reference.contrast !== 100)
+			filters.push(`contrast(${reference.contrast}%)`);
+		if (reference.saturation !== undefined && reference.saturation !== 100)
+			filters.push(`saturate(${reference.saturation}%)`);
+		if (reference.hueRotate !== undefined && reference.hueRotate !== 0)
+			filters.push(`hue-rotate(${reference.hueRotate}deg)`);
+		if (reference.blur !== undefined && reference.blur !== 0)
+			filters.push(`blur(${reference.blur}px)`);
 
-function buildFilterString(reference: ReferenceImage): string {
-	const filters: string[] = [];
-
-	if (reference.isGrayscale) filters.push("grayscale(100%)");
-	if (reference.sepia) filters.push(`sepia(${reference.sepia}%)`);
-	if (reference.invert) filters.push(`invert(${reference.invert}%)`);
-	if (reference.brightness !== undefined && reference.brightness !== 100)
-		filters.push(`brightness(${reference.brightness}%)`);
-	if (reference.contrast !== undefined && reference.contrast !== 100)
-		filters.push(`contrast(${reference.contrast}%)`);
-	if (reference.saturation !== undefined && reference.saturation !== 100)
-		filters.push(`saturate(${reference.saturation}%)`);
-	if (reference.hueRotate !== undefined && reference.hueRotate !== 0)
-		filters.push(`hue-rotate(${reference.hueRotate}deg)`);
-	if (reference.blur !== undefined && reference.blur !== 0)
-		filters.push(`blur(${reference.blur}px)`);
-
-	return filters.length > 0 ? filters.join(" ") : "none";
-}
+		return filters.length > 0 ? filters.join(" ") : "none";
+	}
 </script>
 
 <div class="h-full flex flex-col gap-4">
@@ -385,7 +386,7 @@ function buildFilterString(reference: ReferenceImage): string {
 			</div>
 
 			<button
-				class="btn btn-sm border-none bg-gradient-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300"
+				class="btn btn-sm border-none bg-linear-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300"
 				onclick={() => fileInput.click()}
 				type="button"
 			>
@@ -436,7 +437,7 @@ function buildFilterString(reference: ReferenceImage): string {
 				>
 					{#each app.references.references as reference (reference.id)}
 						<GlassPanel
-							class="group cursor-pointer !p-0 !overflow-visible"
+							class="group cursor-pointer p-0! overflow-visible!"
 							intensity="low"
 							hoverEffect={true}
 							onclick={() => handleImageClick(reference)}
@@ -470,7 +471,7 @@ function buildFilterString(reference: ReferenceImage): string {
 
 								<!-- Gradient Overlay (Bottom Fade) -->
 								<div
-									class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-300"
+									class="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/80 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-300"
 								></div>
 
 								<!-- Overlay on hover/selection -->
@@ -573,7 +574,7 @@ function buildFilterString(reference: ReferenceImage): string {
 					tabindex="0"
 				>
 					<div
-						class="w-20 h-20 rounded-full bg-gradient-to-br from-phoenix-primary/20 to-phoenix-violet/20 flex items-center justify-center mx-auto mb-6 animate-float"
+						class="w-20 h-20 rounded-full bg-linear-to-br from-phoenix-primary/20 to-phoenix-violet/20 flex items-center justify-center mx-auto mb-6 animate-float"
 					>
 						<Icon
 							icon="material-symbols:cloud-upload"
@@ -590,7 +591,7 @@ function buildFilterString(reference: ReferenceImage): string {
 					</p>
 
 					<button
-						class="btn btn-primary bg-gradient-to-r from-phoenix-primary to-phoenix-violet border-none shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300"
+						class="btn btn-primary bg-linear-to-r from-phoenix-primary to-phoenix-violet border-none shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300"
 						type="button"
 					>
 						<Icon icon="material-symbols:add-photo-alternate" class="w-5 h-5" />
@@ -670,7 +671,7 @@ function buildFilterString(reference: ReferenceImage): string {
 	{/if}
 </div>
 
-{#snippet mobileTransformControls(reference: ReferenceImage)}
+{#snippet mobileTransformControls(reference: ValidatedReferenceImage)}
 	<div class="space-y-6">
 		<!-- Rotation -->
 		<div class="space-y-3">
@@ -1061,7 +1062,7 @@ function buildFilterString(reference: ReferenceImage): string {
 	</div>
 {/snippet}
 
-{#snippet desktopTransformControls(reference: ReferenceImage)}
+{#snippet desktopTransformControls(reference: ValidatedReferenceImage)}
 	<div class="space-y-6">
 		<!-- Rotation -->
 		<div class="space-y-3">

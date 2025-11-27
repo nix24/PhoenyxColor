@@ -2,7 +2,8 @@
 	import { fly, scale } from "svelte/transition";
 	import { elasticOut } from "svelte/easing";
 	import { app } from "$lib/stores/root.svelte";
-	import type { ColorPalette } from "$lib/stores/palettes.svelte";
+	import type { ValidatedColorPalette } from "$lib/schemas/validation";
+	import type { PaletteId } from "$lib/types/brands";
 	import pkg from "file-saver";
 	import Icon from "@iconify/svelte";
 	import { toast } from "svelte-sonner";
@@ -92,8 +93,10 @@
 				/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(0?\.\d+|1|0))?\s*\)/
 			);
 			if (match) {
-				const [, r, g, b] = match.map(Number);
-				if (r <= 255 && g <= 255 && b <= 255) {
+				const r = Number(match[1]);
+				const g = Number(match[2]);
+				const b = Number(match[3]);
+				if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b) && r <= 255 && g <= 255 && b <= 255) {
 					return { valid: true, color: rgbToHex(r, g, b) };
 				}
 			}
@@ -104,8 +107,10 @@
 				/hsla?\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%\s*(?:,\s*(0?\.\d+|1|0))?\s*\)/
 			);
 			if (match) {
-				const [, h, s, l] = match.map(Number);
-				if (h <= 360 && s <= 100 && l <= 100) {
+				const h = Number(match[1]);
+				const s = Number(match[2]);
+				const l = Number(match[3]);
+				if (!Number.isNaN(h) && !Number.isNaN(s) && !Number.isNaN(l) && h <= 360 && s <= 100 && l <= 100) {
 					return { valid: true, color: hslToHex(h, s, l) };
 				}
 			}
@@ -136,7 +141,7 @@
 
 	function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 		const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-		return result
+		return result?.[1] && result?.[2] && result?.[3]
 			? {
 					r: parseInt(result[1], 16),
 					g: parseInt(result[2], 16),
@@ -354,7 +359,7 @@
 		}
 	}
 
-	function duplicatePalette(palette: ColorPalette) {
+	function duplicatePalette(palette: ValidatedColorPalette) {
 		let copyName = `${palette.name} Copy`;
 		let counter = 1;
 
@@ -585,7 +590,7 @@
 	}
 
 	function exportPalette(
-		palette: ColorPalette,
+		palette: ValidatedColorPalette,
 		format: "json" | "css" | "ase" | "txt" | "png" | "svg"
 	) {
 		// Validate palette before export
@@ -649,7 +654,7 @@
 		toast.success(`Palette exported as ${filename}`);
 	}
 
-	function exportPaletteAsImage(palette: ColorPalette, format: "png" | "svg") {
+	function exportPaletteAsImage(palette: ValidatedColorPalette, format: "png" | "svg") {
 		// Validate palette before export
 		const validation = validatePalette(palette);
 		if (!validation.valid) {
@@ -734,7 +739,7 @@
 
 			try {
 				const text = await file.text();
-				let importedPalette: Partial<ColorPalette> | null = null;
+				let importedPalette: Partial<ValidatedColorPalette> | null = null;
 				let paletteName = file.name.substring(0, file.name.lastIndexOf(".")) || "Imported Palette";
 
 				if (file.name.endsWith(".json")) {
@@ -772,7 +777,7 @@
 
 					let match: RegExpExecArray | null;
 					while ((match = regex.exec(text)) !== null) {
-						if (isValidHexColor(match[1])) {
+						if (match[1] && isValidHexColor(match[1])) {
 							colors.push(normalizeHexColor(match[1]));
 						}
 					}
@@ -796,7 +801,7 @@
 					}
 					importedPalette.name = finalName;
 
-					app.palettes.add(importedPalette as Omit<ColorPalette, "id" | "createdAt">);
+					app.palettes.add(importedPalette as Omit<ValidatedColorPalette, "id" | "createdAt">);
 					toast.success(`Imported palette "${finalName}"`);
 				} else {
 					toast.error("Failed to parse palette file or no valid colors found");
@@ -954,7 +959,7 @@
 			const colors = await extractColorsFromTransformedImage(reference, extractSlots);
 
 			// Create new palette with extracted colors - truncate name to avoid validation errors
-			const baseName = reference.name.split(".")[0]; // Remove file extension
+			const baseName = reference.name.split(".")[0] ?? reference.name; // Remove file extension
 			const suffix = " Colors";
 			const maxBaseLength = 50 - suffix.length; // Reserve space for " Colors"
 

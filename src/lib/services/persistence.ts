@@ -1,8 +1,8 @@
 import type { RootStore } from "$lib/stores/root.svelte";
-import type { ReferenceImage } from "$lib/stores/references.svelte";
-import type { ColorPalette } from "$lib/stores/palettes.svelte";
-import type { Gradient } from "$lib/stores/gradients.svelte";
-import type { AppSettings } from "$lib/stores/settings.svelte";
+import type { ValidatedReferenceImage } from "$lib/schemas/validation";
+import type { ValidatedColorPalette } from "$lib/schemas/validation";
+import type { ValidatedGradient } from "$lib/schemas/validation";
+import type { ValidatedAppSettings } from "$lib/schemas/validation";
 import { toast } from "svelte-sonner";
 import { browser } from "$app/environment";
 import { validateAppData } from "$lib/schemas/validation";
@@ -16,10 +16,10 @@ export interface StorageData {
 	version: string;
 	timestamp: string;
 	data: {
-		references: ReferenceImage[];
-		palettes: ColorPalette[];
-		gradients: Gradient[];
-		settings: AppSettings;
+		references: ValidatedReferenceImage[];
+		palettes: ValidatedColorPalette[];
+		gradients: ValidatedGradient[];
+		settings: ValidatedAppSettings;
 		tutorialState: {
 			hasSeenWelcome: boolean;
 			hasSeenPaletteTutorial: boolean;
@@ -360,7 +360,7 @@ export class PersistenceService {
 			const key = localStorage.key(i);
 			if (key) {
 				const value = localStorage.getItem(key);
-				console.log(`  ${key}: ${value ? value.substring(0, 100) + "..." : "null"}`);
+				console.log(`  ${key}: ${value ? `${value.substring(0, 100)}...` : "null"}`);
 			}
 		}
 

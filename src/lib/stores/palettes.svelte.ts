@@ -1,20 +1,12 @@
 import { storage } from "$lib/services/storage";
 import { HistoryStore } from "./history.svelte";
-import { validatePalette, validateColor } from "$lib/schemas/validation"; // Assuming these exist from previous code
-
-export interface ColorPalette {
-	id: string;
-	name: string;
-	colors: string[];
-	maxSlots: number;
-	createdAt: Date;
-	tags: string[];
-}
+import type { ValidatedColorPalette } from "$lib/schemas/validation";
+import type { PaletteId } from "$lib/types/brands";
 
 export class PaletteStore {
-	palettes = $state<ColorPalette[]>([]);
+	palettes = $state<ValidatedColorPalette[]>([]);
 	activePaletteId = $state<string | null>(null);
-	history = new HistoryStore<ColorPalette[]>();
+	history = new HistoryStore<ValidatedColorPalette[]>();
 
 	private STORAGE_KEY = "phoenyx_palettes";
 
@@ -27,7 +19,7 @@ export class PaletteStore {
 	}
 
 	async load() {
-		const saved = await storage.db.get<ColorPalette[]>(this.STORAGE_KEY);
+		const saved = await storage.db.get<ValidatedColorPalette[]>(this.STORAGE_KEY);
 		if (saved) {
 			// Hydrate dates
 			this.palettes = saved.map((p) => ({
@@ -42,10 +34,10 @@ export class PaletteStore {
 	}
 
 	// Actions
-	add(palette: Omit<ColorPalette, "id" | "createdAt">) {
-		const newPalette: ColorPalette = {
+	add(palette: Omit<ValidatedColorPalette, "id" | "createdAt">) {
+		const newPalette: ValidatedColorPalette = {
 			...palette,
-			id: crypto.randomUUID(),
+			id: crypto.randomUUID() as PaletteId,
 			createdAt: new Date(),
 		};
 
@@ -98,26 +90,29 @@ export class PaletteStore {
 		});
 	}
 
-	update(id: string, updates: Partial<ColorPalette>) {
+	update(id: string, updates: Partial<ValidatedColorPalette>) {
 		const index = this.palettes.findIndex((p) => p.id === id);
 		if (index === -1) return;
 
-		const prevState = $state.snapshot(this.palettes);
-		Object.assign(this.palettes[index], updates);
-		this.save();
+		const item = this.palettes[index];
+		if (item) {
+			const prevState = $state.snapshot(this.palettes);
+			Object.assign(item, updates);
+			this.save();
 
-		this.history.push({
-			label: "Update Palette",
-			undo: () => {
-				this.palettes = prevState;
-				this.save();
-			},
-			redo: () => {
-				const nextState = $state.snapshot(this.palettes); // Current state is the redo state
-				this.palettes = nextState;
-				this.save();
-			},
-		});
+			this.history.push({
+				label: "Update Palette",
+				undo: () => {
+					this.palettes = prevState;
+					this.save();
+				},
+				redo: () => {
+					const nextState = $state.snapshot(this.palettes); // Current state is the redo state
+					this.palettes = nextState;
+					this.save();
+				},
+			});
+		}
 	}
 
 	setActive(id: string | null) {

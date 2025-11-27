@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { app } from "$lib/stores/root.svelte";
-	import type { Gradient, GradientStop } from "$lib/stores/gradients.svelte";
+	import type { ValidatedGradient, ValidatedGradientStop } from "$lib/schemas/validation";
+	import type { GradientId } from "$lib/types/brands";
 	import { validateGradient, validateColor } from "$lib/schemas/validation";
 	import pkg from "file-saver";
 	import Icon from "@iconify/svelte";
@@ -207,7 +208,7 @@
 	});
 
 	// Enhanced gradient CSS generation
-	function generateCSSGradient(gradient: Gradient | null): string {
+	function generateCSSGradient(gradient: ValidatedGradient | null): string {
 		if (!gradient || !gradient.stops.length) {
 			return "linear-gradient(45deg in oklch, #3b82f6, #8b5cf6)";
 		}
@@ -234,7 +235,7 @@
 			return;
 		}
 
-		const defaultStops: GradientStop[] = [
+		const defaultStops: ValidatedGradientStop[] = [
 			{ color: "#3b82f6", position: 0 },
 			{ color: "#8b5cf6", position: 100 },
 		];
@@ -270,7 +271,7 @@
 
 	// Apply preset gradient
 	function applyPreset(preset: any) {
-		const stops: GradientStop[] = preset.colors.map((color: string, index: number) => ({
+		const stops: ValidatedGradientStop[] = preset.colors.map((color: string, index: number) => ({
 			color,
 			position:
 				index === 0
@@ -315,7 +316,7 @@
 			colors = chroma.scale(colors).mode("lch").colors(5);
 		}
 
-		const stops: GradientStop[] = colors.map((color: string, index: number) => ({
+		const stops: ValidatedGradientStop[] = colors.map((color: string, index: number) => ({
 			color,
 			position: (index / (colors.length - 1)) * 100,
 		}));
@@ -338,7 +339,11 @@
 	}
 
 	// Color stop management
-	function addColorStop(gradient: Gradient, color: string = colorPickerValue, position?: number) {
+	function addColorStop(
+		gradient: ValidatedGradient,
+		color: string = colorPickerValue,
+		position?: number
+	) {
 		// Validate color before adding
 		const colorValidation = validateColor(color);
 		if (!colorValidation.valid) {
@@ -350,12 +355,17 @@
 			// Find best position between existing stops
 			const positions = gradient.stops.map((s) => s.position).sort((a, b) => a - b);
 			position = 50; // Default to middle
-
-			for (let i = 0; i < positions.length - 1; i++) {
-				const gap = positions[i + 1] - positions[i];
-				if (gap > 20) {
-					position = positions[i] + gap / 2;
-					break;
+			if (positions.length >= 2) {
+				for (let i = 0; i < positions.length - 1; i++) {
+					const p1 = positions[i];
+					const p2 = positions[i + 1];
+					if (p1 !== undefined && p2 !== undefined) {
+						const gap = p2 - p1;
+						if (gap > 20) {
+							position = p1 + gap / 2;
+							break;
+						}
+					}
 				}
 			}
 		}
@@ -366,13 +376,13 @@
 			return;
 		}
 
-		const newStop: GradientStop = { color, position };
+		const newStop: ValidatedGradientStop = { color, position };
 		gradient.stops.push(newStop);
 		gradient.stops.sort((a, b) => a.position - b.position);
 		toast.success("Color stop added!");
 	}
 
-	function removeColorStop(gradient: Gradient, index: number) {
+	function removeColorStop(gradient: ValidatedGradient, index: number) {
 		if (gradient.stops.length <= 2) {
 			toast.warning("Gradient must have at least 2 color stops");
 			return;
@@ -381,7 +391,11 @@
 		toast.info("Color stop removed");
 	}
 
-	function updateColorStop(gradient: Gradient, index: number, updates: Partial<GradientStop>) {
+	function updateColorStop(
+		gradient: ValidatedGradient,
+		index: number,
+		updates: Partial<ValidatedGradientStop>
+	) {
 		if (gradient.stops[index]) {
 			Object.assign(gradient.stops[index], updates);
 			if (updates.position !== undefined) {
@@ -391,7 +405,7 @@
 	}
 
 	// Advanced gradient operations
-	function reverseGradient(gradient: Gradient) {
+	function reverseGradient(gradient: ValidatedGradient) {
 		gradient.stops = gradient.stops
 			.map((stop) => ({
 				...stop,
@@ -401,30 +415,34 @@
 		toast.success("Gradient reversed!");
 	}
 
-	function randomizeGradient(gradient: Gradient) {
+	function randomizeGradient(gradient: ValidatedGradient) {
 		const colors = chroma
 			.scale(["red", "yellow", "green", "blue", "purple"])
 			.mode("lch")
 			.colors(gradient.stops.length);
 		gradient.stops.forEach((stop, index) => {
-			stop.color = colors[index];
+			if (colors[index]) {
+				stop.color = colors[index];
+			}
 		});
 		toast.success("Gradient randomized!");
 	}
 
-	function smoothenGradient(gradient: Gradient) {
+	function smoothenGradient(gradient: ValidatedGradient) {
 		if (gradient.stops.length < 3) return;
 
 		const colors = gradient.stops.map((stop) => stop.color);
 		const smoothColors = chroma.scale(colors).mode("lch").colors(gradient.stops.length);
 
 		gradient.stops.forEach((stop, index) => {
-			stop.color = smoothColors[index];
+			if (smoothColors[index]) {
+				stop.color = smoothColors[index];
+			}
 		});
 		toast.success("Gradient smoothened!");
 	}
 
-	function smartSortStops(gradient: Gradient) {
+	function smartSortStops(gradient: ValidatedGradient) {
 		const colors = gradient.stops.map((s) => s.color);
 		const sortedColors = sortPalette(colors);
 
@@ -436,7 +454,7 @@
 	}
 
 	// Export functions
-	async function exportAsSVG(gradient: Gradient) {
+	async function exportAsSVG(gradient: ValidatedGradient) {
 		const gradientId = `gradient-${Date.now()}`;
 		let gradientDef = "";
 
@@ -475,7 +493,10 @@
 	}
 
 	// Export functions
-	async function exportGradient(gradient: Gradient, format: "css" | "png" | "svg" | "json") {
+	async function exportGradient(
+		gradient: ValidatedGradient,
+		format: "css" | "png" | "svg" | "json"
+	) {
 		// Validate gradient before export
 		const validation = validateGradient(gradient);
 		if (!validation.valid) {
@@ -510,7 +531,7 @@
 		}
 	}
 
-	async function exportAsPNG(gradient: Gradient) {
+	async function exportAsPNG(gradient: ValidatedGradient) {
 		const canvas = document.createElement("canvas");
 		const ctx = canvas.getContext("2d");
 		if (!ctx) return;

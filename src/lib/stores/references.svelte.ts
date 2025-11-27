@@ -1,33 +1,11 @@
 import { storage } from "$lib/services/storage";
 import { HistoryStore } from "./history.svelte";
-
-export interface ReferenceImage {
-	id: string;
-	src: string; // Base64 or Blob URL
-	thumbnailSrc?: string;
-	name: string;
-	position: { x: number; y: number };
-	scale: number;
-	rotation: number;
-	opacity: number;
-	isGrayscale: boolean;
-	brightness?: number;
-	contrast?: number;
-	saturation?: number;
-	hueRotate?: number;
-	blur?: number;
-	sepia?: number;
-	invert?: number;
-	flipX?: boolean;
-	flipY?: boolean;
-	gradientMapOpacity?: number;
-	gradientMapBlendMode?: string;
-	createdAt: Date;
-}
+import type { ValidatedReferenceImage } from "$lib/schemas/validation";
+import type { ReferenceId } from "$lib/types/brands";
 
 export class ReferenceStore {
-	references = $state<ReferenceImage[]>([]);
-	history = new HistoryStore<ReferenceImage[]>();
+	references = $state<ValidatedReferenceImage[]>([]);
+	history = new HistoryStore<ValidatedReferenceImage[]>();
 
 	private STORAGE_KEY = "phoenyx_references";
 
@@ -36,7 +14,7 @@ export class ReferenceStore {
 	}
 
 	async load() {
-		const saved = await storage.db.get<ReferenceImage[]>(this.STORAGE_KEY);
+		const saved = await storage.db.get<ValidatedReferenceImage[]>(this.STORAGE_KEY);
 		if (saved) {
 			this.references = saved.map((r) => ({
 				...r,
@@ -52,10 +30,10 @@ export class ReferenceStore {
 		await storage.db.set(this.STORAGE_KEY, $state.snapshot(this.references));
 	}
 
-	add(ref: Omit<ReferenceImage, "id" | "createdAt">) {
-		const newRef: ReferenceImage = {
+	add(ref: Omit<ValidatedReferenceImage, "id" | "createdAt">) {
+		const newRef: ValidatedReferenceImage = {
 			...ref,
-			id: crypto.randomUUID(),
+			id: crypto.randomUUID() as ReferenceId,
 			createdAt: new Date(),
 		};
 
@@ -99,27 +77,30 @@ export class ReferenceStore {
 		});
 	}
 
-	update(id: string, updates: Partial<ReferenceImage>) {
+	update(id: string, updates: Partial<ValidatedReferenceImage>) {
 		const index = this.references.findIndex((r) => r.id === id);
 		if (index === -1) return;
 
-		const prevState = $state.snapshot(this.references);
-		Object.assign(this.references[index], updates);
-		this.save();
+		const item = this.references[index];
+		if (item) {
+			const prevState = $state.snapshot(this.references);
+			Object.assign(item, updates);
+			this.save();
 
-		this.history.push({
-			label: "Update Reference",
-			undo: () => {
-				this.references = prevState;
-				this.save();
-			},
-			redo: () => {
-				// We can't just re-apply updates because we need the full state snapshot
-				// But since we modified the state in place above, we can just snapshot it now
-				const nextState = $state.snapshot(this.references);
-				this.references = nextState;
-				this.save();
-			},
-		});
+			this.history.push({
+				label: "Update Reference",
+				undo: () => {
+					this.references = prevState;
+					this.save();
+				},
+				redo: () => {
+					// We can't just re-apply updates because we need the full state snapshot
+					// But since we modified the state in place above, we can just snapshot it now
+					const nextState = $state.snapshot(this.references);
+					this.references = nextState;
+					this.save();
+				},
+			});
+		}
 	}
 }
