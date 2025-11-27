@@ -1,184 +1,184 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
+import Icon from "@iconify/svelte";
 
-	let {
-		hex = $bindable("#3B82F6"),
-		label = "Choose a color",
-		alwaysOpen = false,
-		onInput = null,
-		onChange = null,
-	} = $props<{
-		hex?: string | null;
-		label?: string;
-		alwaysOpen?: boolean;
-		onInput?: (detail: { hex: string | null }) => void;
-		onChange?: (detail: { hex: string | null }) => void;
-	}>();
+let {
+	hex = $bindable("#3B82F6"),
+	label = "Choose a color",
+	alwaysOpen = false,
+	onInput = null,
+	onChange = null,
+} = $props<{
+	hex?: string | null;
+	label?: string;
+	alwaysOpen?: boolean;
+	onInput?: (detail: { hex: string | null }) => void;
+	onChange?: (detail: { hex: string | null }) => void;
+}>();
 
-	// Local color state
-	let localHex = $state(hex || "#3B82F6");
-	let colorInput: HTMLInputElement;
+// Local color state
+let localHex = $state(hex || "#3B82F6");
+let colorInput: HTMLInputElement;
 
-	// Color format state
-	let colorFormat: "hex" | "rgb" | "hsl" = $state("hex");
-	let showPresets = $state(true);
+// Color format state
+let colorFormat: "hex" | "rgb" | "hsl" = $state("hex");
+let showPresets = $state(true);
 
-	// HSL state for custom controls
-	let hue = $state(0);
-	let saturation = $state(50);
-	let lightness = $state(50);
+// HSL state for custom controls
+let hue = $state(0);
+let saturation = $state(50);
+let lightness = $state(50);
 
-	// Preset colors
-	const presetColors = [
-		"#FF0000",
-		"#FF8000",
-		"#FFFF00",
-		"#80FF00",
-		"#00FF00",
-		"#00FF80",
-		"#00FFFF",
-		"#0080FF",
-		"#0000FF",
-		"#8000FF",
-		"#FF00FF",
-		"#FF0080",
-		"#FFFFFF",
-		"#E0E0E0",
-		"#C0C0C0",
-		"#A0A0A0",
-		"#808080",
-		"#606060",
-		"#404040",
-		"#202020",
-		"#000000",
-		"#8B4513",
-		"#A0522D",
-		"#CD853F",
-	];
+// Preset colors
+const presetColors = [
+	"#FF0000",
+	"#FF8000",
+	"#FFFF00",
+	"#80FF00",
+	"#00FF00",
+	"#00FF80",
+	"#00FFFF",
+	"#0080FF",
+	"#0000FF",
+	"#8000FF",
+	"#FF00FF",
+	"#FF0080",
+	"#FFFFFF",
+	"#E0E0E0",
+	"#C0C0C0",
+	"#A0A0A0",
+	"#808080",
+	"#606060",
+	"#404040",
+	"#202020",
+	"#000000",
+	"#8B4513",
+	"#A0522D",
+	"#CD853F",
+];
 
-	// Sync local state with prop
-	$effect(() => {
-		if (hex !== undefined && hex !== localHex) {
-			localHex = hex || "#3B82F6";
-			updateHSLFromHex(localHex);
-		}
-	});
-
-	function hexToHsl(hex: string): { h: number; s: number; l: number } {
-		const r = parseInt(hex.slice(1, 3), 16) / 255;
-		const g = parseInt(hex.slice(3, 5), 16) / 255;
-		const b = parseInt(hex.slice(5, 7), 16) / 255;
-
-		const max = Math.max(r, g, b);
-		const min = Math.min(r, g, b);
-		let h = 0,
-			s = 0,
-			l = (max + min) / 2;
-
-		if (max !== min) {
-			const d = max - min;
-			s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
-			switch (max) {
-				case r:
-					h = (g - b) / d + (g < b ? 6 : 0);
-					break;
-				case g:
-					h = (b - r) / d + 2;
-					break;
-				case b:
-					h = (r - g) / d + 4;
-					break;
-			}
-			h /= 6;
-		}
-
-		return {
-			h: Math.round(h * 360),
-			s: Math.round(s * 100),
-			l: Math.round(l * 100),
-		};
-	}
-
-	function hslToHex(h: number, s: number, l: number): string {
-		h /= 360;
-		s /= 100;
-		l /= 100;
-
-		const a = s * Math.min(l, 1 - l);
-		const f = (n: number) => {
-			const k = (n + h / (1 / 12)) % 12;
-			const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-			return Math.round(255 * color);
-		};
-
-		const r = f(0);
-		const g = f(8);
-		const b = f(4);
-
-		return `#${[r, g, b]
-			.map((x) => x.toString(16).padStart(2, "0"))
-			.join("")
-			.toUpperCase()}`;
-	}
-
-	function updateHSLFromHex(hexColor: string) {
-		const hsl = hexToHsl(hexColor);
-		hue = hsl.h;
-		saturation = hsl.s;
-		lightness = hsl.l;
-	}
-
-	function updateHexFromHSL() {
-		const newHex = hslToHex(hue, saturation, lightness);
-		updateColor(newHex);
-	}
-
-	function updateColor(newHex: string) {
-		localHex = newHex;
-		hex = newHex;
-
-		if (onInput) {
-			onInput({ hex: newHex });
-		}
-		if (onChange) {
-			onChange({ hex: newHex });
-		}
-	}
-
-	function handleColorInput(event: Event) {
-		const target = event.target as HTMLInputElement;
-		updateColor(target.value.toUpperCase());
-		updateHSLFromHex(target.value);
-	}
-
-	function handlePresetClick(color: string) {
-		updateColor(color);
-		updateHSLFromHex(color);
-	}
-
-	function handleHueChange(event: Event) {
-		const target = event.target as HTMLInputElement;
-		hue = parseInt(target.value);
-		updateHexFromHSL();
-	}
-
-	function handleSaturationChange(event: Event) {
-		const target = event.target as HTMLInputElement;
-		saturation = parseInt(target.value);
-		updateHexFromHSL();
-	}
-
-	function handleLightnessChange(event: Event) {
-		const target = event.target as HTMLInputElement;
-		lightness = parseInt(target.value);
-		updateHexFromHSL();
-	}
-
-	// Initialize HSL from hex
-	$effect(() => {
+// Sync local state with prop
+$effect(() => {
+	if (hex !== undefined && hex !== localHex) {
+		localHex = hex || "#3B82F6";
 		updateHSLFromHex(localHex);
-	});
+	}
+});
+
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+	const r = parseInt(hex.slice(1, 3), 16) / 255;
+	const g = parseInt(hex.slice(3, 5), 16) / 255;
+	const b = parseInt(hex.slice(5, 7), 16) / 255;
+
+	const max = Math.max(r, g, b);
+	const min = Math.min(r, g, b);
+	let h = 0,
+		s = 0,
+		l = (max + min) / 2;
+
+	if (max !== min) {
+		const d = max - min;
+		s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+		switch (max) {
+			case r:
+				h = (g - b) / d + (g < b ? 6 : 0);
+				break;
+			case g:
+				h = (b - r) / d + 2;
+				break;
+			case b:
+				h = (r - g) / d + 4;
+				break;
+		}
+		h /= 6;
+	}
+
+	return {
+		h: Math.round(h * 360),
+		s: Math.round(s * 100),
+		l: Math.round(l * 100),
+	};
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+	h /= 360;
+	s /= 100;
+	l /= 100;
+
+	const a = s * Math.min(l, 1 - l);
+	const f = (n: number) => {
+		const k = (n + h / (1 / 12)) % 12;
+		const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+		return Math.round(255 * color);
+	};
+
+	const r = f(0);
+	const g = f(8);
+	const b = f(4);
+
+	return `#${[r, g, b]
+		.map((x) => x.toString(16).padStart(2, "0"))
+		.join("")
+		.toUpperCase()}`;
+}
+
+function updateHSLFromHex(hexColor: string) {
+	const hsl = hexToHsl(hexColor);
+	hue = hsl.h;
+	saturation = hsl.s;
+	lightness = hsl.l;
+}
+
+function updateHexFromHSL() {
+	const newHex = hslToHex(hue, saturation, lightness);
+	updateColor(newHex);
+}
+
+function updateColor(newHex: string) {
+	localHex = newHex;
+	hex = newHex;
+
+	if (onInput) {
+		onInput({ hex: newHex });
+	}
+	if (onChange) {
+		onChange({ hex: newHex });
+	}
+}
+
+function handleColorInput(event: Event) {
+	const target = event.target as HTMLInputElement;
+	updateColor(target.value.toUpperCase());
+	updateHSLFromHex(target.value);
+}
+
+function handlePresetClick(color: string) {
+	updateColor(color);
+	updateHSLFromHex(color);
+}
+
+function handleHueChange(event: Event) {
+	const target = event.target as HTMLInputElement;
+	hue = parseInt(target.value, 10);
+	updateHexFromHSL();
+}
+
+function handleSaturationChange(event: Event) {
+	const target = event.target as HTMLInputElement;
+	saturation = parseInt(target.value, 10);
+	updateHexFromHSL();
+}
+
+function handleLightnessChange(event: Event) {
+	const target = event.target as HTMLInputElement;
+	lightness = parseInt(target.value, 10);
+	updateHexFromHSL();
+}
+
+// Initialize HSL from hex
+$effect(() => {
+	updateHSLFromHex(localHex);
+});
 </script>
 
 <div class="phoenyx-color-picker bg-base-100 rounded-lg border border-base-300 p-4 space-y-4">

@@ -26,7 +26,7 @@ export function rgbToHex(r: number, g: number, b: number): string {
 		[r, g, b]
 			.map((x) => {
 				const hex = x.toString(16);
-				return hex.length === 1 ? "0" + hex : hex;
+				return hex.length === 1 ? `0${hex}` : hex;
 			})
 			.join("")
 			.toUpperCase()
@@ -43,9 +43,9 @@ function rgbToXyz(r: number, g: number, b: number): { x: number; y: number; z: n
 	let bNorm = b / 255;
 
 	// Apply gamma correction
-	rNorm = rNorm > 0.04045 ? Math.pow((rNorm + 0.055) / 1.055, 2.4) : rNorm / 12.92;
-	gNorm = gNorm > 0.04045 ? Math.pow((gNorm + 0.055) / 1.055, 2.4) : gNorm / 12.92;
-	bNorm = bNorm > 0.04045 ? Math.pow((bNorm + 0.055) / 1.055, 2.4) : bNorm / 12.92;
+	rNorm = rNorm > 0.04045 ? ((rNorm + 0.055) / 1.055) ** 2.4 : rNorm / 12.92;
+	gNorm = gNorm > 0.04045 ? ((gNorm + 0.055) / 1.055) ** 2.4 : gNorm / 12.92;
+	bNorm = bNorm > 0.04045 ? ((bNorm + 0.055) / 1.055) ** 2.4 : bNorm / 12.92;
 
 	// Observer = 2°, Illuminant = D65
 	const x = rNorm * 0.4124564 + gNorm * 0.3575761 + bNorm * 0.1804375;
@@ -68,9 +68,9 @@ function xyzToLab(x: number, y: number, z: number): { l: number; a: number; b: n
 	let fy = y / yn;
 	let fz = z / zn;
 
-	fx = fx > 0.008856 ? Math.pow(fx, 1 / 3) : 7.787 * fx + 16 / 116;
-	fy = fy > 0.008856 ? Math.pow(fy, 1 / 3) : 7.787 * fy + 16 / 116;
-	fz = fz > 0.008856 ? Math.pow(fz, 1 / 3) : 7.787 * fz + 16 / 116;
+	fx = fx > 0.008856 ? fx ** (1 / 3) : 7.787 * fx + 16 / 116;
+	fy = fy > 0.008856 ? fy ** (1 / 3) : 7.787 * fy + 16 / 116;
+	fz = fz > 0.008856 ? fz ** (1 / 3) : 7.787 * fz + 16 / 116;
 
 	const l = 116 * fy - 16;
 	const a = 500 * (fx - fy);
@@ -120,7 +120,7 @@ function hexToLch(hex: string): { l: number; c: number; h: number } | null {
  */
 function deltaE2000(
 	color1: { l: number; a: number; b: number },
-	color2: { l: number; a: number; b: number }
+	color2: { l: number; a: number; b: number },
 ): number {
 	const { l: l1, a: a1, b: b1 } = color1;
 	const { l: l2, a: a2, b: b2 } = color2;
@@ -131,7 +131,7 @@ function deltaE2000(
 	const cBar = (c1 + c2) / 2;
 
 	// Calculate a'1 and a'2
-	const g = 0.5 * (1 - Math.sqrt(Math.pow(cBar, 7) / (Math.pow(cBar, 7) + Math.pow(25, 7))));
+	const g = 0.5 * (1 - Math.sqrt(cBar ** 7 / (cBar ** 7 + 25 ** 7)));
 	const a1Prime = a1 * (1 + g);
 	const a2Prime = a2 * (1 + g);
 
@@ -150,7 +150,7 @@ function deltaE2000(
 	const deltaLPrime = l2 - l1;
 	const deltaCPrime = c2Prime - c1Prime;
 
-	let deltaHPrime;
+	let deltaHPrime: number;
 	if (c1Prime * c2Prime === 0) {
 		deltaHPrime = 0;
 	} else if (Math.abs(h2Prime - h1Prime) <= 180) {
@@ -167,7 +167,7 @@ function deltaE2000(
 	// Calculate L'_bar, C'_bar, and H'_bar
 	const lBarPrime = (l1 + l2) / 2;
 
-	let hBarPrime;
+	let hBarPrime: number;
 	if (c1Prime * c2Prime === 0) {
 		hBarPrime = h1Prime + h2Prime;
 	} else if (Math.abs(h1Prime - h2Prime) <= 180) {
@@ -187,14 +187,14 @@ function deltaE2000(
 		0.2 * Math.cos(((4 * hBarPrime - 63) * Math.PI) / 180);
 
 	// Calculate ΔΘ
-	const deltaTheta = 30 * Math.exp(-Math.pow((hBarPrime - 275) / 25, 2));
+	const deltaTheta = 30 * Math.exp(-(((hBarPrime - 275) / 25) ** 2));
 
 	// Calculate RC
-	const rc = 2 * Math.sqrt(Math.pow(cBarPrime, 7) / (Math.pow(cBarPrime, 7) + Math.pow(25, 7)));
+	const rc = 2 * Math.sqrt(cBarPrime ** 7 / (cBarPrime ** 7 + 25 ** 7));
 
 	// Calculate SL, SC, and SH
 	const sl =
-		1 + (0.015 * Math.pow(lBarPrime - 50, 2)) / Math.sqrt(20 + Math.pow(lBarPrime - 50, 2));
+		1 + (0.015 * (lBarPrime - 50) ** 2) / Math.sqrt(20 + (lBarPrime - 50) ** 2);
 	const sc = 1 + 0.045 * cBarPrime;
 	const sh = 1 + 0.015 * cBarPrime * t;
 
@@ -207,10 +207,10 @@ function deltaE2000(
 	const kH = 1;
 
 	const deltaE = Math.sqrt(
-		Math.pow(deltaLPrime / (kL * sl), 2) +
-			Math.pow(deltaCPrime / (kC * sc), 2) +
-			Math.pow(deltaHPrimeValue / (kH * sh), 2) +
-			rt * (deltaCPrime / (kC * sc)) * (deltaHPrimeValue / (kH * sh))
+		(deltaLPrime / (kL * sl)) ** 2 +
+			(deltaCPrime / (kC * sc)) ** 2 +
+			(deltaHPrimeValue / (kH * sh)) ** 2 +
+			rt * (deltaCPrime / (kC * sc)) * (deltaHPrimeValue / (kH * sh)),
 	);
 
 	return deltaE;
@@ -253,7 +253,8 @@ export function orderColorsForGradient(colors: string[]): string[] {
 
 	// Iteratively find the nearest color to the last added color
 	while (remaining.length > 0) {
-		const lastColor = hexToLab(orderedColors[orderedColors.length - 1])!;
+		const lastColor = hexToLab(orderedColors[orderedColors.length - 1]);
+		if (!lastColor) continue;
 
 		let nearestIndex = 0;
 		let smallestDistance = deltaE2000(lastColor, remaining[0].lab);

@@ -1,16 +1,19 @@
 <script lang="ts">
-	import { appStore } from "$lib/stores/app.svelte";
-	import type { ColorPalette } from "$lib/stores/app.svelte";
-	import { validatePalette, validateColor } from "$lib/schemas/validation";
+	import { fly, scale } from "svelte/transition";
+	import { elasticOut } from "svelte/easing";
+	import { app } from "$lib/stores/root.svelte";
+	import type { ValidatedColorPalette } from "$lib/schemas/validation";
+	import type { PaletteId } from "$lib/types/brands";
 	import pkg from "file-saver";
 	import Icon from "@iconify/svelte";
 	import { toast } from "svelte-sonner";
-	import { onMount } from "svelte";
-	import { dndzone } from "svelte-dnd-action";
-	import chroma from "chroma-js";
 	import AdvancedColorPicker from "$lib/components/common/AdvancedColorPicker.svelte";
 	import EyedropperTool from "$lib/components/common/EyedropperTool.svelte";
-	import { orderColorsForGradient, rgbToHex } from "$lib/utils/colorUtils";
+	import { orderColorsByHueLightness, getColorLightness, rgbToHex } from "$lib/utils/colorUtils";
+	import { extractPalette } from "$lib/utils/color-engine";
+	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
+	import { cn } from "$lib/utils/cn";
+	import { validatePalette } from "$lib/schemas/validation";
 
 	const { saveAs } = pkg;
 
@@ -71,7 +74,7 @@
 			// Remove alpha channel (last 2 characters) for 8-character hex
 			color = color.substring(0, 6);
 		}
-		return "#" + color.toUpperCase();
+		return `#${color.toUpperCase()}`;
 	}
 
 	function validateAndNormalizeColor(color: string): {
@@ -90,8 +93,10 @@
 				/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(0?\.\d+|1|0))?\s*\)/
 			);
 			if (match) {
-				const [, r, g, b] = match.map(Number);
-				if (r <= 255 && g <= 255 && b <= 255) {
+				const r = Number(match[1]);
+				const g = Number(match[2]);
+				const b = Number(match[3]);
+				if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b) && r <= 255 && g <= 255 && b <= 255) {
 					return { valid: true, color: rgbToHex(r, g, b) };
 				}
 			}
@@ -102,8 +107,10 @@
 				/hsla?\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%\s*(?:,\s*(0?\.\d+|1|0))?\s*\)/
 			);
 			if (match) {
-				const [, h, s, l] = match.map(Number);
-				if (h <= 360 && s <= 100 && l <= 100) {
+				const h = Number(match[1]);
+				const s = Number(match[2]);
+				const l = Number(match[3]);
+				if (!Number.isNaN(h) && !Number.isNaN(s) && !Number.isNaN(l) && h <= 360 && s <= 100 && l <= 100) {
 					return { valid: true, color: hslToHex(h, s, l) };
 				}
 			}
@@ -134,7 +141,7 @@
 
 	function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 		const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-		return result
+		return result?.[1] && result?.[2] && result?.[3]
 			? {
 					r: parseInt(result[1], 16),
 					g: parseInt(result[2], 16),
@@ -184,12 +191,14 @@
 
 	function formatColor(hex: string, format: "hex" | "rgb" | "hsl" = "hex"): string {
 		switch (format) {
-			case "rgb":
+			case "rgb": {
 				const rgb = hexToRgb(hex);
 				return rgb ? `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})` : hex;
-			case "hsl":
+			}
+			case "hsl": {
 				const hsl = hexToHsl(hex);
 				return hsl ? `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)` : hex;
+			}
 			default:
 				return hex;
 		}
@@ -220,14 +229,12 @@
 	}
 
 	function isDuplicateColor(paletteId: string, color: string): boolean {
-		const palette = appStore.palettes.find((p) => p.id === paletteId);
+		const palette = app.palettes.palettes.find((p) => p.id === paletteId);
 		return palette ? palette.colors.includes(color) : false;
 	}
 
 	function updateSelectedColorFromPicker() {
-		if (showColorPicker) {
-			selectedColor = selectedColor;
-		}
+		// No-op: Reactivity is handled by runes
 	}
 
 	function addToColorHistory(color: string) {
@@ -253,7 +260,7 @@
 			};
 		}
 
-		if (appStore.palettes.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
+		if (app.palettes.palettes.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
 			return {
 				valid: false,
 				error: "A palette with this name already exists",
@@ -276,7 +283,7 @@
 		}
 
 		const paletteName = newPaletteName.trim();
-		appStore.addPalette({
+		app.palettes.add({
 			name: paletteName,
 			colors: [],
 			maxSlots: newPaletteSlots,
@@ -295,14 +302,18 @@
 			return;
 		}
 
-		const normalizedColor = validation.color!;
+		const normalizedColor = validation.color;
+		if (!normalizedColor) {
+			toast.error("Invalid color");
+			return;
+		}
 
 		if (isDuplicateColor(paletteId, normalizedColor)) {
 			toast.warning("This color is already in the palette");
 			return;
 		}
 
-		const palette = appStore.palettes.find((p) => p.id === paletteId);
+		const palette = app.palettes.palettes.find((p) => p.id === paletteId);
 		if (!palette) {
 			toast.error("Palette not found");
 			return;
@@ -313,22 +324,17 @@
 			return;
 		}
 
-		appStore.addColorToPalette(paletteId, normalizedColor);
+		app.palettes.addColor(paletteId, normalizedColor);
 		addToColorHistory(normalizedColor);
 		toast.success(`Color ${normalizedColor} added to palette`);
 	}
 
 	function removeColorFromPalette(paletteId: string, colorIndex: number) {
-		const palette = appStore.palettes.find((p) => p.id === paletteId);
+		const palette = app.palettes.palettes.find((p) => p.id === paletteId);
 		if (palette && colorIndex >= 0 && colorIndex < palette.colors.length) {
 			const removedColor = palette.colors[colorIndex];
-			palette.colors.splice(colorIndex, 1);
+			app.palettes.removeColor(paletteId, colorIndex);
 			toast.info(`Color ${removedColor} removed from palette`);
-
-			// Trigger save to persist the change
-			appStore
-				.saveToStorage()
-				.catch((error) => console.error("Failed to save after removing color:", error));
 		}
 	}
 
@@ -353,17 +359,17 @@
 		}
 	}
 
-	function duplicatePalette(palette: ColorPalette) {
+	function duplicatePalette(palette: ValidatedColorPalette) {
 		let copyName = `${palette.name} Copy`;
 		let counter = 1;
 
 		// Ensure unique name
-		while (appStore.palettes.some((p) => p.name === copyName)) {
+		while (app.palettes.palettes.some((p) => p.name === copyName)) {
 			copyName = `${palette.name} Copy ${counter}`;
 			counter++;
 		}
 
-		appStore.addPalette({
+		app.palettes.add({
 			name: copyName,
 			colors: [...palette.colors],
 			maxSlots: palette.maxSlots,
@@ -373,15 +379,12 @@
 	}
 
 	function clearPalette(paletteId: string) {
-		const palette = appStore.palettes.find((p) => p.id === paletteId);
+		const palette = app.palettes.palettes.find((p) => p.id === paletteId);
 		if (palette) {
-			palette.colors = [];
+			// We need to implement clearPalette in the store, or just update the palette
+			// For now, let's update the palette with empty colors
+			app.palettes.update(paletteId, { colors: [] });
 			toast.info(`Cleared all colors from "${palette.name}"`);
-
-			// Trigger save to persist the change
-			appStore
-				.saveToStorage()
-				.catch((error) => console.error("Failed to save after clearing palette:", error));
 		}
 	}
 
@@ -480,7 +483,7 @@
 		paletteId: string,
 		harmonyType: "complementary" | "analogous" | "triadic" | "monochromatic" | "split-complementary"
 	) {
-		const palette = appStore.palettes.find((p) => p.id === paletteId);
+		const palette = app.palettes.palettes.find((p) => p.id === paletteId);
 		if (!palette) return;
 
 		const baseColor = selectedColor;
@@ -587,7 +590,7 @@
 	}
 
 	function exportPalette(
-		palette: ColorPalette,
+		palette: ValidatedColorPalette,
 		format: "json" | "css" | "ase" | "txt" | "png" | "svg"
 	) {
 		// Validate palette before export
@@ -651,7 +654,7 @@
 		toast.success(`Palette exported as ${filename}`);
 	}
 
-	function exportPaletteAsImage(palette: ColorPalette, format: "png" | "svg") {
+	function exportPaletteAsImage(palette: ValidatedColorPalette, format: "png" | "svg") {
 		// Validate palette before export
 		const validation = validatePalette(palette);
 		if (!validation.valid) {
@@ -736,7 +739,7 @@
 
 			try {
 				const text = await file.text();
-				let importedPalette: Partial<ColorPalette> | null = null;
+				let importedPalette: Partial<ValidatedColorPalette> | null = null;
 				let paletteName = file.name.substring(0, file.name.lastIndexOf(".")) || "Imported Palette";
 
 				if (file.name.endsWith(".json")) {
@@ -749,7 +752,7 @@
 								.filter((c: string) => isValidHexColor(c)),
 							maxSlots:
 								jsonData.maxSlots ||
-								Math.max(appStore.state.settings.defaultPaletteSlots, jsonData.colors.length),
+								Math.max(app.settings.state.defaultPaletteSlots, jsonData.colors.length),
 							tags: jsonData.tags || [],
 						};
 					}
@@ -763,7 +766,7 @@
 						importedPalette = {
 							name: paletteName,
 							colors: colors,
-							maxSlots: Math.max(appStore.state.settings.defaultPaletteSlots, colors.length),
+							maxSlots: Math.max(app.settings.state.defaultPaletteSlots, colors.length),
 							tags: ["imported"],
 						};
 					}
@@ -771,9 +774,10 @@
 					// Basic CSS variable parsing (example: --color-var: #RRGGBB;)
 					const colors: string[] = [];
 					const regex = /--(?:[\w-]+):\s*(#[A-Fa-f0-9]{3,6});/g;
-					let match;
+
+					let match: RegExpExecArray | null;
 					while ((match = regex.exec(text)) !== null) {
-						if (isValidHexColor(match[1])) {
+						if (match[1] && isValidHexColor(match[1])) {
 							colors.push(normalizeHexColor(match[1]));
 						}
 					}
@@ -781,32 +785,33 @@
 						importedPalette = {
 							name: paletteName,
 							colors: colors,
-							maxSlots: Math.max(appStore.state.settings.defaultPaletteSlots, colors.length),
+							maxSlots: Math.max(app.settings.state.defaultPaletteSlots, colors.length),
 							tags: ["imported"],
 						};
 					}
 				}
 				// Add other format parsers here (ASE, etc.) if implemented
 
-				if (importedPalette && importedPalette.colors && importedPalette.colors.length > 0) {
+				if (importedPalette?.colors && importedPalette.colors.length > 0) {
 					// Ensure unique name
 					let finalName = importedPalette.name || "Imported Palette";
 					let counter = 1;
-					while (appStore.palettes.some((p) => p.name === finalName)) {
+					while (app.palettes.palettes.some((p) => p.name === finalName)) {
 						finalName = `${importedPalette.name || "Imported Palette"} (${counter++})`;
 					}
 					importedPalette.name = finalName;
 
-					appStore.addPalette(importedPalette as Omit<ColorPalette, "id" | "createdAt">);
-					toast.success(`Palette "${finalName}" imported successfully!`);
+					app.palettes.add(importedPalette as Omit<ValidatedColorPalette, "id" | "createdAt">);
+					toast.success(`Imported palette "${finalName}"`);
 				} else {
-					toast.error("Could not parse palette from file or file was empty/invalid.");
+					toast.error("Failed to parse palette file or no valid colors found");
 				}
-			} catch (error: any) {
-				toast.error(`Failed to import palette: ${error.message}`);
-				console.error("Error importing palette:", error);
+			} catch (error) {
+				console.error("Import failed:", error);
+				toast.error("Failed to import palette");
 			}
 		};
+
 		input.click();
 	}
 
@@ -814,8 +819,8 @@
 		if (event.key === "Enter") {
 			const input = event.target as HTMLInputElement;
 			const validation = validateAndNormalizeColor(input.value);
-			if (validation.valid) {
-				selectedColor = validation.color!;
+			if (validation.valid && validation.color) {
+				selectedColor = validation.color;
 				updateSelectedColorFromPicker();
 			} else {
 				toast.error(validation.error || "Invalid color");
@@ -826,7 +831,7 @@
 
 	// Filter palettes based on search
 	let filteredPalettes = $derived(
-		appStore.palettes.filter(
+		app.palettes.palettes.filter(
 			(palette) =>
 				palette.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
 				palette.colors.some((color) => color.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -868,29 +873,15 @@
 		imageUrl: string,
 		numColors: number = 5
 	): Promise<string[]> {
-		return new Promise((resolve, reject) => {
-			const canvas = document.createElement("canvas");
-			const ctx = canvas.getContext("2d");
-			const img = new Image();
-
-			img.onload = () => {
-				// Scale down image for performance while maintaining aspect ratio
-				const maxSize = 200;
-				const scale = Math.min(maxSize / img.width, maxSize / img.height);
-				canvas.width = img.width * scale;
-				canvas.height = img.height * scale;
-
-				ctx!.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-				const imageData = ctx!.getImageData(0, 0, canvas.width, canvas.height);
-				const colors = extractDominantColors(imageData, numColors);
-				resolve(colors);
-			};
-
-			img.onerror = () => reject(new Error("Failed to load image"));
-			img.crossOrigin = "anonymous";
-			img.src = imageUrl;
-		});
+		try {
+			return await extractPalette(imageUrl, {
+				colorCount: numColors,
+				quality: "balanced",
+			});
+		} catch (error) {
+			console.error("Failed to extract colors:", error);
+			return [];
+		}
 	}
 
 	async function extractColorsFromTransformedImage(
@@ -902,27 +893,39 @@
 			const ctx = canvas.getContext("2d");
 			const img = new Image();
 
-			img.onload = () => {
+			img.onload = async () => {
 				// Scale down image for performance while maintaining aspect ratio
 				const maxSize = 200;
 				const scale = Math.min(maxSize / img.width, maxSize / img.height);
 				canvas.width = img.width * scale;
 				canvas.height = img.height * scale;
 
+				if (!ctx) {
+					reject(new Error("Failed to create canvas context"));
+					return;
+				}
+
 				// Apply CSS filters to canvas context
 				const filterString = buildFilterString(reference);
 				if (filterString !== "none") {
-					ctx!.filter = filterString;
+					ctx.filter = filterString;
 				}
 
 				// Apply opacity through globalAlpha
-				ctx!.globalAlpha = reference.opacity || 1;
+				ctx.globalAlpha = reference.opacity || 1;
 
-				ctx!.drawImage(img, 0, 0, canvas.width, canvas.height);
+				ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-				const imageData = ctx!.getImageData(0, 0, canvas.width, canvas.height);
-				const colors = extractDominantColors(imageData, numColors);
-				resolve(colors);
+				try {
+					const dataUrl = canvas.toDataURL();
+					const colors = await extractPalette(dataUrl, {
+						colorCount: numColors,
+						quality: "balanced",
+					});
+					resolve(colors);
+				} catch (error) {
+					reject(error);
+				}
 			};
 
 			img.onerror = () => reject(new Error("Failed to load image"));
@@ -931,107 +934,8 @@
 		});
 	}
 
-	function extractDominantColors(imageData: ImageData, numColors: number): string[] {
-		const pixels: number[][] = [];
-		const data = imageData.data;
-
-		// Sample pixels (skip some for performance)
-		for (let i = 0; i < data.length; i += 16) {
-			// Sample every 4th pixel
-			const r = data[i];
-			const g = data[i + 1];
-			const b = data[i + 2];
-			const a = data[i + 3];
-
-			// Skip transparent pixels
-			if (a > 128) {
-				pixels.push([r, g, b]);
-			}
-		}
-
-		if (pixels.length === 0) return ["#000000"];
-
-		// Use k-means clustering to find dominant colors
-		const clusters = kMeansColors(pixels, Math.min(numColors, pixels.length));
-		const extractedColors = clusters.map((cluster) =>
-			rgbToHex(Math.round(cluster[0]), Math.round(cluster[1]), Math.round(cluster[2]))
-		);
-
-		// Sort colors using perceptual color ordering for better gradient flow
-		return orderColorsForGradient(extractedColors);
-	}
-
-	function kMeansColors(pixels: number[][], k: number, maxIterations: number = 20): number[][] {
-		if (pixels.length === 0) return [];
-		if (k >= pixels.length) return pixels;
-
-		// Initialize centroids randomly
-		let centroids: number[][] = [];
-		for (let i = 0; i < k; i++) {
-			const randomPixel = pixels[Math.floor(Math.random() * pixels.length)];
-			centroids.push([...randomPixel]);
-		}
-
-		for (let iter = 0; iter < maxIterations; iter++) {
-			// Assign pixels to nearest centroid
-			const clusters: number[][][] = Array(k)
-				.fill(null)
-				.map(() => []);
-
-			for (const pixel of pixels) {
-				let minDistance = Infinity;
-				let nearestCentroid = 0;
-
-				for (let i = 0; i < centroids.length; i++) {
-					const distance = colorDistance(pixel, centroids[i]);
-					if (distance < minDistance) {
-						minDistance = distance;
-						nearestCentroid = i;
-					}
-				}
-
-				clusters[nearestCentroid].push(pixel);
-			}
-
-			// Update centroids
-			const newCentroids: number[][] = [];
-			for (let i = 0; i < k; i++) {
-				if (clusters[i].length > 0) {
-					const avgR = clusters[i].reduce((sum, p) => sum + p[0], 0) / clusters[i].length;
-					const avgG = clusters[i].reduce((sum, p) => sum + p[1], 0) / clusters[i].length;
-					const avgB = clusters[i].reduce((sum, p) => sum + p[2], 0) / clusters[i].length;
-					newCentroids.push([avgR, avgG, avgB]);
-				} else {
-					// Keep old centroid if no pixels assigned
-					newCentroids.push([...centroids[i]]);
-				}
-			}
-
-			// Check for convergence
-			let converged = true;
-			for (let i = 0; i < k; i++) {
-				if (colorDistance(centroids[i], newCentroids[i]) > 1) {
-					converged = false;
-					break;
-				}
-			}
-
-			centroids = newCentroids;
-			if (converged) break;
-		}
-
-		return centroids;
-	}
-
-	function colorDistance(color1: number[], color2: number[]): number {
-		const dr = color1[0] - color2[0];
-		const dg = color1[1] - color2[1];
-		const db = color1[2] - color2[2];
-		return Math.sqrt(dr * dr + dg * dg + db * db);
-	}
-
 	async function startColorExtraction(referenceId: string) {
-		const reference = appStore.references.find((r) => r.id === referenceId);
+		const reference = app.references.references.find((r) => r.id === referenceId);
 		if (!reference) {
 			toast.error("Reference not found");
 			return;
@@ -1044,7 +948,7 @@
 	async function createPaletteFromReference() {
 		if (!extractingFrom) return;
 
-		const reference = appStore.references.find((r) => r.id === extractingFrom);
+		const reference = app.references.references.find((r) => r.id === extractingFrom);
 		if (!reference) {
 			toast.error("Reference not found");
 			return;
@@ -1055,7 +959,7 @@
 			const colors = await extractColorsFromTransformedImage(reference, extractSlots);
 
 			// Create new palette with extracted colors - truncate name to avoid validation errors
-			const baseName = reference.name.split(".")[0]; // Remove file extension
+			const baseName = reference.name.split(".")[0] ?? reference.name; // Remove file extension
 			const suffix = " Colors";
 			const maxBaseLength = 50 - suffix.length; // Reserve space for " Colors"
 
@@ -1068,7 +972,7 @@
 			let counter = 1;
 
 			// Ensure unique name while keeping within character limit
-			while (appStore.palettes.some((p) => p.name === uniqueName)) {
+			while (app.palettes.palettes.some((p) => p.name === uniqueName)) {
 				const counterSuffix = ` ${counter}`;
 				const maxNameLength = 50 - counterSuffix.length;
 				const basePaletteName =
@@ -1079,7 +983,7 @@
 				counter++;
 			}
 
-			appStore.addPalette({
+			app.palettes.add({
 				name: uniqueName,
 				colors: colors,
 				maxSlots: extractSlots,
@@ -1148,35 +1052,34 @@
 	}
 </script>
 
-<div class="h-full flex flex-col">
-	<!-- Header -->
-	<div
-		class="flex flex-col md:flex-row md:items-center justify-between p-4 md:p-6 border-b border-base-300 gap-4"
+<div class="h-full flex flex-col gap-4">
+	<!-- Module Header -->
+	<GlassPanel
+		class="flex flex-col md:flex-row md:items-center justify-between p-4 md:p-6 gap-4 shrink-0 overflow-visible z-20"
+		intensity="low"
 	>
 		<div>
-			<h2 class="text-xl md:text-2xl font-bold text-base-content">Color Palettes</h2>
-			<p class="text-sm text-base-content/70">Create and manage your color palettes</p>
+			<h2 class="text-xl md:text-2xl font-bold text-white tracking-wide">Color Palettes</h2>
+			<p class="text-sm text-text-muted">Create and manage your color palettes</p>
 		</div>
 
-		<div
-			class="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-3"
-		>
+		<div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
 			<!-- Search -->
 			<div class="relative w-full sm:w-48">
 				<input
 					bind:value={searchTerm}
 					type="text"
 					placeholder="Search palettes..."
-					class="input input-sm input-bordered w-full pl-8"
+					class="input input-sm bg-black/20 border-white/10 text-white placeholder:text-text-muted/50 w-full pl-8 focus:border-phoenix-primary focus:outline-none transition-colors"
 				/>
 				<Icon
 					icon="material-symbols:search"
-					class="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-base-content/50"
+					class="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted"
 				/>
 			</div>
 
 			<button
-				class="btn btn-primary btn-sm w-full sm:w-auto"
+				class="btn btn-sm border-none bg-linear-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300 w-full sm:w-auto"
 				onclick={() => (showCreateDialog = true)}
 				type="button"
 				aria-label="Create new palette"
@@ -1184,13 +1087,14 @@
 				<Icon icon="material-symbols:add" class="h-4 w-4" />
 				New Palette
 			</button>
-			<!-- Color Picker -->
+
+			<!-- Color Picker Toggle -->
 			<button
-				class="btn btn-outline btn-sm relative w-full sm:w-auto"
+				class="btn btn-sm btn-outline border-white/20 text-white hover:bg-white/10 hover:border-white/40 w-full sm:w-auto"
 				onclick={() => {
 					showColorPicker = !showColorPicker;
 					if (!showColorPicker) {
-						editingColorContext = null; // Clear editing context when closing
+						editingColorContext = null;
 					}
 				}}
 				title="Color Picker"
@@ -1199,14 +1103,14 @@
 			>
 				<Icon icon="material-symbols:palette" class="h-4 w-4" />
 				<div
-					class="w-4 h-4 rounded border border-base-300 ml-2"
+					class="w-4 h-4 rounded border border-white/20 ml-2 shadow-sm"
 					style:background-color={selectedColor}
 				></div>
 			</button>
 
 			<!-- Eyedropper Tool -->
 			<EyedropperTool
-				buttonClass="btn btn-outline btn-sm w-full sm:w-auto"
+				buttonClass="btn btn-sm btn-outline border-white/20 text-white hover:bg-white/10 hover:border-white/40 w-full sm:w-auto"
 				buttonLabel="Eyedropper"
 				autoAddToPalette={true}
 				onColorPicked={(color) => {
@@ -1216,10 +1120,10 @@
 			/>
 
 			<!-- Extract from References Button -->
-			{#if appStore.references.length > 0}
+			{#if app.references.references.length > 0}
 				<div class="dropdown dropdown-end w-full sm:w-auto">
 					<button
-						class="btn btn-outline btn-sm w-full sm:w-auto"
+						class="btn btn-sm btn-outline border-white/20 text-white hover:bg-white/10 hover:border-white/40 w-full sm:w-auto"
 						type="button"
 						tabindex="0"
 						aria-label="Extract colors from references"
@@ -1229,24 +1133,24 @@
 						Extract Colors
 					</button>
 					<ul
-						class="dropdown-content menu bg-base-100 rounded-box z-[1] w-64 p-2 shadow-xl border border-base-300 max-h-64 overflow-y-auto"
+						class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-100 w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
 					>
-						{#each appStore.references as reference (reference.id)}
+						{#each app.references.references as reference (reference.id)}
 							<li>
 								<button
 									onclick={() => startColorExtraction(reference.id)}
 									type="button"
-									class="flex items-center justify-start p-2 text-left"
+									class="flex items-center justify-start p-2 text-left hover:bg-white/5 rounded-lg text-text-muted hover:text-white transition-colors"
 								>
 									<div
-										class="w-8 h-8 rounded border border-base-300 bg-cover bg-center mr-3 flex-shrink-0"
+										class="w-8 h-8 rounded border border-white/10 bg-cover bg-center mr-3 shrink-0"
 										style:background-image="url({reference.src})"
 									></div>
 									<div class="flex-1 min-w-0">
 										<p class="text-sm font-medium truncate">
 											{reference.name}
 										</p>
-										<p class="text-xs text-base-content/60">Extract colors</p>
+										<p class="text-xs text-text-muted/60">Extract colors</p>
 									</div>
 								</button>
 							</li>
@@ -1255,404 +1159,302 @@
 				</div>
 			{/if}
 		</div>
-	</div>
+	</GlassPanel>
 
 	<!-- Main Content -->
-	<div class="flex-1 flex flex-col">
-		<!-- Mobile: Stacked layout, Desktop: Side-by-side -->
-		<div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
-			<!-- Palettes List -->
-			<div class="w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-base-300 bg-base-100">
-				<!-- Mobile: Collapsed view with max-height, Desktop: Full height -->
-				<div class="max-h-80 lg:max-h-none lg:h-full overflow-y-auto">
-					<div class="p-4">
-						<h3 class="font-semibold text-base-content mb-3">
-							Palettes ({filteredPalettes.length})
-						</h3>
-
-						<div class="space-y-3">
-							{#each filteredPalettes as palette (palette.id)}
-								<div
-									class="card bg-base-100 shadow-sm border cursor-pointer transition-all duration-200 p-4 w-full hover:shadow-md"
-									class:border-primary={appStore.state.activePalette === palette.id}
-									class:bg-primary-selected={appStore.state.activePalette === palette.id}
-									class:border-base-300={appStore.state.activePalette !== palette.id}
-									onclick={() => appStore.setActivePalette(palette.id)}
-									role="button"
-									tabindex="0"
-									aria-label="Select palette {palette.name}"
-									onkeydown={(e) => {
-										if (e.key === "Enter" || e.key === " ") {
-											e.preventDefault();
-											appStore.setActivePalette(palette.id);
-										}
-									}}
-								>
-									<!-- Palette Header -->
-									<div class="flex items-center justify-between mb-3">
-										<div class="flex-1 min-w-0">
-											<h4 class="font-medium text-base-content truncate" title={palette.name}>
-												{palette.name}
-											</h4>
-											<p class="text-xs text-base-content/60">
-												{palette.colors.length}/{palette.maxSlots} colors
-											</p>
-										</div>
-
-										<div class="flex items-center space-x-1">
-											<button
-												class="btn btn-xs btn-ghost"
-												onclick={(e) => {
-													e.stopPropagation();
-													clearPalette(palette.id);
-												}}
-												title="Clear all colors"
-												type="button"
-												aria-label="Clear all colors from {palette.name}"
-											>
-												<Icon icon="material-symbols:clear-all" class="w-3 h-3" />
-											</button>
-
-											<button
-												class="btn btn-xs btn-ghost"
-												onclick={(e) => {
-													e.stopPropagation();
-													duplicatePalette(palette);
-												}}
-												title="Duplicate palette"
-												type="button"
-												aria-label="Duplicate palette {palette.name}"
-											>
-												<Icon icon="material-symbols:content-copy" class="w-3 h-3" />
-											</button>
-
-											<button
-												class="btn btn-xs btn-ghost text-error"
-												onclick={(e) => {
-													e.stopPropagation();
-													appStore.removePalette(palette.id);
-													toast.info(`Deleted palette "${palette.name}"`);
-												}}
-												title="Delete palette"
-												type="button"
-												aria-label="Delete palette {palette.name}"
-											>
-												<Icon icon="material-symbols:delete-outline" class="w-3 h-3" />
-											</button>
-										</div>
-									</div>
-
-									<!-- Color Swatches - Responsive grid -->
-									<div class="grid grid-cols-8 sm:grid-cols-10 lg:grid-cols-6 gap-1">
-										{#each palette.colors as color, index}
-											<button
-												class="aspect-square rounded border border-base-300 cursor-pointer hover:scale-110 transition-transform"
-												style:background-color={color}
-												title="{color} - {getColorName(color) || 'Custom color'}"
-												onclick={(e) => {
-													e.stopPropagation();
-													copyColor(color);
-												}}
-												oncontextmenu={(e) => {
-													e.preventDefault();
-													e.stopPropagation();
-													removeColorFromPalette(palette.id, index);
-												}}
-												type="button"
-												aria-label="Copy color {color}"
-											></button>
-										{/each}
-										<!-- Empty slots -->
-										{#each Array(Math.min(palette.maxSlots - palette.colors.length, 16)) as _}
-											<button
-												class="aspect-square rounded border-2 border-dashed border-base-300 cursor-pointer hover:border-primary transition-colors flex items-center justify-center"
-												onclick={(e) => {
-													e.stopPropagation();
-													addColorToPalette(palette.id, selectedColor);
-												}}
-												type="button"
-												aria-label="Add color to palette"
-											>
-												<Icon icon="material-symbols:add" class="w-3 h-3 text-base-content/40" />
-											</button>
-										{/each}
-									</div>
-								</div>
-							{/each}
-
-							{#if appStore.palettes.length === 0}
-								<div class="text-center py-8 text-base-content/70">
-									<Icon
-										icon="material-symbols:palette-outline"
-										class="h-12 w-12 mx-auto mb-2 opacity-50"
-									/>
-									<p>No palettes yet</p>
-									<p class="text-xs">Create your first palette</p>
-								</div>
-							{:else if filteredPalettes.length === 0}
-								<div class="text-center py-8 text-base-content/70">
-									<Icon
-										icon="material-symbols:search-off"
-										class="h-12 w-12 mx-auto mb-2 opacity-50"
-									/>
-									<p>No palettes match your search</p>
-									<p class="text-xs">Try a different search term</p>
-								</div>
-							{/if}
-						</div>
-					</div>
+	<div class="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden">
+		<!-- Palettes List -->
+		<GlassPanel class="w-full lg:w-80 overflow-hidden" intensity="low">
+			<div class="flex flex-col h-full">
+				<div class="p-4 border-b border-white/5 bg-black/20">
+					<h3 class="font-semibold text-white">
+						Palettes ({filteredPalettes.length})
+					</h3>
 				</div>
-			</div>
 
-			<!-- Palette Editor -->
-			<div class="flex-1 bg-base-100 overflow-y-auto">
-				{#if appStore.activePalette}
-					<div class="p-4 md:p-6">
-						<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-							<div>
-								<h3 class="text-xl font-bold text-base-content">
-									{appStore.activePalette.name}
-								</h3>
-								<p class="text-sm text-base-content/70">
-									{appStore.activePalette.colors.length} of {appStore.activePalette.maxSlots} colors
-								</p>
+				<div class="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+					{#each filteredPalettes as palette, i (palette.id)}
+						<button
+							in:fly={{ y: 20, duration: 400, delay: i * 50, easing: elasticOut }}
+							class={cn(
+								"w-full text-left p-3 rounded-xl cursor-pointer transition-all duration-300 border group relative overflow-hidden",
+								app.palettes.activePaletteId === palette.id
+									? "bg-phoenix-primary/20 border-phoenix-primary/50 shadow-[0_0_20px_rgba(255,0,127,0.3)] scale-[1.02]"
+									: "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 hover:scale-[1.02] hover:shadow-lg"
+							)}
+							onclick={() => app.palettes.setActive(palette.id)}
+							tabindex="0"
+							onkeydown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									app.palettes.setActive(palette.id);
+								}
+							}}
+						>
+							<!-- Shine Effect -->
+							<div
+								class="absolute inset-0 bg-linear-to-tr from-white/0 via-white/5 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+							></div>
+							<!-- Palette Header -->
+							<div class="flex items-center justify-between mb-2">
+								<div class="flex-1 min-w-0">
+									<h4
+										class={cn(
+											"font-medium truncate text-sm",
+											app.palettes.activePaletteId === palette.id ? "text-white" : "text-text-muted"
+										)}
+										title={palette.name}
+									>
+										{palette.name}
+									</h4>
+									<p class="text-[10px] text-text-muted/60 uppercase tracking-wider">
+										{palette.colors.length}/{palette.maxSlots} colors
+									</p>
+								</div>
+
+								<div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+									<!-- Actions (only visible on hover/active could be better, but keeping simple for now) -->
+								</div>
 							</div>
 
-							<!-- Import/Export Options - Mobile responsive -->
+							<!-- Mini Color Swatches -->
+							<div class="flex gap-1 h-3 mt-2">
+								{#each palette.colors.slice(0, 10) as color}
+									<div
+										class="flex-1 h-full rounded-full shadow-sm border border-black/10"
+										style:background-color={color}
+									></div>
+								{/each}
+								{#if palette.colors.length === 0}
+									<div class="w-full h-full bg-white/5 rounded-full"></div>
+								{/if}
+							</div>
+						</button>
+					{/each}
+
+					{#if app.palettes.palettes.length === 0}
+						<div class="text-center py-8 text-text-muted/50">
+							<Icon
+								icon="material-symbols:palette-outline"
+								class="h-12 w-12 mx-auto mb-2 opacity-30"
+							/>
+							<p>No palettes yet</p>
+						</div>
+					{:else if filteredPalettes.length === 0}
+						<div class="text-center py-8 text-text-muted/50">
+							<Icon icon="material-symbols:search-off" class="h-12 w-12 mx-auto mb-2 opacity-30" />
+							<p>No matches found</p>
+						</div>
+					{/if}
+				</div>
+			</div>
+		</GlassPanel>
+
+		<!-- Palette Editor -->
+		<GlassPanel class="flex-1 overflow-hidden relative" intensity="medium">
+			<div class="flex flex-col h-full">
+				{#if app.palettes.activePaletteId}
+					<div class="p-4 md:p-6 flex-1 overflow-y-auto custom-scrollbar">
+						<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+							<div>
+								<h3 class="text-2xl font-bold text-white tracking-wide">
+									{app.palettes.activePalette?.name}
+								</h3>
+								<div class="flex items-center gap-2 mt-1">
+									<span
+										class="badge badge-sm bg-phoenix-primary/20 text-phoenix-primary border-none"
+									>
+										{app.palettes.activePalette?.colors.length} Colors
+									</span>
+									{#each app.palettes.activePalette?.tags || [] as tag}
+										<span class="badge badge-sm badge-ghost text-text-muted">{tag}</span>
+									{/each}
+								</div>
+							</div>
+
+							<!-- Actions Toolbar -->
 							<div class="flex flex-wrap items-center gap-2">
 								<button
-									class="btn btn-outline btn-sm"
+									class="btn btn-sm btn-ghost text-text-muted hover:text-white hover:scale-110 transition-transform duration-300"
 									onclick={importPaletteFile}
-									title="Import palette from file"
-									aria-label="Import palette from file"
+									title="Import"
 								>
 									<Icon icon="material-symbols:file-upload" class="h-4 w-4" />
-									<span class="hidden sm:inline">Import</span>
 								</button>
 
 								<div class="dropdown dropdown-end">
 									<button
-										class="btn btn-outline btn-sm"
-										type="button"
+										class="btn btn-sm btn-ghost text-text-muted hover:text-white hover:scale-110 transition-transform duration-300"
 										tabindex="0"
-										aria-label="Export palette"
 									>
 										<Icon icon="material-symbols:download" class="h-4 w-4" />
-										<span class="hidden sm:inline">Export</span>
 									</button>
 									<ul
-										class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow-xl border border-base-300"
+										class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-1 w-52 p-2 shadow-xl backdrop-blur-xl"
 									>
 										<li>
 											<button
-												onclick={() => exportPalette(appStore.activePalette!, "json")}
-												type="button"
+												onclick={() => exportPalette(app.palettes.activePalette!, "json")}
+												class="text-text-muted hover:text-white hover:bg-white/5">JSON</button
 											>
-												<Icon icon="material-symbols:code" class="h-4 w-4" />
-												JSON Format (.json)
-											</button>
 										</li>
 										<li>
 											<button
-												onclick={() => exportPalette(appStore.activePalette!, "css")}
-												type="button"
+												onclick={() => exportPalette(app.palettes.activePalette!, "css")}
+												class="text-text-muted hover:text-white hover:bg-white/5">CSS</button
 											>
-												<Icon icon="material-symbols:css" class="h-4 w-4" />
-												CSS Variables (.css)
-											</button>
 										</li>
 										<li>
 											<button
-												onclick={() => exportPalette(appStore.activePalette!, "txt")}
-												type="button"
+												onclick={() => exportPalette(app.palettes.activePalette!, "png")}
+												class="text-text-muted hover:text-white hover:bg-white/5">PNG Image</button
 											>
-												<Icon icon="material-symbols:article-outline" class="h-4 w-4" />
-												Plain Text (.txt)
-											</button>
-										</li>
-										<li>
-											<button
-												onclick={() => exportPalette(appStore.activePalette!, "png")}
-												type="button"
-											>
-												<Icon icon="material-symbols:image-outline" class="h-4 w-4" />
-												PNG Image (.png)
-											</button>
-										</li>
-										<li>
-											<button
-												onclick={() => exportPalette(appStore.activePalette!, "svg")}
-												type="button"
-											>
-												<Icon icon="material-symbols:photo-filter" class="h-4 w-4" />
-												SVG Image (.svg)
-											</button>
-										</li>
-										<li>
-											<button
-												onclick={() => exportPalette(appStore.activePalette!, "ase")}
-												type="button"
-											>
-												<Icon icon="material-symbols:palette" class="h-4 w-4" />
-												Adobe ASE
-											</button>
 										</li>
 									</ul>
 								</div>
 
-								<!-- Color Harmony Tools -->
-								<div class="dropdown dropdown-end">
-									<button
-										class="btn btn-outline btn-sm"
-										type="button"
-										tabindex="0"
-										aria-label="Generate color harmony"
-									>
-										<Icon icon="material-symbols:auto-fix-high" class="h-4 w-4" />
-										<span class="hidden sm:inline">Harmony</span>
-									</button>
-									<ul
-										class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow-xl border border-base-300"
-									>
-										<li>
-											<button
-												onclick={() =>
-													fillPaletteWithHarmony(appStore.activePalette!.id, "complementary")}
-												type="button"
-											>
-												<Icon icon="material-symbols:contrast" class="h-4 w-4" />
-												Complementary
-											</button>
-										</li>
-										<li>
-											<button
-												onclick={() =>
-													fillPaletteWithHarmony(appStore.activePalette!.id, "analogous")}
-												type="button"
-											>
-												<Icon icon="material-symbols:gradient" class="h-4 w-4" />
-												Analogous
-											</button>
-										</li>
-										<li>
-											<button
-												onclick={() =>
-													fillPaletteWithHarmony(appStore.activePalette!.id, "triadic")}
-												type="button"
-											>
-												<Icon icon="material-symbols:change-history" class="h-4 w-4" />
-												Triadic
-											</button>
-										</li>
-										<li>
-											<button
-												onclick={() =>
-													fillPaletteWithHarmony(appStore.activePalette!.id, "monochromatic")}
-												type="button"
-											>
-												<Icon icon="material-symbols:blur-circular" class="h-4 w-4" />
-												Monochromatic
-											</button>
-										</li>
-										<li>
-											<button
-												onclick={() =>
-													fillPaletteWithHarmony(appStore.activePalette!.id, "split-complementary")}
-												type="button"
-											>
-												<Icon icon="material-symbols:call-split" class="h-4 w-4" />
-												Split Complementary
-											</button>
-										</li>
-									</ul>
-								</div>
+								<div class="h-4 w-px bg-white/10 mx-1"></div>
+
+								<button
+									class="btn btn-sm btn-ghost text-error hover:bg-error/10 hover:scale-110 transition-transform duration-300 group"
+									onclick={() => {
+										if (confirm("Are you sure you want to delete this palette?")) {
+											app.palettes.remove(app.palettes.activePalette!.id);
+										}
+									}}
+									title="Delete Palette"
+								>
+									<Icon icon="material-symbols:delete-outline" class="h-4 w-4" />
+								</button>
 							</div>
 						</div>
 
-						<!-- Large Color Swatches - Responsive grid -->
+						<!-- Harmony Generator -->
+						<div class="mb-8 p-4 rounded-xl bg-black/20 border border-white/5">
+							<h4 class="text-sm font-medium text-text-muted mb-3 uppercase tracking-wider">
+								Generate Harmony
+							</h4>
+							<div class="flex flex-wrap gap-2">
+								{#each ["complementary", "analogous", "triadic", "monochromatic", "split-complementary"] as harmony}
+									<button
+										class="btn btn-xs btn-outline border-white/10 text-text-muted hover:text-white hover:border-phoenix-primary hover:bg-phoenix-primary/10 capitalize"
+										onclick={() =>
+											fillPaletteWithHarmony(app.palettes.activePalette!.id, harmony as any)}
+									>
+										{harmony.replace("-", " ")}
+									</button>
+								{/each}
+							</div>
+						</div>
+
+						<!-- Sorting & Grid -->
+						<div class="flex justify-end gap-2 mb-2">
+							<button
+								class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+								onclick={() => {
+									if (app.palettes.activePalette) {
+										const sorted = orderColorsByHueLightness(app.palettes.activePalette.colors);
+										app.palettes.update(app.palettes.activePalette.id, { colors: sorted });
+										toast.success("Sorted by Hue & Lightness");
+									}
+								}}
+								title="Sort by Hue"
+							>
+								<Icon icon="material-symbols:sort" class="w-4 h-4" />
+								Sort Hue
+							</button>
+							<button
+								class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+								onclick={() => {
+									if (app.palettes.activePalette) {
+										const sorted = [...app.palettes.activePalette.colors].sort((a, b) => {
+											return getColorLightness(a) - getColorLightness(b);
+										});
+										app.palettes.update(app.palettes.activePalette.id, { colors: sorted });
+										toast.success("Sorted by Lightness");
+									}
+								}}
+								title="Sort by Lightness"
+							>
+								<Icon icon="material-symbols:format-list-bulleted" class="w-4 h-4" />
+								Sort Lightness
+							</button>
+						</div>
+
 						<div
-							class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 md:gap-4 mb-8"
+							class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-8 p-1"
 						>
-							{#each appStore.activePalette.colors as color, index}
-								<div class="color-swatch-large">
-									<div class="relative group">
-										<button
-											class="aspect-square rounded-lg border-2 border-base-300 cursor-pointer group relative overflow-hidden w-full transition-all duration-200 hover:shadow-lg"
-											style:background-color={color}
-											onclick={() => copyColor(color)}
-											oncontextmenu={(e) =>
-												showContextMenu(e, appStore.activePalette!.id, index, color)}
-											type="button"
-											aria-label="Copy color {color} to clipboard, right-click for options"
+							{#each app.palettes.activePalette!.colors as color, index}
+								<div class="group relative">
+									<button
+										class="aspect-square rounded-2xl shadow-lg cursor-pointer w-full transition-all duration-300 hover:scale-110 hover:rotate-2 hover:shadow-xl hover:shadow-phoenix-primary/30 hover:z-10 relative overflow-hidden border-2 border-white/10 group-active:scale-95"
+										style:background-color={color}
+										onclick={() => copyColor(color)}
+										oncontextmenu={(e) =>
+											showContextMenu(e, app.palettes.activePalette!.id, index, color)}
+										type="button"
+									>
+										<!-- Glass Shine -->
+										<div
+											class="absolute inset-0 bg-linear-to-br from-white/40 to-transparent opacity-50 pointer-events-none"
+										></div>
+
+										<!-- Bottom Reflection -->
+										<div
+											class="absolute bottom-0 left-0 right-0 h-1/3 bg-linear-to-t from-black/20 to-transparent pointer-events-none"
+										></div>
+
+										<!-- Copy Icon Overlay -->
+										<div
+											class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 scale-50 group-hover:scale-100"
 										>
-											<!-- Hover overlay -->
 											<div
-												class="absolute inset-0 bg-base-content/20 opacity-0 group-hover:opacity-20 transition-opacity flex items-center justify-center"
+												class="bg-black/40 backdrop-blur-md p-2 rounded-full text-white shadow-lg border border-white/20"
 											>
-												<Icon
-													icon="material-symbols:content-copy"
-													class="w-4 h-4 md:w-5 md:h-5 text-base-content"
-												/>
+												<Icon icon="material-symbols:content-copy" class="w-6 h-6" />
 											</div>
-										</button>
+										</div>
+									</button>
 
-										<!-- Remove button positioned outside the main button -->
-										<button
-											class="btn btn-xs btn-circle btn-error absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-											onclick={(e) => {
-												e.stopPropagation();
-												removeColorFromPalette(appStore.activePalette!.id, index);
-											}}
-											type="button"
-											aria-label="Remove color {color}"
-										>
-											<Icon icon="material-symbols:close" class="w-3 h-3" />
-										</button>
-									</div>
-
-									<!-- Color Info -->
 									<div class="mt-2 text-center">
-										<p class="text-xs md:text-sm font-mono text-base-content">
+										<p
+											class="text-xs font-mono text-text-muted group-hover:text-white transition-colors select-all"
+										>
 											{formatColor(color, "hex")}
 										</p>
-										{#if getColorName(color)}
-											<p class="text-xs text-base-content/60">
-												{getColorName(color)}
-											</p>
-										{/if}
 									</div>
 								</div>
 							{/each}
 
-							<!-- Add color slots -->
-							{#each Array(appStore.activePalette.maxSlots - appStore.activePalette.colors.length) as _}
-								<div class="color-swatch-large">
-									<button
-										class="aspect-square rounded-lg border-2 border-dashed border-base-300 cursor-pointer hover:border-primary hover:bg-primary-bg transition-colors flex items-center justify-center group w-full"
-										onclick={() => addColorToPalette(appStore.activePalette!.id, selectedColor)}
-										type="button"
-										aria-label="Add new color to palette"
+							<!-- Add Slots -->
+							{#each Array(Math.max(0, app.palettes.activePalette!.maxSlots - app.palettes.activePalette!.colors.length)) as _}
+								<button
+									class="aspect-square rounded-2xl border-2 border-dashed border-white/20 hover:border-phoenix-primary hover:bg-phoenix-primary/10 transition-all duration-300 flex items-center justify-center group hover:scale-105 active:scale-95"
+									onclick={() => addColorToPalette(app.palettes.activePalette!.id, selectedColor)}
+									type="button"
+								>
+									<div
+										class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-phoenix-primary/20 transition-colors"
 									>
 										<Icon
 											icon="material-symbols:add"
-											class="w-8 h-8 text-base-content/40 group-hover:text-primary"
+											class="w-6 h-6 text-white/50 group-hover:text-phoenix-primary transition-colors"
 										/>
-									</button>
-									<div class="mt-2 text-center">
-										<p class="text-xs text-base-content/60">Add Color</p>
 									</div>
-								</div>
+								</button>
 							{/each}
 						</div>
 
-						<!-- Color History -->
+						<!-- Recent Colors (History) -->
 						{#if colorHistory.length > 0}
-							<div class="border-t border-base-300 pt-6">
-								<h4 class="font-semibold text-base-content mb-4">Recent Colors</h4>
+							<div class="border-t border-white/5 pt-6">
+								<h4 class="text-sm font-medium text-text-muted mb-4 uppercase tracking-wider">
+									Recent Colors
+								</h4>
 								<div class="flex flex-wrap gap-2">
-									{#each colorHistory.slice(0, 10) as color}
+									{#each colorHistory.slice(0, 12) as color}
 										<button
-											class="w-8 h-8 rounded border border-base-300 cursor-pointer hover:scale-110 transition-transform"
+											class="w-8 h-8 rounded-full border border-white/10 cursor-pointer hover:scale-110 transition-transform shadow-sm"
 											style:background-color={color}
 											onclick={() => {
 												selectedColor = color;
@@ -1660,7 +1462,6 @@
 											}}
 											title={color}
 											type="button"
-											aria-label="Select color {color}"
 										></button>
 									{/each}
 								</div>
@@ -1669,25 +1470,28 @@
 					</div>
 				{:else}
 					<div class="flex items-center justify-center h-full">
-						<div class="text-center text-base-content/70">
-							<Icon
-								icon="material-symbols:palette-outline"
-								class="h-24 w-24 mx-auto mb-4 opacity-30"
-							/>
-							<h3 class="text-xl font-semibold mb-2">No Palette Selected</h3>
-							<p class="mb-4">Create or select a palette to start working</p>
+						<div class="text-center text-text-muted/50">
+							<div
+								class="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 animate-float"
+							>
+								<Icon icon="material-symbols:palette-outline" class="h-12 w-12 opacity-50" />
+							</div>
+							<h3 class="text-xl font-bold text-white mb-2">No Palette Selected</h3>
+							<p class="mb-6 max-w-xs mx-auto">
+								Select a palette from the list or create a new one to start designing.
+							</p>
 							<button
-								class="btn btn-primary"
+								class="btn btn-primary bg-linear-to-r from-phoenix-primary to-phoenix-violet border-none text-white shadow-lg hover:shadow-phoenix-primary/50"
 								onclick={() => (showCreateDialog = true)}
 								type="button"
 							>
-								Create Your First Palette
+								Create Palette
 							</button>
 						</div>
 					</div>
 				{/if}
 			</div>
-		</div>
+		</GlassPanel>
 	</div>
 </div>
 
@@ -1776,7 +1580,7 @@
 					onclick={() => {
 						if (editingColorContext && selectedColor !== editingColorContext.originalColor) {
 							const { paletteId, colorIndex } = editingColorContext;
-							const palette = appStore.palettes.find((p) => p.id === paletteId);
+							const palette = app.palettes.palettes.find((p) => p.id === paletteId);
 							if (palette && palette.colors[colorIndex] !== undefined) {
 								// Check for duplicates before updating
 								if (
@@ -1786,7 +1590,7 @@
 									toast.warning("This color already exists in the palette.");
 									selectedColor = editingColorContext.originalColor; // Revert to original
 								} else {
-									appStore.updatePaletteColor(paletteId, colorIndex, selectedColor);
+									app.palettes.updateColor(paletteId, colorIndex, selectedColor);
 									toast.success(`Color updated to ${selectedColor}`);
 									addToColorHistory(selectedColor);
 								}
@@ -1829,7 +1633,7 @@
 						onclick={() => {
 							if (editingColorContext && selectedColor !== editingColorContext.originalColor) {
 								const { paletteId, colorIndex } = editingColorContext;
-								const palette = appStore.palettes.find((p) => p.id === paletteId);
+								const palette = app.palettes.palettes.find((p) => p.id === paletteId);
 								if (palette && palette.colors[colorIndex] !== undefined) {
 									// Check for duplicates before updating
 									if (
@@ -1839,7 +1643,7 @@
 										toast.warning("This color already exists in the palette.");
 										selectedColor = editingColorContext.originalColor; // Revert to original
 									} else {
-										appStore.updatePaletteColor(paletteId, colorIndex, selectedColor);
+										app.palettes.updateColor(paletteId, colorIndex, selectedColor);
 										toast.success(`Color updated to ${selectedColor}`);
 										addToColorHistory(selectedColor);
 									}
@@ -1914,7 +1718,10 @@
 			}
 		}}
 	>
-		<div class="bg-base-100 rounded-lg shadow-xl p-6 w-96 max-w-90vw">
+		<div
+			in:scale={{ duration: 500, start: 0.8, easing: elasticOut }}
+			class="bg-base-100 rounded-lg shadow-xl p-6 w-96 max-w-90vw"
+		>
 			<div class="flex items-center justify-between mb-4">
 				<h3 class="font-bold text-lg">Extract Colors from Reference</h3>
 				<button
@@ -1931,12 +1738,12 @@
 			</div>
 
 			{#if extractingFrom}
-				{@const reference = appStore.references.find((r) => r.id === extractingFrom)}
+				{@const reference = app.references.references.find((r) => r.id === extractingFrom)}
 				{#if reference}
 					<div class="mb-4">
 						<div class="flex items-center space-x-3 p-3 bg-base-200 rounded-lg">
 							<div
-								class="w-12 h-12 rounded border border-base-300 bg-cover bg-center flex-shrink-0"
+								class="w-12 h-12 rounded border border-base-300 bg-cover bg-center shrink-0"
 								style:background-image="url({reference.src})"
 							></div>
 							<div class="flex-1 min-w-0">

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import PalettesModule from "$lib/components/modules/PalettesModule.svelte";
+import PalettesModule from "$lib/components/modules/PalettesModule.svelte";
 </script>
 
 <svelte:head>

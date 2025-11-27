@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ReferenceId, PaletteId, GradientId } from "$lib/types/brands";
 
 // Color validation
 const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
@@ -17,7 +18,7 @@ const DimensionsSchema = z.object({
 
 // Reference Image validation
 export const ReferenceImageSchema = z.object({
-	id: z.string().uuid(),
+	id: z.string().uuid().transform((val) => val as ReferenceId),
 	src: z.string().url("Invalid image URL"),
 	thumbnailSrc: z.string().url("Invalid thumbnail URL").optional(),
 	name: z.string().min(1, "Image name is required").max(100, "Name too long"),
@@ -29,6 +30,18 @@ export const ReferenceImageSchema = z.object({
 	createdAt: z.date(),
 	fileSize: z.number().positive().optional(),
 	dimensions: DimensionsSchema.optional(),
+	// New properties from ReferenceImage interface in stores
+	brightness: z.number().min(0).max(200).default(100).optional(),
+	contrast: z.number().min(0).max(200).default(100).optional(),
+	saturation: z.number().min(0).max(200).default(100).optional(),
+	hueRotate: z.number().min(0).max(360).default(0).optional(),
+	blur: z.number().min(0).max(10).default(0).optional(),
+	sepia: z.number().min(0).max(100).optional(),
+	invert: z.number().min(0).max(100).optional(),
+	flipX: z.boolean().optional(),
+	flipY: z.boolean().optional(),
+	gradientMapOpacity: z.number().min(0).max(1).optional(),
+	gradientMapBlendMode: z.string().optional(),
 });
 
 // Gradient validation
@@ -38,7 +51,7 @@ export const GradientStopSchema = z.object({
 });
 
 export const GradientSchema = z.object({
-	id: z.string().uuid(),
+	id: z.string().uuid().transform((val) => val as GradientId),
 	name: z.string().min(1, "Gradient name is required").max(50, "Name too long"),
 	type: z.enum(["linear", "radial", "conic"]),
 	stops: z.array(GradientStopSchema).min(2, "Gradient must have at least 2 color stops"),
@@ -50,7 +63,7 @@ export const GradientSchema = z.object({
 
 // Color Palette validation
 export const ColorPaletteSchema = z.object({
-	id: z.string().uuid(),
+	id: z.string().uuid().transform((val) => val as PaletteId),
 	name: z.string().min(1, "Palette name is required").max(50, "Name too long"),
 	colors: z.array(ColorSchema).max(50, "Too many colors in palette"),
 	maxSlots: z.number().min(3, "Minimum 3 slots").max(50, "Maximum 50 slots"),
@@ -66,7 +79,16 @@ export const AppSettingsSchema = z.object({
 	enableAnimations: z.boolean(),
 	globalEyedropperEnabled: z.boolean(),
 	referenceBoardSavePath: z.string().nullable(),
+	workspace: z.object({
+		showGrid: z.boolean(),
+		snapToGrid: z.boolean(),
+		gridSize: z.number().min(5).max(100),
+		showRulers: z.boolean(),
+	}),
 	exportPreferences: z.object({
+		defaultFormat: z.enum(["png", "jpeg", "webp", "svg"]),
+		defaultScale: z.number().min(1).max(4),
+		includeBackground: z.boolean(),
 		defaultPngResolution: z.number().min(100).max(8192),
 		defaultSvgSize: DimensionsSchema,
 		compressionLevel: z.number().min(1).max(100),
@@ -110,38 +132,46 @@ export function validateColor(color: string): { valid: boolean; error?: string }
 export function validateGradient(gradient: unknown): {
 	valid: boolean;
 	error?: string;
-	data?: any;
+	data?: z.infer<typeof GradientSchema>;
 } {
 	try {
 		const validatedGradient = GradientSchema.parse(gradient);
 		return { valid: true, data: validatedGradient };
 	} catch (error) {
 		if (error instanceof z.ZodError) {
-			return { valid: false, error: error.errors[0]?.message || "Invalid gradient data" };
+			return { valid: false, error: error.issues[0]?.message || "Invalid gradient data" };
 		}
 		return { valid: false, error: "Unknown validation error" };
 	}
 }
 
-export function validatePalette(palette: unknown): { valid: boolean; error?: string; data?: any } {
+export function validatePalette(palette: unknown): {
+	valid: boolean;
+	error?: string;
+	data?: z.infer<typeof ColorPaletteSchema>;
+} {
 	try {
 		const validatedPalette = ColorPaletteSchema.parse(palette);
 		return { valid: true, data: validatedPalette };
 	} catch (error) {
 		if (error instanceof z.ZodError) {
-			return { valid: false, error: error.errors[0]?.message || "Invalid palette data" };
+			return { valid: false, error: error.issues[0]?.message || "Invalid palette data" };
 		}
 		return { valid: false, error: "Unknown validation error" };
 	}
 }
 
-export function validateAppData(data: unknown): { valid: boolean; error?: string; data?: any } {
+export function validateAppData(data: unknown): {
+	valid: boolean;
+	error?: string;
+	data?: z.infer<typeof ExportDataSchema>;
+} {
 	try {
 		const validatedData = ExportDataSchema.parse(data);
 		return { valid: true, data: validatedData };
 	} catch (error) {
 		if (error instanceof z.ZodError) {
-			return { valid: false, error: error.errors[0]?.message || "Invalid export data format" };
+			return { valid: false, error: error.issues[0]?.message || "Invalid export data format" };
 		}
 		return { valid: false, error: "Unknown validation error" };
 	}
@@ -149,7 +179,10 @@ export function validateAppData(data: unknown): { valid: boolean; error?: string
 
 // Runtime type guards
 export type ValidatedReferenceImage = z.infer<typeof ReferenceImageSchema>;
+export type ValidatedGradientStop = z.infer<typeof GradientStopSchema>;
 export type ValidatedGradient = z.infer<typeof GradientSchema>;
 export type ValidatedColorPalette = z.infer<typeof ColorPaletteSchema>;
 export type ValidatedAppSettings = z.infer<typeof AppSettingsSchema>;
+export type ValidatedTutorialState = z.infer<typeof TutorialStateSchema>;
 export type ValidatedExportData = z.infer<typeof ExportDataSchema>;
+

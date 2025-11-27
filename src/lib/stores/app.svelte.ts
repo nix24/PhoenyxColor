@@ -2,57 +2,20 @@
 import { persistenceService } from "$lib/services/persistence";
 import { simpleStorageService } from "$lib/services/simpleStorage";
 import { validatePalette, validateGradient, validateColor } from "$lib/schemas/validation";
+import type {
+	ValidatedReferenceImage,
+	ValidatedColorPalette,
+	ValidatedGradient,
+	ValidatedAppSettings,
+	ValidatedTutorialState,
+} from "$lib/schemas/validation";
+import type { ReferenceId, PaletteId, GradientId, UndoActionId } from "$lib/types/brands";
 
 // Use simple storage for now to debug persistence issues
 const storageService = simpleStorageService;
 
-export interface ReferenceImage {
-	id: string;
-	src: string;
-	thumbnailSrc?: string;
-	name: string;
-	position: { x: number; y: number };
-	scale: number;
-	rotation: number;
-	opacity: number;
-	isGrayscale: boolean;
-	brightness?: number; // 0-200, default 100
-	contrast?: number; // 0-200, default 100
-	saturation?: number; // 0-200, default 100
-	hueRotate?: number; // 0-360, default 0
-	blur?: number; // 0-10, default 0
-	createdAt: Date;
-	fileSize?: number;
-	dimensions?: { width: number; height: number };
-}
-
-export interface ColorPalette {
-	id: string;
-	name: string;
-	colors: string[];
-	maxSlots: number;
-	createdAt: Date;
-	tags: string[];
-}
-
-export interface GradientStop {
-	color: string;
-	position: number; // 0-100
-}
-
-export interface Gradient {
-	id: string;
-	name: string;
-	type: "linear" | "radial" | "conic";
-	stops: GradientStop[];
-	angle?: number; // for linear gradients
-	centerX?: number; // for radial gradients
-	centerY?: number; // for radial gradients
-	createdAt: Date;
-}
-
 export interface UndoRedoAction {
-	id: string;
+	id: UndoActionId;
 	moduleId: string;
 	actionType: string;
 	timestamp: Date;
@@ -60,40 +23,16 @@ export interface UndoRedoAction {
 	nextState: any;
 }
 
-export interface TutorialState {
-	isActive: boolean;
-	currentStep: number;
-	currentModule: string | null;
-	completedTutorials: string[];
-	showHints: boolean;
-}
-
-export interface AppSettings {
-	theme: "light" | "dark" | "system";
-	defaultPaletteSlots: number;
-	alwaysOnTop: boolean;
-	enableAnimations: boolean;
-	globalEyedropperEnabled: boolean;
-	referenceBoardSavePath: string | null;
-	exportPreferences: {
-		defaultPngResolution: number;
-		defaultSvgSize: { width: number; height: number };
-		compressionLevel: number;
-	};
-	autoSave: boolean;
-	autoSaveInterval: number; // minutes
-}
-
 export interface AppState {
-	references: ReferenceImage[];
-	palettes: ColorPalette[];
-	gradients: Gradient[];
-	activePalette: string | null;
-	activeGradient: string | null;
+	references: ValidatedReferenceImage[];
+	palettes: ValidatedColorPalette[];
+	gradients: ValidatedGradient[];
+	activePalette: PaletteId | null;
+	activeGradient: GradientId | null;
 	isEyedropperActive: boolean;
 	globalColorBuffer: string | null; // For storing colors from global eyedropper
-	settings: AppSettings;
-	tutorialState: TutorialState;
+	settings: ValidatedAppSettings;
+	tutorialState: ValidatedTutorialState;
 	undoStack: UndoRedoAction[];
 	redoStack: UndoRedoAction[];
 	maxUndoStackSize: number;
@@ -118,7 +57,16 @@ function createAppStore() {
 			enableAnimations: true,
 			globalEyedropperEnabled: false,
 			referenceBoardSavePath: null,
+			workspace: {
+				showGrid: true,
+				snapToGrid: false,
+				gridSize: 20,
+				showRulers: true,
+			},
 			exportPreferences: {
+				defaultFormat: "png",
+				defaultScale: 1,
+				includeBackground: true,
 				defaultPngResolution: 1920,
 				defaultSvgSize: { width: 800, height: 600 },
 				compressionLevel: 80,
@@ -148,10 +96,10 @@ function createAppStore() {
 		moduleId: string,
 		actionType: string,
 		prevState: any,
-		nextState: any
+		nextState: any,
 	): UndoRedoAction {
 		return {
-			id: crypto.randomUUID(),
+			id: crypto.randomUUID() as UndoActionId,
 			moduleId,
 			actionType,
 			timestamp: new Date(),
@@ -170,11 +118,23 @@ function createAppStore() {
 		state.redoStack = [];
 	}
 
+	// Adapter to convert legacy AppState to RootStore for persistence
+	function adaptToRootStore(currentState: AppState): any {
+		return {
+			references: { references: currentState.references },
+			palettes: { palettes: currentState.palettes },
+			gradients: { gradients: currentState.gradients },
+			settings: { state: currentState.settings },
+			activePalette: currentState.activePalette,
+			activeGradient: currentState.activeGradient,
+			// Mock methods required by RootStore but not used during simple persistence
+			toggleEyedropper: () => { },
+			setGlobalColor: () => { },
+			clearGlobalColor: () => { },
+		};
+	}
+
 	return {
-		// Getters
-		get state() {
-			return state;
-		},
 		get references() {
 			return state.references;
 		},
@@ -200,7 +160,7 @@ function createAppStore() {
 		},
 
 		// Actions
-		setActivePalette(id: string | null) {
+		setActivePalette(id: PaletteId | null) {
 			state.activePalette = id;
 		},
 
@@ -210,10 +170,10 @@ function createAppStore() {
 		},
 
 		// Reference actions
-		addReference(ref: Omit<ReferenceImage, "id">) {
-			const newRef: ReferenceImage = {
+		addReference(ref: Omit<ValidatedReferenceImage, "id">) {
+			const newRef: ValidatedReferenceImage = {
 				...ref,
-				id: crypto.randomUUID(),
+				id: crypto.randomUUID() as ReferenceId,
 				createdAt: new Date(),
 				thumbnailSrc: ref.thumbnailSrc || ref.src, // Fallback to full src if thumbnail not provided
 			};
@@ -226,19 +186,22 @@ function createAppStore() {
 			// Auto-save after adding reference (only if not clearing)
 			if (!clearingInProgress && state.settings.autoSave) {
 				this.saveToStorage().catch((error) =>
-					console.error("Auto-save failed after adding reference:", error)
+					console.error("Auto-save failed after adding reference:", error),
 				);
 			}
 		},
 
-		updateReference(id: string, updates: Partial<ReferenceImage>) {
+		updateReference(id: string, updates: Partial<ValidatedReferenceImage>) {
 			const index = state.references.findIndex((r) => r.id === id);
 			if (index !== -1) {
-				const prevState = [...state.references];
-				Object.assign(state.references[index], updates);
+				const item = state.references[index];
+				if (item) {
+					const prevState = [...state.references];
+					Object.assign(item, updates);
 
-				const action = createUndoAction("references", "update", prevState, [...state.references]);
-				pushUndoAction(action);
+					const action = createUndoAction("references", "update", prevState, [...state.references]);
+					pushUndoAction(action);
+				}
 			}
 		},
 
@@ -254,23 +217,23 @@ function createAppStore() {
 				// Auto-save after removing reference (only if not clearing)
 				if (!clearingInProgress && state.settings.autoSave) {
 					this.saveToStorage().catch((error) =>
-						console.error("Auto-save failed after removing reference:", error)
+						console.error("Auto-save failed after removing reference:", error),
 					);
 				}
 			}
 		},
 
 		// Palette actions
-		addPalette(palette: Omit<ColorPalette, "id" | "createdAt">) {
+		addPalette(palette: Omit<ValidatedColorPalette, "id" | "createdAt">) {
 			if (state.palettes.length >= 100) {
 				console.warn("Maximum number of palettes reached");
 				return;
 			}
 
 			// Create the new palette with proper UUID first
-			const newPalette: ColorPalette = {
+			const newPalette: ValidatedColorPalette = {
 				...palette,
-				id: crypto.randomUUID(),
+				id: crypto.randomUUID() as PaletteId,
 				createdAt: new Date(),
 			};
 
@@ -317,24 +280,27 @@ function createAppStore() {
 			return newPalette.id;
 		},
 
-		updatePalette(id: string, updates: Partial<ColorPalette>) {
+		updatePalette(id: string, updates: Partial<ValidatedColorPalette>) {
 			const prevState = [...state.palettes];
 			const index = state.palettes.findIndex((p) => p.id === id);
 			if (index !== -1) {
-				Object.assign(state.palettes[index], updates);
+				const item = state.palettes[index];
+				if (item) {
+					Object.assign(item, updates);
 
-				// Create undo action
-				const undoAction = createUndoAction("palettes", "updatePalette", prevState, [
-					...state.palettes,
-				]);
-				pushUndoAction(undoAction);
+					// Create undo action
+					const undoAction = createUndoAction("palettes", "updatePalette", prevState, [
+						...state.palettes,
+					]);
+					pushUndoAction(undoAction);
 
-				console.log("✅ Palette updated:", id);
+					console.log("✅ Palette updated:", id);
 
-				// Auto-save changes
-				this.saveToStorage().catch((error) => {
-					console.error("Failed to auto-save after updating palette:", error);
-				});
+					// Auto-save changes
+					this.saveToStorage().catch((error) => {
+						console.error("Failed to auto-save after updating palette:", error);
+					});
+				}
 			}
 		},
 
@@ -355,7 +321,7 @@ function createAppStore() {
 			// Auto-save after removing palette (only if not clearing)
 			if (!clearingInProgress && state.settings.autoSave) {
 				this.saveToStorage().catch((error) =>
-					console.error("Auto-save failed after removing palette:", error)
+					console.error("Auto-save failed after removing palette:", error),
 				);
 			}
 		},
@@ -379,7 +345,7 @@ function createAppStore() {
 				// Auto-save after adding color (only if not clearing)
 				if (!clearingInProgress && state.settings.autoSave) {
 					this.saveToStorage().catch((error) =>
-						console.error("Auto-save failed after adding color:", error)
+						console.error("Auto-save failed after adding color:", error),
 					);
 				}
 			}
@@ -397,19 +363,19 @@ function createAppStore() {
 				// Auto-save after updating color (only if not clearing)
 				if (!clearingInProgress && state.settings.autoSave) {
 					this.saveToStorage().catch((error) =>
-						console.error("Auto-save failed after updating color:", error)
+						console.error("Auto-save failed after updating color:", error),
 					);
 				}
 			}
 		},
 
 		// Gradient actions
-		addGradient(gradient: Omit<Gradient, "id" | "createdAt">) {
+		addGradient(gradient: Omit<ValidatedGradient, "id" | "createdAt">) {
 			const prevState = [...state.gradients];
 
-			const newGradient: Gradient = {
+			const newGradient: ValidatedGradient = {
 				...gradient,
-				id: crypto.randomUUID(),
+				id: crypto.randomUUID() as GradientId,
 				createdAt: new Date(),
 			};
 
@@ -431,24 +397,27 @@ function createAppStore() {
 			return newGradient.id;
 		},
 
-		updateGradient(id: string, updates: Partial<Gradient>) {
+		updateGradient(id: string, updates: Partial<ValidatedGradient>) {
 			const prevState = [...state.gradients];
 			const index = state.gradients.findIndex((g) => g.id === id);
 			if (index !== -1) {
-				Object.assign(state.gradients[index], updates);
+				const item = state.gradients[index];
+				if (item) {
+					Object.assign(item, updates);
 
-				// Create undo action
-				const undoAction = createUndoAction("gradients", "updateGradient", prevState, [
-					...state.gradients,
-				]);
-				pushUndoAction(undoAction);
+					// Create undo action
+					const undoAction = createUndoAction("gradients", "updateGradient", prevState, [
+						...state.gradients,
+					]);
+					pushUndoAction(undoAction);
 
-				console.log("✅ Gradient updated:", id);
+					console.log("✅ Gradient updated:", id);
 
-				// Auto-save changes
-				this.saveToStorage().catch((error) => {
-					console.error("Failed to auto-save after updating gradient:", error);
-				});
+					// Auto-save changes
+					this.saveToStorage().catch((error) => {
+						console.error("Failed to auto-save after updating gradient:", error);
+					});
+				}
 			}
 		},
 
@@ -475,7 +444,7 @@ function createAppStore() {
 			});
 		},
 
-		setActiveGradient(id: string | null) {
+		setActiveGradient(id: GradientId | null) {
 			state.activeGradient = id;
 		},
 
@@ -493,7 +462,7 @@ function createAppStore() {
 		},
 
 		// Settings
-		async updateSettings(updates: Partial<AppSettings>) {
+		async updateSettings(updates: Partial<ValidatedAppSettings>) {
 			console.log("⚙️ Updating settings:", updates);
 			Object.assign(state.settings, updates);
 
@@ -546,7 +515,8 @@ function createAppStore() {
 		undo() {
 			if (state.undoStack.length === 0) return;
 
-			const action = state.undoStack.pop()!;
+			const action = state.undoStack.pop();
+			if (!action) return;
 			state.redoStack.push(action);
 
 			// Apply the previous state based on module
@@ -566,7 +536,8 @@ function createAppStore() {
 		redo() {
 			if (state.redoStack.length === 0) return;
 
-			const action = state.redoStack.pop()!;
+			const action = state.redoStack.pop();
+			if (!action) return;
 			state.undoStack.push(action);
 
 			// Apply the next state based on module
@@ -605,7 +576,7 @@ function createAppStore() {
 					theme: state.settings.theme,
 				});
 
-				const success = await storageService.saveState(state);
+				const success = await storageService.saveState(adaptToRootStore(state));
 				if (success) {
 					this.markSaved();
 					console.log("✅ Data saved successfully to storage");
@@ -637,7 +608,7 @@ function createAppStore() {
 							console.log(
 								"🆘 Found immediate backup with",
 								backup.palettes?.length || 0,
-								"palettes"
+								"palettes",
 							);
 
 							if (backup.palettes && backup.palettes.length > 0) {
@@ -649,7 +620,7 @@ function createAppStore() {
 								console.log(
 									"🆘 Restored from immediate backup:",
 									state.palettes.length,
-									"palettes"
+									"palettes",
 								);
 								this.markSaved();
 								return true;
@@ -712,7 +683,7 @@ function createAppStore() {
 		},
 
 		async exportData(): Promise<boolean> {
-			return await persistenceService.exportData(state);
+			return await persistenceService.exportData(adaptToRootStore(state));
 		},
 
 		async importData(): Promise<boolean> {
@@ -730,7 +701,7 @@ function createAppStore() {
 			if (state.settings.autoSave) {
 				persistenceService.startAutoSave(
 					() => this.saveToStorage(),
-					state.settings.autoSaveInterval
+					state.settings.autoSaveInterval,
 				);
 			}
 		},

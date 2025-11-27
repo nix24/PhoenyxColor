@@ -1,9 +1,13 @@
 <script lang="ts">
-	import { appStore } from "$lib/stores/app.svelte";
-	import type { ReferenceImage } from "$lib/stores/app.svelte";
+	import { app } from "$lib/stores/root.svelte";
+	import type { ValidatedReferenceImage } from "$lib/schemas/validation";
+	import type { ReferenceId } from "$lib/types/brands";
 	import Icon from "@iconify/svelte";
 	import { toast } from "svelte-sonner";
 	import { performanceService } from "$lib/services/performance";
+	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
+	import { cn } from "$lib/utils/cn";
+	import ImageEditor from "$lib/components/modules/references/ImageEditor.svelte";
 
 	let fileInput: HTMLInputElement;
 	let isDragOver = $state(false);
@@ -25,7 +29,7 @@
 	const MAX_FILES_AT_ONCE = 20;
 
 	// Mobile action sheet handling
-	let actionTarget: ReferenceImage | null = $state(null);
+	let actionTarget: ValidatedReferenceImage | null = $state(null);
 
 	function validateFile(file: File): { valid: boolean; error?: string } {
 		if (!ALLOWED_TYPES.includes(file.type)) {
@@ -65,7 +69,8 @@
 
 	function handleDragOver(event: DragEvent) {
 		event.preventDefault();
-		event.dataTransfer!.dropEffect = "copy";
+		if (!event.dataTransfer) return;
+		event.dataTransfer.dropEffect = "copy";
 		isDragOver = true;
 	}
 
@@ -147,7 +152,7 @@
 
 			uploadProgress[progressId] = 80;
 
-			appStore.addReference({
+			app.references.add({
 				src: imageUrl,
 				thumbnailSrc: thumbnail,
 				name: file.name.replace(/\.[^/.]+$/, ""),
@@ -161,7 +166,6 @@
 				saturation: 100,
 				hueRotate: 0,
 				blur: 0,
-				createdAt: new Date(),
 			});
 
 			uploadProgress[progressId] = 100;
@@ -190,22 +194,22 @@
 			showControls = false;
 			// Close modal if open
 			const dlg = document.getElementById("transform-modal") as HTMLDialogElement | null;
-			if (dlg && dlg.open) dlg.close();
+			if (dlg?.open) dlg.close();
 		}
 	}
 
 	function removeReference(id: string) {
-		const reference = appStore.references.find((ref) => ref.id === id);
+		const reference = app.references.references.find((ref) => ref.id === id);
 		if (reference) {
 			// Cleanup blob URLs to prevent memory leaks (if any are still using blob URLs)
 			if (reference.src.startsWith("blob:")) {
 				URL.revokeObjectURL(reference.src);
 			}
-			if (reference.thumbnailSrc && reference.thumbnailSrc.startsWith("blob:")) {
+			if (reference.thumbnailSrc?.startsWith("blob:")) {
 				URL.revokeObjectURL(reference.thumbnailSrc);
 			}
 
-			appStore.removeReference(id);
+			app.references.remove(id);
 			toast.info(`Removed "${reference.name}"`);
 
 			if (selectedImageId === id) {
@@ -216,19 +220,19 @@
 	}
 
 	function clearAllReferences() {
-		if (appStore.references.length === 0) return;
+		if (app.references.references.length === 0) return;
 
-		const count = appStore.references.length;
+		const count = app.references.references.length;
 
 		// Cleanup blob URLs to prevent memory leaks
-		appStore.references.forEach((ref) => {
+		app.references.references.forEach((ref) => {
 			if (ref.src.startsWith("blob:")) {
 				URL.revokeObjectURL(ref.src);
 			}
-			if (ref.thumbnailSrc && ref.thumbnailSrc.startsWith("blob:")) {
+			if (ref.thumbnailSrc?.startsWith("blob:")) {
 				URL.revokeObjectURL(ref.thumbnailSrc);
 			}
-			appStore.removeReference(ref.id);
+			app.references.remove(ref.id);
 		});
 
 		selectedImageId = null;
@@ -237,9 +241,9 @@
 	}
 
 	function duplicateReference(id: string) {
-		const reference = appStore.references.find((ref) => ref.id === id);
+		const reference = app.references.references.find((ref) => ref.id === id);
 		if (reference) {
-			appStore.addReference({
+			app.references.add({
 				...reference,
 				name: `${reference.name} (Copy)`,
 				position: {
@@ -251,16 +255,16 @@
 		}
 	}
 
-	function updateImageProperty(id: string, property: keyof ReferenceImage, value: any) {
-		appStore.updateReference(id, { [property]: value });
+	function updateImageProperty(id: string, property: keyof ValidatedReferenceImage, value: any) {
+		app.references.update(id, { [property]: value });
 		// Auto-save changes
-		appStore.saveToStorage().catch((error) => {
+		app.references.save().catch((error) => {
 			console.error("Failed to auto-save after updating image property:", error);
 		});
 	}
 
 	function resetTransforms(id: string) {
-		appStore.updateReference(id, {
+		app.references.update(id, {
 			scale: 1,
 			rotation: 0,
 			opacity: 1,
@@ -270,22 +274,26 @@
 			saturation: 100,
 			hueRotate: 0,
 			blur: 0,
+			sepia: 0,
+			invert: 0,
+			flipX: false,
+			flipY: false,
 		});
 		toast.success("All transforms reset");
 	}
 
 	// Get selected reference
 	const selectedReference = $derived(
-		selectedImageId ? appStore.references.find((ref) => ref.id === selectedImageId) : null
+		selectedImageId ? app.references.references.find((ref) => ref.id === selectedImageId) : null
 	);
 
 	function closeActionSheet() {
 		const dlg = document.getElementById("reference-action-modal") as HTMLDialogElement | null;
-		if (dlg && dlg.open) dlg.close();
+		if (dlg?.open) dlg.close();
 		actionTarget = null;
 	}
 
-	function handleImageClick(reference: ReferenceImage) {
+	function handleImageClick(reference: ValidatedReferenceImage) {
 		if (window.innerWidth < 768) {
 			actionTarget = reference;
 			const dlg = document.getElementById("reference-action-modal") as HTMLDialogElement;
@@ -296,8 +304,6 @@
 	}
 
 	function closeTransformModal() {
-		const dlg = document.getElementById("transform-modal") as HTMLDialogElement | null;
-		if (dlg && dlg.open) dlg.close();
 		showControls = false;
 		selectedImageId = null;
 	}
@@ -307,45 +313,36 @@
 		selectImage(id);
 	}
 
-	function buildFilterString(reference: ReferenceImage): string {
+	function buildFilterString(reference: ValidatedReferenceImage): string {
 		const filters: string[] = [];
 
-		if (reference.isGrayscale) {
-			filters.push("grayscale(100%)");
-		}
-
-		if (reference.brightness !== undefined && reference.brightness !== 100) {
+		if (reference.isGrayscale) filters.push("grayscale(100%)");
+		if (reference.sepia) filters.push(`sepia(${reference.sepia}%)`);
+		if (reference.invert) filters.push(`invert(${reference.invert}%)`);
+		if (reference.brightness !== undefined && reference.brightness !== 100)
 			filters.push(`brightness(${reference.brightness}%)`);
-		}
-
-		if (reference.contrast !== undefined && reference.contrast !== 100) {
+		if (reference.contrast !== undefined && reference.contrast !== 100)
 			filters.push(`contrast(${reference.contrast}%)`);
-		}
-
-		if (reference.saturation !== undefined && reference.saturation !== 100) {
+		if (reference.saturation !== undefined && reference.saturation !== 100)
 			filters.push(`saturate(${reference.saturation}%)`);
-		}
-
-		if (reference.hueRotate !== undefined && reference.hueRotate !== 0) {
+		if (reference.hueRotate !== undefined && reference.hueRotate !== 0)
 			filters.push(`hue-rotate(${reference.hueRotate}deg)`);
-		}
-
-		if (reference.blur !== undefined && reference.blur !== 0) {
+		if (reference.blur !== undefined && reference.blur !== 0)
 			filters.push(`blur(${reference.blur}px)`);
-		}
 
 		return filters.length > 0 ? filters.join(" ") : "none";
 	}
 </script>
 
-<div class="h-full flex flex-col bg-base-100">
-	<!-- Header with Mode Toggle -->
-	<div
-		class="flex flex-col md:flex-row md:items-center justify-between p-4 md:p-6 border-b border-base-300 bg-base-100 gap-4"
+<div class="h-full flex flex-col gap-4">
+	<!-- Module Header -->
+	<GlassPanel
+		class="flex flex-col md:flex-row md:items-center justify-between p-4 md:p-6 gap-4 shrink-0"
+		intensity="low"
 	>
 		<div>
-			<h2 class="text-xl md:text-2xl font-bold text-base-content">Reference Images</h2>
-			<p class="text-sm text-base-content/70">
+			<h2 class="text-xl md:text-2xl font-bold text-white tracking-wide">Reference Images</h2>
+			<p class="text-sm text-text-muted">
 				{viewMode === "gallery"
 					? "Click images to transform them"
 					: "Transform your reference images"}
@@ -354,9 +351,14 @@
 
 		<div class="flex flex-wrap items-center gap-3">
 			<!-- View Mode Toggle -->
-			<div class="join">
+			<div class="join bg-black/20 rounded-lg p-1 border border-white/5">
 				<button
-					class="btn btn-sm join-item {viewMode === 'gallery' ? 'btn-active' : 'btn-outline'}"
+					class={cn(
+						"btn btn-sm join-item border-none transition-all duration-300",
+						viewMode === "gallery"
+							? "bg-phoenix-primary text-white shadow-lg"
+							: "bg-transparent text-text-muted hover:text-white"
+					)}
 					onclick={() => {
 						viewMode = "gallery";
 						selectedImageId = null;
@@ -367,99 +369,118 @@
 					Gallery
 				</button>
 				<button
-					class="btn btn-sm join-item {viewMode === 'transform' ? 'btn-active' : 'btn-outline'}"
+					class={cn(
+						"btn btn-sm join-item border-none transition-all duration-300",
+						viewMode === "transform"
+							? "bg-phoenix-primary text-white shadow-lg"
+							: "bg-transparent text-text-muted hover:text-white"
+					)}
 					onclick={() => {
 						viewMode = "transform";
 					}}
-					disabled={appStore.references.length === 0}
+					disabled={app.references.references.length === 0}
 				>
 					<Icon icon="material-symbols:transform" class="w-4 h-4" />
 					Transform
 				</button>
 			</div>
 
-			<button class="btn btn-primary btn-sm" onclick={() => fileInput.click()} type="button">
+			<button
+				class="btn btn-sm border-none bg-linear-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300"
+				onclick={() => fileInput.click()}
+				type="button"
+			>
 				<Icon icon="material-symbols:add" class="w-4 h-4" />
 				Add Images
 			</button>
 
 			<button
-				class="btn btn-outline btn-error btn-sm"
+				class="btn btn-outline btn-error btn-sm hover:bg-error/20"
 				onclick={clearAllReferences}
 				type="button"
-				disabled={appStore.references.length === 0}
+				disabled={app.references.references.length === 0}
 			>
 				<Icon icon="material-symbols:clear-all" class="w-4 h-4" />
 				Clear All
 			</button>
 		</div>
-	</div>
+	</GlassPanel>
 
 	<!-- Upload Progress -->
 	{#if Object.keys(uploadProgress).length > 0}
-		<div class="bg-base-200 border-b border-base-300 p-3">
-			<div class="text-sm text-base-content/70 mb-2">Uploading images...</div>
+		<GlassPanel class="p-3" intensity="low">
+			<div class="text-sm text-text-muted mb-2">Uploading images...</div>
 			{#each Object.entries(uploadProgress) as [id, progress]}
 				<div class="mb-1">
-					<div class="flex justify-between text-xs text-base-content/60 mb-1">
+					<div class="flex justify-between text-xs text-text-muted/60 mb-1">
 						<span>{id.split("-")[0]}</span>
 						<span>{progress}%</span>
 					</div>
-					<div class="w-full bg-base-300 rounded-full h-1">
+					<div class="w-full bg-black/20 rounded-full h-1">
 						<div
-							class="bg-primary h-1 rounded-full transition-all duration-300"
+							class="bg-phoenix-primary h-1 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(255,0,127,0.5)]"
 							style:width="{progress}%"
 						></div>
 					</div>
 				</div>
 			{/each}
-		</div>
+		</GlassPanel>
 	{/if}
 
 	<!-- Main Content -->
-	<div class="flex-1 overflow-hidden relative">
-		{#if appStore.references.length > 0}
+	<div class="flex-1 overflow-hidden relative rounded-xl">
+		{#if app.references.references.length > 0}
 			<!-- Image Gallery -->
-			<div class="h-full overflow-y-auto p-4">
+			<div class="h-full overflow-y-auto p-1">
 				<div
 					class="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
 				>
-					{#each appStore.references as reference (reference.id)}
-						<div class="relative group">
-							<!-- Image Container -->
+					{#each app.references.references as reference (reference.id)}
+						<GlassPanel
+							class="group cursor-pointer p-0! overflow-visible!"
+							intensity="low"
+							hoverEffect={true}
+							onclick={() => handleImageClick(reference)}
+							role="button"
+							tabindex="0"
+							onkeydown={(e: KeyboardEvent) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									handleImageClick(reference);
+								}
+							}}
+						>
 							<div
-								class="relative aspect-square overflow-hidden rounded-lg cursor-pointer transition-all duration-300 hover:shadow-lg {selectedImageId ===
-								reference.id
-									? 'ring-4 ring-primary ring-offset-2 ring-offset-base-100'
-									: 'hover:scale-105'}"
-								onclick={() => handleImageClick(reference)}
-								role="button"
-								tabindex="0"
-								onkeydown={(e) => {
-									if (e.key === "Enter" || e.key === " ") {
-										e.preventDefault();
-										handleImageClick(reference);
-									}
-								}}
+								class={cn(
+									"relative aspect-square overflow-hidden rounded-t-xl transition-all duration-300",
+									selectedImageId === reference.id
+										? "ring-2 ring-phoenix-primary ring-offset-2 ring-offset-void"
+										: ""
+								)}
 							>
 								<!-- Image with transforms applied visually -->
 								<img
 									src={reference.thumbnailSrc || reference.src}
 									alt={reference.name}
-									class="w-full h-full object-cover transition-all duration-300"
+									class="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
 									style:opacity={reference.opacity}
 									style:filter={buildFilterString(reference)}
 									style:transform="scale({reference.scale}) rotate({reference.rotation}deg)"
 									loading="lazy"
 								/>
 
+								<!-- Gradient Overlay (Bottom Fade) -->
+								<div
+									class="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/80 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-300"
+								></div>
+
 								<!-- Overlay on hover/selection -->
 								<div
-									class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center pointer-events-none"
+									class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center pointer-events-none"
 								>
 									{#if selectedImageId === reference.id}
 										<div
-											class="bg-primary text-primary-content px-2 py-1 rounded-full text-xs font-medium"
+											class="bg-phoenix-primary text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg animate-pulse-slow"
 										>
 											Selected
 										</div>
@@ -468,7 +489,7 @@
 											class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2"
 										>
 											<button
-												class="hidden md:inline-flex btn btn-xs md:btn-sm btn-circle btn-primary pointer-events-auto"
+												class="hidden md:inline-flex btn btn-xs md:btn-sm btn-circle bg-phoenix-primary border-none text-white pointer-events-auto hover:bg-phoenix-primary/80"
 												onclick={(e) => {
 													e.stopPropagation();
 													duplicateReference(reference.id);
@@ -490,47 +511,23 @@
 										</div>
 									{/if}
 								</div>
-
-								<!-- Transform indicators -->
-								{#if reference.rotation !== 0 || reference.scale !== 1 || reference.opacity !== 1 || reference.isGrayscale}
-									<div class="absolute top-2 right-2 flex gap-1">
-										{#if reference.rotation !== 0}
-											<div class="bg-blue-500 text-white text-xs px-1 rounded" title="Rotated">
-												{reference.rotation}°
-											</div>
-										{/if}
-										{#if reference.scale !== 1}
-											<div class="bg-green-500 text-white text-xs px-1 rounded" title="Scaled">
-												{Math.round(reference.scale * 100)}%
-											</div>
-										{/if}
-										{#if reference.opacity !== 1}
-											<div class="bg-orange-500 text-white text-xs px-1 rounded" title="Opacity">
-												{Math.round(reference.opacity * 100)}%
-											</div>
-										{/if}
-										{#if reference.isGrayscale}
-											<div class="bg-gray-500 text-white text-xs px-1 rounded" title="Grayscale">
-												BW
-											</div>
-										{/if}
-									</div>
-								{/if}
 							</div>
 
 							<!-- Image name -->
-							<p
-								class="text-xs text-center text-base-content/70 mt-2 truncate"
-								title={reference.name}
-							>
-								{reference.name}
-							</p>
-						</div>
+							<div class="p-2 border-t border-white/5 bg-black/20">
+								<p
+									class="text-xs text-center text-text-muted truncate group-hover:text-white transition-colors"
+									title={reference.name}
+								>
+									{reference.name}
+								</p>
+							</div>
+						</GlassPanel>
 					{/each}
 
 					<!-- Add More Card -->
 					<div
-						class="aspect-square border-2 border-dashed border-base-300 hover:border-primary transition-colors duration-200 cursor-pointer rounded-lg flex items-center justify-center"
+						class="aspect-square border-2 border-dashed border-white/10 hover:border-phoenix-primary/50 hover:bg-white/5 transition-all duration-300 cursor-pointer rounded-xl flex items-center justify-center group"
 						onclick={() => fileInput.click()}
 						role="button"
 						tabindex="0"
@@ -541,26 +538,33 @@
 							}
 						}}
 					>
-						<div class="text-center">
-							<Icon
-								icon="material-symbols:add-photo-alternate"
-								class="w-8 h-8 mx-auto text-base-content/40 mb-2"
-							/>
-							<p class="text-xs text-base-content/50">Add More</p>
+						<div class="text-center group-hover:scale-105 transition-transform duration-300">
+							<div
+								class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-2 group-hover:bg-phoenix-primary/20 transition-colors"
+							>
+								<Icon
+									icon="material-symbols:add-photo-alternate"
+									class="w-6 h-6 text-text-muted group-hover:text-phoenix-primary transition-colors"
+								/>
+							</div>
+							<p class="text-xs text-text-muted group-hover:text-white transition-colors">
+								Add More
+							</p>
 						</div>
 					</div>
 				</div>
 			</div>
-
-			<!-- (Legacy transform panel hidden; replaced by modal) -->
 		{:else}
 			<!-- Empty State -->
 			<div class="flex items-center justify-center h-full p-4">
-				<div
-					class="w-full max-w-md p-8 border-2 border-dashed border-base-300 rounded-lg text-center hover:border-primary transition-colors duration-200 cursor-pointer"
-					class:border-primary={isDragOver}
-					class:bg-primary={isDragOver}
-					class:bg-opacity-10={isDragOver}
+				<GlassPanel
+					class={cn(
+						"w-full max-w-md p-10 text-center cursor-pointer transition-all duration-300 border-2 border-dashed",
+						isDragOver
+							? "border-phoenix-primary bg-phoenix-primary/10 scale-105"
+							: "border-white/10 hover:border-white/20"
+					)}
+					intensity="medium"
 					ondrop={handleDrop}
 					ondragover={handleDragOver}
 					ondragleave={handleDragLeave}
@@ -569,24 +573,35 @@
 					role="button"
 					tabindex="0"
 				>
-					<Icon
-						icon="material-symbols:cloud-upload"
-						class="w-16 h-16 mx-auto mb-4 transition-colors {isDragOver
-							? 'text-primary'
-							: 'text-base-content/40'}"
-					/>
-					<h3 class="text-xl font-semibold mb-2 text-base-content">No References Yet</h3>
-					<p class="text-base-content/70 mb-4">
-						Add reference images to get started with your project
+					<div
+						class="w-20 h-20 rounded-full bg-linear-to-br from-phoenix-primary/20 to-phoenix-violet/20 flex items-center justify-center mx-auto mb-6 animate-float"
+					>
+						<Icon
+							icon="material-symbols:cloud-upload"
+							class={cn(
+								"w-10 h-10 transition-colors duration-300",
+								isDragOver ? "text-phoenix-primary" : "text-text-muted"
+							)}
+						/>
+					</div>
+
+					<h3 class="text-2xl font-bold mb-2 text-white tracking-wide">No References Yet</h3>
+					<p class="text-text-muted mb-8 max-w-xs mx-auto">
+						Drop your inspiration here or click to browse.
 					</p>
-					<button class="btn btn-primary" type="button">
-						<Icon icon="material-symbols:add-photo-alternate" class="w-4 h-4" />
+
+					<button
+						class="btn btn-primary bg-linear-to-r from-phoenix-primary to-phoenix-violet border-none shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300"
+						type="button"
+					>
+						<Icon icon="material-symbols:add-photo-alternate" class="w-5 h-5" />
 						Add Your First Reference
 					</button>
-					<p class="text-xs text-base-content/50 mt-4">
-						Max {MAX_FILES_AT_ONCE} files, 50MB each
+
+					<p class="text-[10px] text-text-muted/50 mt-6 uppercase tracking-wider">
+						Max {MAX_FILES_AT_ONCE} files • 50MB each
 					</p>
-				</div>
+				</GlassPanel>
 			</div>
 		{/if}
 	</div>
@@ -650,73 +665,13 @@
 		{/if}
 	</dialog>
 
-	<!-- Transform modal -->
-	<dialog id="transform-modal" class="modal">
-		{#if selectedReference && showControls}
-			<div class="modal-box w-11/12 max-w-7xl h-[95vh] max-h-[95vh] p-0 overflow-hidden">
-				<!-- Modal Header -->
-				<div
-					class="flex items-center justify-between p-4 md:p-6 border-b border-base-300 bg-base-100"
-				>
-					<div>
-						<h3 class="text-lg md:text-xl font-bold text-base-content">Transform Image</h3>
-						<p class="text-sm text-base-content/70">{selectedReference.name}</p>
-					</div>
-					<button class="btn btn-sm btn-circle btn-ghost" onclick={closeTransformModal}>
-						<Icon icon="material-symbols:close" class="w-5 h-5" />
-					</button>
-				</div>
-
-				<!-- Mobile Layout -->
-				<div class="md:hidden h-full flex flex-col">
-					<!-- Mobile Image Preview -->
-					<div class="flex-1 bg-base-200 p-4 overflow-auto">
-						<div class="relative w-full h-full flex items-center justify-center">
-							<img
-								src={selectedReference.src}
-								alt={selectedReference.name}
-								class="max-w-full max-h-full object-contain"
-								style:opacity={selectedReference.opacity}
-								style:filter={buildFilterString(selectedReference)}
-								style:transform="scale({selectedReference.scale}) rotate({selectedReference.rotation}deg)"
-							/>
-						</div>
-					</div>
-					<!-- Mobile Controls -->
-					<div class="h-1/2 overflow-y-auto p-4 bg-base-100 border-t border-base-300">
-						{@render mobileTransformControls(selectedReference)}
-					</div>
-				</div>
-
-				<!-- Desktop Layout -->
-				<div class="hidden md:flex h-full">
-					<!-- Desktop Image Preview -->
-					<div class="flex-1 bg-base-200 p-6 overflow-auto">
-						<div class="relative w-full h-full flex items-center justify-center">
-							<img
-								src={selectedReference.src}
-								alt={selectedReference.name}
-								class="max-w-full max-h-full object-contain"
-								style:opacity={selectedReference.opacity}
-								style:filter={buildFilterString(selectedReference)}
-								style:transform="scale({selectedReference.scale}) rotate({selectedReference.rotation}deg)"
-							/>
-						</div>
-					</div>
-					<!-- Desktop Controls -->
-					<div class="w-80 xl:w-96 h-full overflow-y-auto p-6 bg-base-100 border-l border-base-300">
-						{@render desktopTransformControls(selectedReference)}
-					</div>
-				</div>
-			</div>
-			<form method="dialog" class="modal-backdrop">
-				<button onclick={closeTransformModal}>close</button>
-			</form>
-		{/if}
-	</dialog>
+	<!-- Image Editor Overlay -->
+	{#if selectedImageId && showControls}
+		<ImageEditor imageId={selectedImageId} onClose={closeTransformModal} />
+	{/if}
 </div>
 
-{#snippet mobileTransformControls(reference: ReferenceImage)}
+{#snippet mobileTransformControls(reference: ValidatedReferenceImage)}
 	<div class="space-y-6">
 		<!-- Rotation -->
 		<div class="space-y-3">
@@ -1107,7 +1062,7 @@
 	</div>
 {/snippet}
 
-{#snippet desktopTransformControls(reference: ReferenceImage)}
+{#snippet desktopTransformControls(reference: ValidatedReferenceImage)}
 	<div class="space-y-6">
 		<!-- Rotation -->
 		<div class="space-y-3">

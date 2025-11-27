@@ -31,7 +31,7 @@ export class PerformanceService {
 	 */
 	async optimizeImage(
 		file: File,
-		options: ImageOptimizationOptions = {}
+		options: ImageOptimizationOptions = {},
 	): Promise<{ optimized: File; thumbnail: string }> {
 		const { maxWidth = 1920, maxHeight = 1080, quality = 0.92, format = "jpeg" } = options;
 
@@ -44,16 +44,20 @@ export class PerformanceService {
 						img.width,
 						img.height,
 						maxWidth,
-						maxHeight
+						maxHeight,
 					);
 
 					// Create canvas for optimization with high quality rendering
 					const canvas = document.createElement("canvas");
-					const ctx = canvas.getContext("2d")!;
+					const ctx = canvas.getContext("2d");
 					canvas.width = newWidth;
 					canvas.height = newHeight;
 
 					// Enable high-quality image rendering
+					if (!ctx) {
+						toast.error("Failed to create canvas context");
+						return;
+					}
 					ctx.imageSmoothingEnabled = true;
 					ctx.imageSmoothingQuality = "high";
 
@@ -82,7 +86,7 @@ export class PerformanceService {
 							}
 						},
 						`image/${format}`,
-						quality
+						quality,
 					);
 				} catch (error) {
 					reject(error);
@@ -99,16 +103,20 @@ export class PerformanceService {
 	 */
 	generateThumbnail(
 		source: HTMLImageElement | HTMLCanvasElement,
-		options: ThumbnailOptions
+		options: ThumbnailOptions,
 	): string {
 		const { width, height, quality = 0.9 } = options; // Higher default quality
 
 		const canvas = document.createElement("canvas");
-		const ctx = canvas.getContext("2d")!;
+		const ctx = canvas.getContext("2d");
 		canvas.width = width;
 		canvas.height = height;
 
 		// Enable high-quality rendering
+		if (!ctx) {
+			toast.error("Failed to create canvas context");
+			return "";
+		}
 		ctx.imageSmoothingEnabled = true;
 		ctx.imageSmoothingQuality = "high";
 
@@ -120,7 +128,7 @@ export class PerformanceService {
 			sourceWidth,
 			sourceHeight,
 			width,
-			height
+			height,
 		);
 
 		// Center the image
@@ -144,7 +152,7 @@ export class PerformanceService {
 		originalWidth: number,
 		originalHeight: number,
 		maxWidth: number,
-		maxHeight: number
+		maxHeight: number,
 	): { width: number; height: number } {
 		const aspectRatio = originalWidth / originalHeight;
 
@@ -171,7 +179,7 @@ export class PerformanceService {
 	async lazyLoadImage(src: string, placeholder?: string): Promise<string> {
 		// Check cache first
 		if (this.imageCache.has(src)) {
-			return this.imageCache.get(src)!;
+			return this.imageCache.get(src) ?? "";
 		}
 
 		return new Promise((resolve, reject) => {
@@ -213,7 +221,7 @@ export class PerformanceService {
 	 */
 	debounce<T extends (...args: any[]) => any>(
 		func: T,
-		wait: number
+		wait: number,
 	): (...args: Parameters<T>) => void {
 		let timeout: number;
 
@@ -228,7 +236,7 @@ export class PerformanceService {
 	 */
 	throttle<T extends (...args: any[]) => any>(
 		func: T,
-		limit: number
+		limit: number,
 	): (...args: Parameters<T>) => void {
 		let inThrottle: boolean;
 
@@ -309,7 +317,11 @@ export class PerformanceService {
 	 */
 	compressDataURL(dataURL: string, quality: number = 0.8): string {
 		const canvas = document.createElement("canvas");
-		const ctx = canvas.getContext("2d")!;
+		const ctx = canvas.getContext("2d");
+		if (!ctx) {
+			toast.error("Failed to create canvas context");
+			return "";
+		}
 		const img = new Image();
 
 		img.onload = () => {
