@@ -2,12 +2,18 @@ import { SettingsStore } from "./settings.svelte";
 import { PaletteStore } from "./palettes.svelte";
 import { ReferenceStore } from "./references.svelte";
 import { GradientStore } from "./gradients.svelte";
+import { ThemeStore } from "./theme.svelte";
+import { spatialNav } from "$lib/services/spatial-nav";
 
 export class RootStore {
 	settings = new SettingsStore();
 	palettes = new PaletteStore();
 	references = new ReferenceStore();
 	gradients = new GradientStore();
+	theme = new ThemeStore();
+
+	// Services
+	spatial = spatialNav;
 
 	// Global UI state
 	isEyedropperActive = $state(false);

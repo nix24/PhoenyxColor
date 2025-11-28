@@ -83,21 +83,20 @@
 
 /* Phoenix Core Design System - Frutiger Metro / Pop Edition */
 :root {
-	/* The Void Palette - Fallback/CSS Var usage */
-	--color-void: #0f0c18;
-	--color-void-deep: #0a0810;
-	--color-glass: rgba(20, 20, 30, 0.6);
-	--color-glass-border: rgba(255, 255, 255, 0.08);
+	/* Colors - Dynamic OkLCH Theming */
+	--color-primary: oklch(65% 0.22 30); /* Phoenix Orange/Red */
+	--color-secondary: oklch(55% 0.25 290); /* Phoenix Violet */
+	--color-bg: oklch(15% 0.05 280); /* Dark Void */
+	--color-text: oklch(95% 0.01 280);
+	--color-accent: oklch(70% 0.15 40);
 
-	/* Accents */
-	--color-phoenix-primary: #ff007f; /* Electric Magenta */
-	--color-phoenix-violet: #7f00ff; /* Deep Violet */
-	--color-phoenix-accent: #ffd700; /* Cyber Yellow */
-
-	/* Text */
-	--color-text-main: #ffffff;
-	--color-text-muted: #a0a0c0;
-
+	/* Fallback/Legacy (mapped to new vars) */
+	--color-void: var(--color-bg);
+	--color-phoenix-primary: var(--color-primary);
+	--color-phoenix-violet: var(--color-secondary);
+	--color-phoenix-accent: var(--color-accent);
+	--color-text-main: var(--color-text);
+	
 	/* Animation Curves (Osu! / Persona style - snappy & elastic) */
 	--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
 	--ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Bouncy! */
@@ -106,6 +105,29 @@
 	/* Radius */
 	--radius-pop: 1rem; /* Playful, large corners */
 	--radius-pill: 9999px;
+}
+
+/* Neo-Aero Glass Materials */
+.glass-oled {
+	background: color-mix(in oklch, var(--color-bg), transparent 20%);
+	backdrop-filter: blur(24px) saturate(1.5);
+	-webkit-backdrop-filter: blur(24px) saturate(1.5);
+	border: 1px solid color-mix(in oklch, var(--color-text), transparent 90%);
+}
+
+.glass-aero {
+	background: color-mix(in oklch, var(--color-bg), transparent 60%);
+	backdrop-filter: blur(16px) saturate(2);
+	-webkit-backdrop-filter: blur(16px) saturate(2);
+	border: 1px solid color-mix(in oklch, var(--color-text), transparent 80%);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.glass-hud {
+	background: color-mix(in oklch, var(--color-bg), transparent 40%);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border-top: 1px solid color-mix(in oklch, var(--color-text), transparent 80%);
 }
 
 /* Base Styles */

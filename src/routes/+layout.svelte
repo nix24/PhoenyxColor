@@ -2,6 +2,7 @@
 	import "../app.css";
 	import Sidebar from "$lib/components/layout/Sidebar.svelte";
 	import Header from "$lib/components/layout/Header.svelte";
+	import ProceduralBackground from "$lib/components/visuals/ProceduralBackground.svelte";
 	import { Toaster } from "svelte-sonner";
 	import { keyboardShortcuts } from "$lib/services/keyboardShortcuts";
 	import { app } from "$lib/stores/root.svelte";
@@ -56,16 +57,8 @@
 	});
 </script>
 
-<!-- Background Orbs -->
-<div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
-	<div
-		class="absolute top-[-10%] right-[-5%] w-[50vw] h-[50vw] bg-phoenix-violet/20 blur-[120px] rounded-full animate-pulse-slow"
-	></div>
-	<div
-		class="absolute bottom-[-10%] left-[-5%] w-[40vw] h-[40vw] bg-phoenix-primary/10 blur-[100px] rounded-full animate-pulse-slow"
-		style="animation-delay: 2s;"
-	></div>
-</div>
+<!-- Background System -->
+<ProceduralBackground />
 
 <div
 	class="flex h-screen w-full bg-void text-text-main font-sans relative z-10 selection:bg-phoenix-primary selection:text-white leading-relaxed"

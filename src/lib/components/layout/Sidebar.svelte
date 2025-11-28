@@ -1,48 +1,76 @@
 <script lang="ts">
-import { page } from "$app/state";
-import { goto } from "$app/navigation";
-import Icon from "@iconify/svelte";
-import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
-import { cn } from "$lib/utils/cn";
+	import { page } from "$app/state";
+	import { goto } from "$app/navigation";
+	import Icon from "@iconify/svelte";
+	import { cn } from "$lib/utils/cn";
+	import { spatialNav } from "$lib/services/spatial-nav";
+	import { onMount } from "svelte";
 
-interface NavItem {
-	id: string;
-	path: string;
-	label: string;
-	icon: string;
-	description: string;
-}
+	interface NavItem {
+		id: string;
+		path: string;
+		label: string;
+		icon: string;
+		description: string;
+	}
 
-const navItems: NavItem[] = [
-	{
-		id: "references",
-		path: "/references",
-		label: "References",
-		icon: "material-symbols:image-outline",
-		description: "Manage reference images",
-	},
-	{
-		id: "palettes",
-		path: "/palettes",
-		label: "Palettes",
-		icon: "material-symbols:palette-outline",
-		description: "Create and edit color palettes",
-	},
-	{
-		id: "gradients",
-		path: "/gradients",
-		label: "Gradients",
-		icon: "material-symbols:gradient",
-		description: "Generate beautiful gradients",
-	},
-];
+	const navItems: NavItem[] = [
+		{
+			id: "references",
+			path: "/references",
+			label: "References",
+			icon: "material-symbols:image-outline",
+			description: "Manage reference images",
+		},
+		{
+			id: "palettes",
+			path: "/palettes",
+			label: "Palettes",
+			icon: "material-symbols:palette-outline",
+			description: "Create and edit color palettes",
+		},
+		{
+			id: "gradients",
+			path: "/gradients",
+			label: "Gradients",
+			icon: "material-symbols:gradient",
+			description: "Generate beautiful gradients",
+		},
+	];
 
-let currentPath = $derived(page?.url?.pathname ?? "/");
-let hoveredItem: string | null = $state(null);
+	let currentPath = $derived(page?.url?.pathname ?? "/");
+	let hoveredItem: string | null = $state(null);
 
-function navigateTo(path: string) {
-	goto(path);
-}
+	function navigateTo(path: string) {
+		goto(path);
+	}
+
+	onMount(() => {
+		// Register navigation items for spatial nav
+		// Register navigation items for spatial nav
+		for (const item of navItems) {
+			const el = document.getElementById(`nav-${item.id}`);
+			if (el) {
+				spatialNav.register(item.id, el, {
+					onSelect: () => navigateTo(item.path),
+				});
+			}
+		}
+
+		const settingsEl = document.getElementById("nav-settings");
+		if (settingsEl) {
+			spatialNav.register("settings", settingsEl, {
+				onSelect: () => navigateTo("/settings"),
+			});
+		}
+
+		return () => {
+			for (const item of navItems) {
+				spatialNav.unregister(item.id);
+			}
+			spatialNav.unregister("settings");
+		};
+	});
 </script>
 
 <aside class="h-full w-20 md:w-64 flex flex-col gap-4 p-4 z-40">
@@ -50,10 +78,10 @@ function navigateTo(path: string) {
 	<div class="flex items-center gap-3 px-2 py-4">
 		<div class="relative group">
 			<div
-				class="absolute inset-0 bg-phoenix-primary/50 blur-lg rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+				class="absolute inset-0 bg-primary/50 blur-lg rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
 			></div>
 			<div
-				class="relative bg-gradient-to-br from-phoenix-primary to-phoenix-violet rounded-xl p-2 text-white shadow-lg"
+				class="relative bg-linear-to-br from-primary to-secondary rounded-xl p-2 text-white shadow-lg"
 			>
 				<Icon icon="material-symbols:brush" class="text-2xl" />
 			</div>
@@ -65,11 +93,12 @@ function navigateTo(path: string) {
 	</div>
 
 	<!-- Navigation -->
-	<GlassPanel class="flex-1 flex flex-col gap-2 p-3" intensity="low">
+	<div class="glass-oled flex-1 flex flex-col gap-2 p-3 rounded-2xl">
 		{#each navItems as item (item.id)}
 			<button
+				id="nav-{item.id}"
 				class={cn(
-					"relative flex items-center gap-3 p-3 rounded-lg transition-all duration-300 group overflow-hidden",
+					"relative flex items-center gap-3 p-3 rounded-lg transition-all duration-300 group overflow-hidden outline-none focus:ring-2 focus:ring-primary/50",
 					currentPath === item.path
 						? "bg-white/5 text-white"
 						: "text-text-muted hover:text-white hover:bg-white/5"
@@ -82,7 +111,7 @@ function navigateTo(path: string) {
 				<!-- Active Indicator (Neon Pill) -->
 				{#if currentPath === item.path}
 					<div
-						class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-phoenix-primary rounded-r-full shadow-[0_0_10px_rgba(255,0,127,0.5)]"
+						class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full shadow-[0_0_10px_var(--color-primary)]"
 					></div>
 				{/if}
 
@@ -91,7 +120,7 @@ function navigateTo(path: string) {
 					icon={item.icon}
 					class={cn(
 						"text-xl transition-transform duration-300",
-						currentPath === item.path ? "scale-110 text-phoenix-primary" : "group-hover:scale-110"
+						currentPath === item.path ? "scale-110 text-primary" : "group-hover:scale-110"
 					)}
 				/>
 
@@ -100,16 +129,17 @@ function navigateTo(path: string) {
 
 				<!-- Hover Glow Background -->
 				<div
-					class="absolute inset-0 bg-gradient-to-r from-phoenix-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+					class="absolute inset-0 bg-linear-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
 				></div>
 			</button>
 		{/each}
-	</GlassPanel>
+	</div>
 
 	<!-- Footer / Settings -->
-	<GlassPanel class="p-3" intensity="low">
+	<div class="glass-oled p-3 rounded-2xl">
 		<button
-			class="w-full flex items-center gap-3 p-3 rounded-lg text-text-muted hover:text-white hover:bg-white/5 transition-all duration-300 group"
+			id="nav-settings"
+			class="w-full flex items-center gap-3 p-3 rounded-lg text-text-muted hover:text-white hover:bg-white/5 transition-all duration-300 group outline-none focus:ring-2 focus:ring-primary/50"
 			onclick={() => navigateTo("/settings")}
 			aria-label="Settings"
 		>
@@ -119,5 +149,5 @@ function navigateTo(path: string) {
 			/>
 			<span class="hidden md:block font-medium tracking-wide text-sm">Settings</span>
 		</button>
-	</GlassPanel>
+	</div>
 </aside>
