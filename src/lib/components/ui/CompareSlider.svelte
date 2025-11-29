@@ -33,12 +33,12 @@ function handleMouseDown(e: MouseEvent) {
 
 function handleTouchStart(e: TouchEvent) {
 	isDragging = true;
-	handleMove(e.touches[0].clientX);
+	handleMove(e.touches[0]?.clientX ?? 0);
 }
 
 function handleWindowMove(e: MouseEvent | TouchEvent) {
 	if (!isDragging) return;
-	const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+	const clientX = "touches" in e ? e.touches[0]?.clientX ?? 0 : e.clientX;
 	handleMove(clientX);
 }
 
@@ -83,7 +83,7 @@ function handleWindowUp() {
 		style:width="{position}%"
 	>
 		<!-- Inner container to counteract the width clipping and keep image centered/sized correctly -->
-		<div class="absolute inset-0 w-[100vw] h-full">
+		<div class="absolute inset-0 w-screen h-full">
 			<!-- Note: w-[100vw] is a hack, ideally we want the width of the parent container. 
 				 But since we don't know the exact pixel width easily without ResizeObserver, 
 				 and the images are likely object-contain centered, we need to be careful.

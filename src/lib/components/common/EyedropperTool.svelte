@@ -177,7 +177,7 @@
 			// Get pixel color at click position
 			const imageData = ctx.getImageData(event.clientX, event.clientY, 1, 1);
 			const [r, g, b] = imageData.data;
-			const pickedColor = rgbToHex(r, g, b);
+			const pickedColor = rgbToHex(r || 0, g || 0, b || 0);
 
 			// Store in global color buffer
 			app.setGlobalColor(pickedColor);
