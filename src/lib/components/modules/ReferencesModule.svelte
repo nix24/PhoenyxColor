@@ -315,6 +315,7 @@
 
 	function buildFilterString(reference: ValidatedReferenceImage): string {
 		const filters: string[] = [];
+		const ref = reference as any; // For accessing enhanced properties
 
 		if (reference.isGrayscale) filters.push("grayscale(100%)");
 		if (reference.sepia) filters.push(`sepia(${reference.sepia}%)`);
@@ -329,6 +330,16 @@
 			filters.push(`hue-rotate(${reference.hueRotate}deg)`);
 		if (reference.blur !== undefined && reference.blur !== 0)
 			filters.push(`blur(${reference.blur}px)`);
+
+		// Enhanced adjustments approximations for CSS
+		// Temperature: warm adds sepia, cool adds hue shift
+		if (ref.temperature && ref.temperature !== 0) {
+			if (ref.temperature > 0) {
+				filters.push(`sepia(${Math.abs(ref.temperature) * 0.15}%)`);
+			} else {
+				filters.push(`hue-rotate(${ref.temperature * 0.3}deg)`);
+			}
+		}
 
 		return filters.length > 0 ? filters.join(" ") : "none";
 	}

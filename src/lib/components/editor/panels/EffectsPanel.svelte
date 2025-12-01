@@ -2,6 +2,7 @@
 	import Icon from "@iconify/svelte";
 	import { cn } from "$lib/utils/cn";
 	import { app } from "$lib/stores/root.svelte";
+	import type { AppliedEffect } from "../EditorHistory.svelte";
 
 	export type QuickEffect =
 		| "none"
@@ -19,16 +20,24 @@
 		activeEffect = "none",
 		effectIntensity = 50,
 		duotoneColors = ["#000000", "#ffffff"],
+		appliedEffects = [],
 		onEffectChange,
 		onIntensityChange,
 		onDuotoneColorsChange,
+		onApplyEffect,
+		onRemoveEffect,
+		onClearEffects,
 	} = $props<{
 		activeEffect: QuickEffect;
 		effectIntensity: number;
 		duotoneColors: [string, string];
+		appliedEffects: AppliedEffect[];
 		onEffectChange: (effect: QuickEffect) => void;
 		onIntensityChange: (intensity: number) => void;
 		onDuotoneColorsChange: (colors: [string, string]) => void;
+		onApplyEffect: () => void;
+		onRemoveEffect: (index: number) => void;
+		onClearEffects: () => void;
 	}>();
 
 	const effects: Array<{ id: QuickEffect; name: string; icon: string; description: string }> = [
@@ -223,8 +232,16 @@
 		</div>
 	{/if}
 
-	<!-- Effect-specific hints -->
+	<!-- Apply Effect Button -->
 	{#if activeEffect !== "none"}
+		<button
+			class="btn btn-primary w-full gap-2"
+			onclick={onApplyEffect}
+		>
+			<Icon icon="material-symbols:add-circle" class="w-4 h-4" />
+			Apply Effect to Stack
+		</button>
+
 		<div class="p-3 bg-white/5 rounded-lg border border-white/10">
 			<div class="flex items-start gap-2">
 				<Icon icon="material-symbols:info" class="w-4 h-4 text-white/40 mt-0.5" />
@@ -249,6 +266,51 @@
 						Enhances edge contrast for a crisper image.
 					{/if}
 				</p>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Applied Effects Stack -->
+	{#if appliedEffects.length > 0}
+		<div class="space-y-3 pt-4 border-t border-white/10">
+			<div class="flex items-center justify-between">
+				<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">
+					Applied Effects ({appliedEffects.length})
+				</h4>
+				<button
+					class="btn btn-xs btn-ghost text-red-400 hover:text-red-300 hover:bg-red-400/10"
+					onclick={onClearEffects}
+				>
+					<Icon icon="material-symbols:delete-outline" class="w-3 h-3" />
+					Clear All
+				</button>
+			</div>
+			<div class="space-y-2">
+				{#each appliedEffects as effect, index}
+					{@const effectInfo = effects.find((e) => e.id === effect.type)}
+					<div class="flex items-center gap-2 p-2 bg-white/5 rounded-lg border border-white/10">
+						<div class="w-6 h-6 rounded bg-phoenix-primary/20 flex items-center justify-center">
+							<Icon icon={effectInfo?.icon ?? "material-symbols:auto-fix"} class="w-4 h-4 text-phoenix-primary" />
+						</div>
+						<div class="flex-1 min-w-0">
+							<div class="text-xs font-medium text-white truncate">
+								{effectInfo?.name ?? effect.type}
+							</div>
+							<div class="text-[10px] text-white/40">
+								{effect.intensity}% intensity
+								{#if effect.type === "duotone" && effect.duotoneColors}
+									• {effect.duotoneColors[0]} → {effect.duotoneColors[1]}
+								{/if}
+							</div>
+						</div>
+						<button
+							class="btn btn-xs btn-circle btn-ghost text-white/40 hover:text-red-400 hover:bg-red-400/10"
+							onclick={() => onRemoveEffect(index)}
+						>
+							<Icon icon="material-symbols:close" class="w-3 h-3" />
+						</button>
+					</div>
+				{/each}
 			</div>
 		</div>
 	{/if}

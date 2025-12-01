@@ -6,6 +6,8 @@
 	import type { ImageEditorState } from "../EditorHistory.svelte";
 	import type { QuickEffect } from "./EffectsPanel.svelte";
 	import type { ValidatedGradient, ValidatedColorPalette } from "$lib/schemas/validation";
+	import { applyAllAdjustments } from "$lib/utils/image-processing";
+	import { applyEffect, type EffectType } from "$lib/utils/effects-processing";
 	import chroma from "chroma-js";
 	import tinycolor from "tinycolor2";
 
@@ -38,7 +40,7 @@
 	let isExporting = $state(false);
 
 	// Estimated file size (rough)
-	let estimatedSize = $derived(() => {
+	let estimatedSize = $derived.by(() => {
 		// Very rough estimate based on format and scale
 		const baseSize = 500; // KB for a typical 1080p image
 		const scaleFactor = scale * scale;
@@ -81,8 +83,8 @@
 			canvas.width = width;
 			canvas.height = height;
 
-			// Fill background if needed
-			if (includeBackground && format === "jpeg") {
+			// Fill background if needed (JPEG always needs background, others optional)
+			if (includeBackground || format === "jpeg") {
 				ctx.fillStyle = "#ffffff";
 				ctx.fillRect(0, 0, width, height);
 			}
@@ -105,9 +107,51 @@
 			ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, 0, 0, width, height);
 			ctx.restore();
 
-			// Apply quick effects that need pixel manipulation
+			// Reset filter for pixel manipulation
+			ctx.filter = "none";
+
+			// Apply curves adjustment
+			if (editorState.curves) {
+				applyCurves(ctx, width, height, editorState.curves);
+			}
+
+			// Apply advanced image adjustments (temperature, tint, shadows, highlights, vibrance, clarity)
+			if (
+				editorState.temperature !== 0 ||
+				editorState.tint !== 0 ||
+				editorState.shadows !== 0 ||
+				editorState.highlights !== 0 ||
+				editorState.vibrance !== 0 ||
+				editorState.clarity !== 0
+			) {
+				applyAllAdjustments(ctx, width, height, {
+					temperature: editorState.temperature,
+					tint: editorState.tint,
+					shadows: editorState.shadows,
+					highlights: editorState.highlights,
+					vibrance: editorState.vibrance,
+					clarity: editorState.clarity,
+				});
+			}
+
+			// Apply all stacked effects from state
+			const appliedEffects = editorState.appliedEffects || [];
+			for (const effect of appliedEffects) {
+				if (effect.type !== "none") {
+					applyEffect(
+						ctx,
+						width,
+						height,
+						effect.type as EffectType,
+						effect.intensity,
+						effect.duotoneColors
+					);
+				}
+			}
+
+			// Apply current preview effect (if any)
 			if (quickEffect !== "none") {
-				applyQuickEffect(ctx, width, height, quickEffect, effectIntensity, duotoneColors);
+				applyEffect(ctx, width, height, quickEffect as EffectType, effectIntensity, duotoneColors);
 			}
 
 			// Apply gradient map overlay if active
@@ -167,121 +211,6 @@
 		if (state.blur !== 0) filters.push(`blur(${state.blur}px)`);
 
 		return filters.length > 0 ? filters.join(" ") : "none";
-	}
-
-	function applyQuickEffect(
-		ctx: CanvasRenderingContext2D,
-		width: number,
-		height: number,
-		effect: QuickEffect,
-		intensity: number,
-		duotone: [string, string]
-	) {
-		const imageData = ctx.getImageData(0, 0, width, height);
-		const data = imageData.data;
-		const factor = intensity / 100;
-
-		switch (effect) {
-			case "posterize": {
-				const levels = Math.max(2, Math.round(10 - (intensity / 100) * 8));
-				for (let i = 0; i < data.length; i += 4) {
-					const r = data[i] ?? 0;
-					const g = data[i + 1] ?? 0;
-					const b = data[i + 2] ?? 0;
-					data[i] = Math.round(r / (256 / levels)) * (256 / levels);
-					data[i + 1] = Math.round(g / (256 / levels)) * (256 / levels);
-					data[i + 2] = Math.round(b / (256 / levels)) * (256 / levels);
-				}
-				break;
-			}
-			case "pixelate": {
-				const pixelSize = Math.max(1, Math.round(intensity / 5));
-				for (let y = 0; y < height; y += pixelSize) {
-					for (let x = 0; x < width; x += pixelSize) {
-						const i = (y * width + x) * 4;
-						const r = data[i] ?? 0;
-						const g = data[i + 1] ?? 0;
-						const b = data[i + 2] ?? 0;
-						for (let py = 0; py < pixelSize && y + py < height; py++) {
-							for (let px = 0; px < pixelSize && x + px < width; px++) {
-								const pi = ((y + py) * width + (x + px)) * 4;
-								data[pi] = r;
-								data[pi + 1] = g;
-								data[pi + 2] = b;
-							}
-						}
-					}
-				}
-				break;
-			}
-			case "solarize": {
-				const threshold = 128 * (1 - factor);
-				for (let i = 0; i < data.length; i += 4) {
-					const r = data[i] ?? 0;
-					const g = data[i + 1] ?? 0;
-					const b = data[i + 2] ?? 0;
-					data[i] = r > threshold ? 255 - r : r;
-					data[i + 1] = g > threshold ? 255 - g : g;
-					data[i + 2] = b > threshold ? 255 - b : b;
-				}
-				break;
-			}
-			case "duotone": {
-				const dark = tinycolor(duotone[0]).toRgb();
-				const light = tinycolor(duotone[1]).toRgb();
-				for (let i = 0; i < data.length; i += 4) {
-					const r = data[i] ?? 0;
-					const g = data[i + 1] ?? 0;
-					const b = data[i + 2] ?? 0;
-					const lum = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
-					data[i] = Math.round(dark.r + (light.r - dark.r) * lum * factor + r * (1 - factor));
-					data[i + 1] = Math.round(dark.g + (light.g - dark.g) * lum * factor + g * (1 - factor));
-					data[i + 2] = Math.round(dark.b + (light.b - dark.b) * lum * factor + b * (1 - factor));
-				}
-				break;
-			}
-			case "emboss": {
-				const tempData = new Uint8ClampedArray(data);
-				for (let y = 1; y < height - 1; y++) {
-					for (let x = 1; x < width - 1; x++) {
-						const i = (y * width + x) * 4;
-						const iPrev = ((y - 1) * width + (x - 1)) * 4;
-						for (let c = 0; c < 3; c++) {
-							const curr = tempData[i + c] ?? 0;
-							const prev = tempData[iPrev + c] ?? 0;
-							const val = 128 + (curr - prev) * factor;
-							data[i + c] = Math.min(255, Math.max(0, val));
-						}
-					}
-				}
-				break;
-			}
-			case "sharpen": {
-				const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
-				const tempData = new Uint8ClampedArray(data);
-				for (let y = 1; y < height - 1; y++) {
-					for (let x = 1; x < width - 1; x++) {
-						const i = (y * width + x) * 4;
-						for (let c = 0; c < 3; c++) {
-							let sum = 0;
-							for (let ky = -1; ky <= 1; ky++) {
-								for (let kx = -1; kx <= 1; kx++) {
-									const ki = ((y + ky) * width + (x + kx)) * 4;
-									const pixelVal = tempData[ki + c] ?? 0;
-									const kernelVal = kernel[(ky + 1) * 3 + (kx + 1)] ?? 0;
-									sum += pixelVal * kernelVal;
-								}
-							}
-							const original = tempData[i + c] ?? 0;
-							data[i + c] = Math.min(255, Math.max(0, original + (sum - original) * factor));
-						}
-					}
-				}
-				break;
-			}
-		}
-
-		ctx.putImageData(imageData, 0, 0);
 	}
 
 	function applyGradientMap(
@@ -352,6 +281,113 @@
 
 		ctx.fillStyle = gradient;
 		ctx.fillRect(0, 0, width, height);
+	}
+
+	// Apply curves using lookup tables
+	function applyCurves(
+		ctx: CanvasRenderingContext2D,
+		width: number,
+		height: number,
+		curves: ImageEditorState["curves"]
+	) {
+		const isDefault = (points: Array<{ x: number; y: number }>) =>
+			points.length === 2 &&
+			points[0]?.x === 0 &&
+			points[0]?.y === 0 &&
+			points[1]?.x === 255 &&
+			points[1]?.y === 255;
+
+		// Skip if all curves are at default
+		if (
+			isDefault(curves.rgb) &&
+			isDefault(curves.red) &&
+			isDefault(curves.green) &&
+			isDefault(curves.blue)
+		) {
+			return;
+		}
+
+		const imageData = ctx.getImageData(0, 0, width, height);
+		const data = imageData.data;
+
+		// Build lookup tables for each channel
+		const buildLUT = (points: Array<{ x: number; y: number }>): number[] => {
+			if (isDefault(points)) {
+				return Array.from({ length: 256 }, (_, i) => i);
+			}
+
+			// Interpolate curve using Catmull-Rom spline
+			const sortedPoints = [...points].sort((a, b) => a.x - b.x);
+			const interpolated: Array<{ x: number; y: number }> = [];
+
+			for (let i = 0; i < sortedPoints.length - 1; i++) {
+				const p0 = sortedPoints[Math.max(0, i - 1)];
+				const p1 = sortedPoints[i];
+				const p2 = sortedPoints[i + 1];
+				const p3 = sortedPoints[Math.min(sortedPoints.length - 1, i + 2)];
+
+				if (!p0 || !p1 || !p2 || !p3) continue;
+
+				for (let t = 0; t < 1; t += 0.02) {
+					const t2 = t * t;
+					const t3 = t2 * t;
+
+					const x =
+						0.5 *
+						(2 * p1.x +
+							(-p0.x + p2.x) * t +
+							(2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+							(-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+					const y =
+						0.5 *
+						(2 * p1.y +
+							(-p0.y + p2.y) * t +
+							(2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+							(-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+
+					interpolated.push({ x: Math.max(0, Math.min(255, x)), y: Math.max(0, Math.min(255, y)) });
+				}
+			}
+			const lastPoint = sortedPoints[sortedPoints.length - 1];
+			if (lastPoint) interpolated.push(lastPoint);
+
+			// Build LUT
+			const lut = new Array(256).fill(0);
+			for (let x = 0; x < 256; x++) {
+				let y = x;
+				for (let i = 0; i < interpolated.length - 1; i++) {
+					const p1 = interpolated[i];
+					const p2 = interpolated[i + 1];
+					if (p1 && p2 && p1.x <= x && p2.x >= x) {
+						const t = p2.x !== p1.x ? (x - p1.x) / (p2.x - p1.x) : 0;
+						y = p1.y + t * (p2.y - p1.y);
+						break;
+					}
+				}
+				lut[x] = Math.max(0, Math.min(255, Math.round(y)));
+			}
+			return lut;
+		};
+
+		const rgbLUT = buildLUT(curves.rgb);
+		const redLUT = buildLUT(curves.red);
+		const greenLUT = buildLUT(curves.green);
+		const blueLUT = buildLUT(curves.blue);
+
+		// Apply LUTs to image data
+		for (let i = 0; i < data.length; i += 4) {
+			// First apply RGB master curve
+			let r = rgbLUT[data[i] ?? 0] ?? data[i] ?? 0;
+			let g = rgbLUT[data[i + 1] ?? 0] ?? data[i + 1] ?? 0;
+			let b = rgbLUT[data[i + 2] ?? 0] ?? data[i + 2] ?? 0;
+
+			// Then apply individual channel curves
+			data[i] = redLUT[r] ?? r;
+			data[i + 1] = greenLUT[g] ?? g;
+			data[i + 2] = blueLUT[b] ?? b;
+		}
+
+		ctx.putImageData(imageData, 0, 0);
 	}
 
 	function exportPaletteJSON() {

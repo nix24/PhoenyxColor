@@ -3,6 +3,24 @@
  * Manages a stack of image adjustment states within the editor session
  */
 
+export type QuickEffectType =
+    | "none"
+    | "posterize"
+    | "pixelate"
+    | "solarize"
+    | "duotone"
+    | "halftone"
+    | "vhs"
+    | "glitch"
+    | "emboss"
+    | "sharpen";
+
+export interface AppliedEffect {
+    type: QuickEffectType;
+    intensity: number;
+    duotoneColors?: [string, string];
+}
+
 export interface ImageEditorState {
     // Basic adjustments
     brightness: number;
@@ -44,6 +62,9 @@ export interface ImageEditorState {
         green: Array<{ x: number; y: number }>;
         blue: Array<{ x: number; y: number }>;
     };
+
+    // Effects (stackable)
+    appliedEffects: AppliedEffect[];
 }
 
 export const DEFAULT_EDITOR_STATE: ImageEditorState = {
@@ -88,6 +109,7 @@ export const DEFAULT_EDITOR_STATE: ImageEditorState = {
             { x: 255, y: 255 },
         ],
     },
+    appliedEffects: [],
 };
 
 const MAX_HISTORY_SIZE = 50;

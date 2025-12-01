@@ -16,6 +16,35 @@ const DimensionsSchema = z.object({
 	height: z.number().positive("Height must be positive"),
 });
 
+// Applied Effect schema for stacked effects
+const AppliedEffectSchema = z.object({
+	type: z.enum(["none", "posterize", "pixelate", "solarize", "duotone", "halftone", "vhs", "glitch", "emboss", "sharpen"]),
+	intensity: z.number().min(0).max(100),
+	duotoneColors: z.tuple([z.string(), z.string()]).optional(),
+});
+
+// Curve point schema
+const CurvePointSchema = z.object({
+	x: z.number().min(0).max(255),
+	y: z.number().min(0).max(255),
+});
+
+// Curves schema
+const CurvesSchema = z.object({
+	rgb: z.array(CurvePointSchema),
+	red: z.array(CurvePointSchema),
+	green: z.array(CurvePointSchema),
+	blue: z.array(CurvePointSchema),
+});
+
+// Crop rect schema
+const CropRectSchema = z.object({
+	x: z.number(),
+	y: z.number(),
+	width: z.number(),
+	height: z.number(),
+});
+
 // Reference Image validation
 export const ReferenceImageSchema = z.object({
 	id: z.string().uuid().transform((val) => val as ReferenceId),
@@ -30,7 +59,7 @@ export const ReferenceImageSchema = z.object({
 	createdAt: z.date(),
 	fileSize: z.number().positive().optional(),
 	dimensions: DimensionsSchema.optional(),
-	// New properties from ReferenceImage interface in stores
+	// Basic adjustments
 	brightness: z.number().min(0).max(200).default(100).optional(),
 	contrast: z.number().min(0).max(200).default(100).optional(),
 	saturation: z.number().min(0).max(200).default(100).optional(),
@@ -42,6 +71,20 @@ export const ReferenceImageSchema = z.object({
 	flipY: z.boolean().optional(),
 	gradientMapOpacity: z.number().min(0).max(1).optional(),
 	gradientMapBlendMode: z.string().optional(),
+	// Enhanced adjustments
+	shadows: z.number().min(-100).max(100).optional(),
+	highlights: z.number().min(-100).max(100).optional(),
+	vibrance: z.number().min(-100).max(100).optional(),
+	temperature: z.number().min(-100).max(100).optional(),
+	tint: z.number().min(-100).max(100).optional(),
+	clarity: z.number().min(-100).max(100).optional(),
+	vignette: z.number().min(0).max(100).optional(),
+	// Curves
+	curves: CurvesSchema.optional(),
+	// Crop
+	cropRect: CropRectSchema.nullable().optional(),
+	// Stacked effects
+	appliedEffects: z.array(AppliedEffectSchema).optional(),
 });
 
 // Gradient validation

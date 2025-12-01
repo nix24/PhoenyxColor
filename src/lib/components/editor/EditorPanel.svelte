@@ -30,14 +30,12 @@
 </script>
 
 {#if isOpen}
-	<!-- Backdrop - only on mobile -->
-	<button
-		class="fixed inset-0 bg-black/40 z-40 cursor-default md:bg-black/20"
-		onclick={onClose}
-		onkeydown={(e) => e.key === "Escape" && onClose()}
-		aria-label="Close panel"
-		transition:fade={{ duration: 150 }}
-	></button>
+	<!-- No backdrop on desktop - user needs to interact with canvas -->
+	<!-- On mobile only: subtle backdrop that doesn't block interaction -->
+	<div class="fixed inset-0 z-40 pointer-events-none md:hidden" transition:fade={{ duration: 150 }}>
+		<!-- Mobile backdrop - only covers top portion, not the bottom where panel is -->
+		<div class="absolute inset-0 bottom-[50vh] bg-black/20"></div>
+	</div>
 
 	<!-- Panel - Bottom on mobile, Right sidebar on desktop -->
 	<div
@@ -47,7 +45,7 @@
 			"bottom-0 left-0 right-0 max-h-[50vh] rounded-t-2xl border-t",
 			// Desktop: right sidebar
 			"md:bottom-auto md:top-14 md:left-auto md:right-0 md:max-h-[calc(100vh-7rem)] md:rounded-t-none md:rounded-l-2xl md:border-t-0 md:border-l",
-			sizeClasses[size],
+			sizeClasses[size as keyof typeof sizeClasses],
 			className
 		)}
 		transition:fly={{ y: 300, x: 0, duration: 250, easing: cubicOut }}
@@ -76,7 +74,9 @@
 		</div>
 
 		<!-- Content -->
-		<div class="overflow-y-auto custom-scrollbar max-h-[calc(50vh-60px)] md:max-h-[calc(100vh-10rem)]">
+		<div
+			class="overflow-y-auto custom-scrollbar max-h-[calc(50vh-60px)] md:max-h-[calc(100vh-10rem)]"
+		>
 			<div class="p-4">
 				{@render children()}
 			</div>

@@ -34,6 +34,13 @@
 
 	// Import utilities
 	import { extractPalette } from "$lib/utils/color-engine";
+	import {
+		getTemperatureColorMatrix,
+		getTintColorMatrix,
+		interpolateCurvePoints,
+	} from "$lib/utils/image-processing";
+	import { applyEffect, type EffectType } from "$lib/utils/effects-processing";
+	import { renderCanvasImage, loadImage } from "$lib/utils/canvas-renderer";
 	import chroma from "chroma-js";
 	import tinycolor from "tinycolor2";
 
@@ -55,11 +62,57 @@
 	let cropRect = $state<CropRect | null>(null);
 	let aspectRatio = $state<AspectRatio>("free");
 	let cropStartPos = $state<{ x: number; y: number } | null>(null);
+	let activeCropHandle = $state<string | null>(null);
+
+	// Applied crop from history state
+	let appliedCrop = $derived(history.currentState.cropRect);
+
+	// Generate clip-path for applied crop
+	let cropClipPath = $derived.by(() => {
+		const crop = appliedCrop;
+		if (!crop || !imageWidth || !imageHeight) return "none";
+
+		// Convert crop rect to percentage-based inset
+		const left = (crop.x / imageWidth) * 100;
+		const top = (crop.y / imageHeight) * 100;
+		const right = 100 - ((crop.x + crop.width) / imageWidth) * 100;
+		const bottom = 100 - ((crop.y + crop.height) / imageHeight) * 100;
+
+		return `inset(${top}% ${right}% ${bottom}% ${left}%)`;
+	});
 
 	// Quick effects state
 	let quickEffect = $state<QuickEffect>("none");
 	let effectIntensity = $state(50);
 	let duotoneColors = $state<[string, string]>(["#000000", "#ffffff"]);
+
+	// Canvas-based preview for effects that need pixel manipulation
+	let previewCanvas: HTMLCanvasElement | null = $state(null);
+	let previewDataUrl = $state<string | null>(null);
+	let isRenderingPreview = $state(false);
+	let renderTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	// Effects that require canvas rendering (not achievable with CSS)
+	const CANVAS_REQUIRED_EFFECTS: QuickEffect[] = [
+		"posterize",
+		"pixelate",
+		"solarize",
+		"halftone",
+		"vhs",
+		"glitch",
+		"emboss",
+		"sharpen",
+	];
+
+	// Check if we need canvas-based preview
+	let needsCanvasPreview = $derived(
+		CANVAS_REQUIRED_EFFECTS.includes(quickEffect) ||
+			history.currentState.shadows !== 0 ||
+			history.currentState.highlights !== 0 ||
+			history.currentState.vibrance !== 0 ||
+			history.currentState.clarity !== 0 ||
+			(history.currentState.appliedEffects && history.currentState.appliedEffects.length > 0)
+	);
 
 	// Extracted palette
 	let extractedPalette = $state<string[] | null>(null);
@@ -80,6 +133,7 @@
 	$effect(() => {
 		if (image) {
 			history.initialize({
+				// Basic adjustments
 				brightness: image.brightness ?? 100,
 				contrast: image.contrast ?? 100,
 				saturation: image.saturation ?? 100,
@@ -89,12 +143,28 @@
 				sepia: image.sepia ?? 0,
 				invert: image.invert ?? 0,
 				isGrayscale: image.isGrayscale ?? false,
+				// Transform
 				scale: image.scale ?? 1,
 				rotation: image.rotation ?? 0,
 				flipX: image.flipX ?? false,
 				flipY: image.flipY ?? false,
+				// Gradient map
 				gradientMapOpacity: image.gradientMapOpacity ?? 0,
 				gradientMapBlendMode: image.gradientMapBlendMode ?? "normal",
+				// Enhanced adjustments
+				shadows: (image as any).shadows ?? 0,
+				highlights: (image as any).highlights ?? 0,
+				vibrance: (image as any).vibrance ?? 0,
+				temperature: (image as any).temperature ?? 0,
+				tint: (image as any).tint ?? 0,
+				clarity: (image as any).clarity ?? 0,
+				vignette: (image as any).vignette ?? 0,
+				// Curves
+				curves: (image as any).curves ?? DEFAULT_EDITOR_STATE.curves,
+				// Crop
+				cropRect: (image as any).cropRect ?? null,
+				// Effects
+				appliedEffects: (image as any).appliedEffects ?? [],
 			});
 		}
 	});
@@ -104,6 +174,7 @@
 		if (!image) return;
 		const state = history.currentState;
 		app.references.update(imageId, {
+			// Basic adjustments
 			brightness: state.brightness,
 			contrast: state.contrast,
 			saturation: state.saturation,
@@ -113,13 +184,68 @@
 			sepia: state.sepia,
 			invert: state.invert,
 			isGrayscale: state.isGrayscale,
+			// Transform
 			scale: state.scale,
 			rotation: state.rotation,
 			flipX: state.flipX,
 			flipY: state.flipY,
+			// Gradient map
 			gradientMapOpacity: state.gradientMapOpacity,
 			gradientMapBlendMode: state.gradientMapBlendMode,
+			// Enhanced adjustments
+			shadows: state.shadows,
+			highlights: state.highlights,
+			vibrance: state.vibrance,
+			temperature: state.temperature,
+			tint: state.tint,
+			clarity: state.clarity,
+			vignette: state.vignette,
+			// Curves
+			curves: state.curves,
+			// Crop
+			cropRect: state.cropRect,
+			// Effects
+			appliedEffects: state.appliedEffects,
 		});
+	}
+
+	// Generate thumbnail with all effects applied
+	async function generateThumbnailWithEffects(): Promise<string | null> {
+		if (!image) return null;
+
+		const state = history.currentState;
+		const hasEffects =
+			(state.appliedEffects && state.appliedEffects.length > 0) ||
+			state.shadows !== 0 ||
+			state.highlights !== 0 ||
+			state.vibrance !== 0 ||
+			state.clarity !== 0 ||
+			state.temperature !== 0 ||
+			state.tint !== 0;
+
+		if (!hasEffects) return null;
+
+		try {
+			const canvas = document.createElement("canvas");
+			const img = await loadImage(image.src);
+
+			await renderCanvasImage(canvas, img, state, { maxSize: 256 });
+
+			return canvas.toDataURL("image/jpeg", 0.8);
+		} catch (error) {
+			console.error("Failed to generate thumbnail:", error);
+			return null;
+		}
+	}
+
+	// Close handler with thumbnail generation
+	async function handleClose() {
+		// Generate thumbnail if effects are applied
+		const thumbnail = await generateThumbnailWithEffects();
+		if (thumbnail) {
+			app.references.update(imageId, { thumbnailSrc: thumbnail });
+		}
+		onClose();
 	}
 
 	// Handle state updates from panels
@@ -130,8 +256,38 @@
 
 	// Handle preset application with intensity
 	function handlePresetApply(preset: Partial<ImageEditorState>, intensity: number) {
+		// Create a base state that preserves geometry and existing effects,
+		// but resets adjustment values to default so the preset acts cleanly
+		const current = history.currentState;
+		const baseState = {
+			...current,
+			// Reset basic adjustments
+			brightness: DEFAULT_EDITOR_STATE.brightness,
+			contrast: DEFAULT_EDITOR_STATE.contrast,
+			saturation: DEFAULT_EDITOR_STATE.saturation,
+			hueRotate: DEFAULT_EDITOR_STATE.hueRotate,
+			blur: DEFAULT_EDITOR_STATE.blur,
+			opacity: DEFAULT_EDITOR_STATE.opacity,
+			sepia: DEFAULT_EDITOR_STATE.sepia,
+			invert: DEFAULT_EDITOR_STATE.invert,
+			isGrayscale: DEFAULT_EDITOR_STATE.isGrayscale,
+			// Reset enhanced adjustments
+			shadows: DEFAULT_EDITOR_STATE.shadows,
+			highlights: DEFAULT_EDITOR_STATE.highlights,
+			vibrance: DEFAULT_EDITOR_STATE.vibrance,
+			temperature: DEFAULT_EDITOR_STATE.temperature,
+			tint: DEFAULT_EDITOR_STATE.tint,
+			clarity: DEFAULT_EDITOR_STATE.clarity,
+			vignette: DEFAULT_EDITOR_STATE.vignette,
+			// Reset curves and gradient maps
+			curves: DEFAULT_EDITOR_STATE.curves,
+			gradientMapOpacity: DEFAULT_EDITOR_STATE.gradientMapOpacity,
+			gradientMapBlendMode: DEFAULT_EDITOR_STATE.gradientMapBlendMode,
+			// Preserve: scale, rotation, flip, cropRect, appliedEffects
+		};
+
 		if (intensity === 100) {
-			handleStateUpdate({ ...DEFAULT_EDITOR_STATE, ...preset });
+			handleStateUpdate({ ...baseState, ...preset });
 		} else {
 			// Blend preset with defaults based on intensity
 			const blended: Partial<ImageEditorState> = {};
@@ -143,8 +299,42 @@
 					(blended as any)[key] = value;
 				}
 			}
-			handleStateUpdate({ ...DEFAULT_EDITOR_STATE, ...blended });
+			handleStateUpdate({ ...baseState, ...blended });
 		}
+	}
+
+	// Effect handlers
+	function handleApplyEffect() {
+		if (quickEffect === "none") return;
+
+		const newEffect: import("$lib/components/editor/EditorHistory.svelte").AppliedEffect = {
+			type: quickEffect as any,
+			intensity: effectIntensity,
+		};
+
+		// Only add duotoneColors if this is a duotone effect
+		if (quickEffect === "duotone") {
+			newEffect.duotoneColors = [...duotoneColors] as [string, string];
+		}
+
+		const currentEffects = history.currentState.appliedEffects || [];
+		handleStateUpdate({
+			appliedEffects: [...currentEffects, newEffect],
+		});
+
+		// Reset current effect selection after applying
+		quickEffect = "none";
+		effectIntensity = 50;
+	}
+
+	function handleRemoveEffect(index: number) {
+		const currentEffects = history.currentState.appliedEffects || [];
+		const newEffects = currentEffects.filter((_, i) => i !== index);
+		handleStateUpdate({ appliedEffects: newEffects });
+	}
+
+	function handleClearEffects() {
+		handleStateUpdate({ appliedEffects: [] });
 	}
 
 	// Undo/Redo handlers
@@ -210,7 +400,7 @@
 				if (activeTool) {
 					activeTool = null;
 				} else {
-					onClose();
+					handleClose();
 				}
 				break;
 			case "a":
@@ -271,19 +461,55 @@
 		}
 	}
 
+	// Helper to get mouse position relative to the image
+	function getImageRelativePosition(e: MouseEvent): { x: number; y: number } | null {
+		if (!imageElement || !canvasContainer) return null;
+
+		const containerRect = canvasContainer.getBoundingClientRect();
+
+		// Calculate where the image is positioned (centered in container, then transformed)
+		// The image container is centered in the flex parent
+		const containerCenterX = containerRect.width / 2;
+		const containerCenterY = containerRect.height / 2;
+
+		// The image's top-left in container space (before zoom/pan)
+		const imageHalfWidth = (imageWidth * zoom) / 2;
+		const imageHalfHeight = (imageHeight * zoom) / 2;
+
+		// Image top-left in screen space
+		const imageScreenX = containerRect.left + containerCenterX - imageHalfWidth + panX * zoom;
+		const imageScreenY = containerRect.top + containerCenterY - imageHalfHeight + panY * zoom;
+
+		// Mouse position relative to image, accounting for zoom
+		const x = (e.clientX - imageScreenX) / zoom;
+		const y = (e.clientY - imageScreenY) / zoom;
+
+		return { x, y };
+	}
+
 	function handleMouseDown(e: MouseEvent) {
 		if (isCropping && activeTool === "crop") {
-			// Start crop selection
-			const rect = canvasContainer?.getBoundingClientRect() ?? {
-				left: 0,
-				top: 0,
-				width: 0,
-				height: 0,
-			};
-			cropStartPos = {
-				x: (e.clientX - rect.left - panX) / zoom,
-				y: (e.clientY - rect.top - panY) / zoom,
-			};
+			const target = e.target as HTMLElement;
+			const handle = target.dataset.handle;
+
+			if (handle && cropRect) {
+				activeCropHandle = handle;
+				// Set anchor point to opposite corner for resizing
+				let anchorX = cropRect.x;
+				let anchorY = cropRect.y;
+
+				if (handle.includes("left")) anchorX += cropRect.width;
+				if (handle.includes("top")) anchorY += cropRect.height;
+
+				cropStartPos = { x: anchorX, y: anchorY };
+				return;
+			}
+
+			// Start crop selection relative to the image
+			const pos = getImageRelativePosition(e);
+			if (pos) {
+				cropStartPos = pos;
+			}
 			return;
 		}
 
@@ -296,14 +522,11 @@
 
 	function handleMouseMove(e: MouseEvent) {
 		if (cropStartPos && activeTool === "crop") {
-			const rect = canvasContainer?.getBoundingClientRect() ?? {
-				left: 0,
-				top: 0,
-				width: 0,
-				height: 0,
-			};
-			const currentX = (e.clientX - rect.left - panX) / zoom;
-			const currentY = (e.clientY - rect.top - panY) / zoom;
+			const pos = getImageRelativePosition(e);
+			if (!pos) return;
+
+			const currentX = pos.x;
+			const currentY = pos.y;
 
 			let width = currentX - cropStartPos.x;
 			let height = currentY - cropStartPos.y;
@@ -338,6 +561,7 @@
 	function handleMouseUp() {
 		isPanning = false;
 		cropStartPos = null;
+		activeCropHandle = null;
 	}
 
 	// Touch handlers for mobile
@@ -473,64 +697,103 @@
 		if (state.sepia) filters.push(`sepia(${state.sepia}%)`);
 		if (state.invert) filters.push(`invert(${state.invert}%)`);
 
-		// Brightness with shadows/highlights approximation
-		let brightnessAdj = state.brightness;
-		if (state.shadows !== 0) {
-			// Shadows affect dark tones - reduce brightness slightly for darker shadows
-			brightnessAdj += state.shadows * 0.1;
-		}
-		if (state.highlights !== 0) {
-			// Highlights affect light tones - slight brightness boost
-			brightnessAdj += state.highlights * 0.15;
-		}
-		if (brightnessAdj !== 100) filters.push(`brightness(${brightnessAdj}%)`);
+		// Basic brightness adjustment
+		if (state.brightness !== 100) filters.push(`brightness(${state.brightness}%)`);
 
-		// Contrast with clarity approximation
-		let contrastAdj = state.contrast;
-		if (state.clarity !== 0) {
-			// Clarity is essentially local contrast - approximate with global contrast
-			contrastAdj += state.clarity * 0.3;
-		}
-		if (contrastAdj !== 100) filters.push(`contrast(${contrastAdj}%)`);
+		// Basic contrast adjustment
+		if (state.contrast !== 100) filters.push(`contrast(${state.contrast}%)`);
 
-		// Saturation with vibrance approximation
-		let satAdj = state.saturation;
-		if (state.vibrance !== 0) {
-			// Vibrance is like saturation but protects already-saturated colors
-			// Approximate by adding less saturation
-			satAdj += state.vibrance * 0.5;
-		}
-		if (satAdj !== 100) filters.push(`saturate(${satAdj}%)`);
+		// Basic saturation adjustment
+		if (state.saturation !== 100) filters.push(`saturate(${state.saturation}%)`);
 
-		// Hue rotation with temperature/tint
-		let hueAdj = state.hueRotate;
-		if (state.temperature !== 0) {
-			// Warm = shift toward orange/yellow, Cool = shift toward blue
-			hueAdj += state.temperature * -0.3;
-		}
-		if (state.tint !== 0) {
-			// Tint shifts green/magenta axis
-			hueAdj += state.tint * 0.2;
-		}
-		if (hueAdj !== 0) filters.push(`hue-rotate(${hueAdj}deg)`);
+		// Hue rotation
+		if (state.hueRotate !== 0) filters.push(`hue-rotate(${state.hueRotate}deg)`);
 
-		// Temperature also affects sepia (warm) or saturate (cool)
-		if (state.temperature > 0) {
-			// Warm - add subtle sepia
-			filters.push(`sepia(${state.temperature * 0.1}%)`);
-		} else if (state.temperature < 0) {
-			// Cool - slight desaturation could help but we already adjusted saturation
-		}
-
+		// Blur
 		if (state.blur !== 0) filters.push(`blur(${state.blur}px)`);
 
 		return filters.length > 0 ? filters.join(" ") : "none";
 	});
 
+	// Check if color adjustments (temperature/tint) are active
+	let colorAdjustActive = $derived(
+		history.currentState.temperature !== 0 || history.currentState.tint !== 0
+	);
+
 	// Function version for use in getEditedImageData
 	function buildFilterString(): string {
 		return filterString;
 	}
+
+	// Render preview with canvas-based effects (debounced)
+	async function renderCanvasPreview(): Promise<void> {
+		if (!image || !needsCanvasPreview) {
+			previewDataUrl = null;
+			return;
+		}
+
+		isRenderingPreview = true;
+
+		try {
+			const canvas = document.createElement("canvas");
+			const img = await loadImage(image.src);
+
+			await renderCanvasImage(canvas, img, history.currentState, {
+				maxSize: 800,
+				previewEffect:
+					quickEffect !== "none"
+						? {
+								type: quickEffect,
+								intensity: effectIntensity,
+								duotoneColors: quickEffect === "duotone" ? duotoneColors : undefined,
+							}
+						: undefined,
+			});
+
+			previewDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+		} catch (error) {
+			console.error("Preview render failed:", error);
+			previewDataUrl = null;
+		} finally {
+			isRenderingPreview = false;
+		}
+	}
+
+	// Debounced preview rendering
+	function schedulePreviewRender(): void {
+		if (renderTimeout) {
+			clearTimeout(renderTimeout);
+		}
+		renderTimeout = setTimeout(() => {
+			renderCanvasPreview();
+		}, 100); // 100ms debounce
+	}
+
+	// Trigger preview re-render when relevant state changes
+	$effect(() => {
+		if (needsCanvasPreview && image) {
+			// Access dependencies to track them
+			const _ = [
+				quickEffect,
+				effectIntensity,
+				duotoneColors,
+				history.currentState.shadows,
+				history.currentState.highlights,
+				history.currentState.vibrance,
+				history.currentState.clarity,
+				history.currentState.temperature,
+				history.currentState.tint,
+				history.currentState.brightness,
+				history.currentState.contrast,
+				history.currentState.saturation,
+				history.currentState.appliedEffects,
+				history.currentState.appliedEffects?.length,
+			];
+			schedulePreviewRender();
+		} else {
+			previewDataUrl = null;
+		}
+	});
 
 	// Get edited image as data URL (for palette extraction)
 	async function getEditedImageData(): Promise<string> {
@@ -640,15 +903,83 @@
 		}
 	});
 
-	// Combined filter string including quick effects
+	// Combined filter string including quick effects, curves, and color adjustments
 	let combinedFilterString = $derived.by(() => {
 		const base = filterString;
 		const effect = quickEffectFilter;
+		const curvesFilter = curvesModified ? `url(#curves-filter-${image?.id})` : "";
+		const colorFilter = colorAdjustActive ? `url(#color-adjust-filter-${image?.id})` : "";
 
-		if (base === "none" && !effect) return "none";
-		if (base === "none") return effect;
-		if (!effect) return base;
-		return `${base} ${effect}`;
+		const parts = [base !== "none" ? base : "", effect, curvesFilter, colorFilter].filter(Boolean);
+		return parts.length > 0 ? parts.join(" ") : "none";
+	});
+
+	// Curves helpers - interpolate curve points using Catmull-Rom spline
+	// Moved to image-processing.ts
+
+	// Generate lookup table values for SVG feComponentTransfer from curve points
+	function getCurveTableValues(channel: "rgb" | "red" | "green" | "blue"): string {
+		const curves = history.currentState.curves ?? DEFAULT_EDITOR_STATE.curves;
+		const points = curves[channel];
+
+		// Check if curve is at default (linear) or points is empty/undefined
+		if (
+			!points ||
+			points.length < 2 ||
+			(points.length === 2 &&
+				points[0]?.x === 0 &&
+				points[0]?.y === 0 &&
+				points[1]?.x === 255 &&
+				points[1]?.y === 255)
+		) {
+			// Return linear identity table
+			return Array.from({ length: 256 }, (_, i) => (i / 255).toFixed(4)).join(" ");
+		}
+
+		// Interpolate the curve
+		const interpolated = interpolateCurvePoints(points);
+
+		// Build a lookup table (256 values from 0 to 1)
+		const lut = new Array(256).fill(0);
+
+		// Fill the LUT by finding y value for each x
+		for (let x = 0; x < 256; x++) {
+			// Find the closest interpolated points
+			let y = x; // Default to identity
+			for (let i = 0; i < interpolated.length - 1; i++) {
+				const p1 = interpolated[i];
+				const p2 = interpolated[i + 1];
+				if (p1 && p2 && p1.x <= x && p2.x >= x) {
+					// Linear interpolation between these two points
+					const t = p2.x !== p1.x ? (x - p1.x) / (p2.x - p1.x) : 0;
+					y = p1.y + t * (p2.y - p1.y);
+					break;
+				}
+			}
+			lut[x] = Math.max(0, Math.min(255, y)) / 255;
+		}
+
+		return lut.map((v) => v.toFixed(4)).join(" ");
+	}
+
+	// Check if curves have been modified from default
+	let curvesModified = $derived.by(() => {
+		const curves = history.currentState.curves ?? DEFAULT_EDITOR_STATE.curves;
+		const isDefault = (points: Array<{ x: number; y: number }> | undefined) =>
+			!points ||
+			points.length < 2 ||
+			(points.length === 2 &&
+				points[0]?.x === 0 &&
+				points[0]?.y === 0 &&
+				points[1]?.x === 255 &&
+				points[1]?.y === 255);
+
+		return (
+			!isDefault(curves.rgb) ||
+			!isDefault(curves.red) ||
+			!isDefault(curves.green) ||
+			!isDefault(curves.blue)
+		);
 	});
 
 	// Gradient map helpers
@@ -701,7 +1032,7 @@
 			<div class="flex items-center gap-3">
 				<button
 					class="btn btn-sm btn-circle btn-ghost text-white/70 hover:text-white hover:bg-white/10"
-					onclick={onClose}
+					onclick={handleClose}
 				>
 					<Icon icon="material-symbols:arrow-back" class="w-5 h-5" />
 				</button>
@@ -806,18 +1137,58 @@
 				class="relative transition-transform duration-75 ease-out will-change-transform"
 				style:transform="translate({panX}px, {panY}px) scale({zoom})"
 			>
-				<!-- Image -->
-				<img
-					bind:this={imageElement}
-					src={image.src}
-					alt={image.name}
-					class="max-w-none shadow-2xl"
-					style:filter={combinedFilterString}
-					style:transform={transformString}
-					style:opacity={history.currentState.opacity}
-					onload={handleImageLoad}
-					draggable="false"
-				/>
+				<!-- Image Container with Crop -->
+				<div class="relative" style:clip-path={appliedCrop && !isComparing ? cropClipPath : "none"}>
+					{#if isComparing}
+						<!-- Show original image when comparing -->
+						<img
+							bind:this={imageElement}
+							src={image.src}
+							alt={image.name}
+							class="max-w-none shadow-2xl"
+							style:opacity={1}
+							onload={handleImageLoad}
+							draggable="false"
+						/>
+					{:else if needsCanvasPreview && previewDataUrl}
+						<!-- Canvas-rendered preview for complex effects -->
+						<img
+							src={previewDataUrl}
+							alt={image.name}
+							class="max-w-none shadow-2xl"
+							style:transform={transformString}
+							style:opacity={history.currentState.opacity}
+							draggable="false"
+						/>
+						<!-- Original image hidden but used for dimensions -->
+						<img
+							bind:this={imageElement}
+							src={image.src}
+							alt=""
+							class="hidden"
+							onload={handleImageLoad}
+						/>
+					{:else}
+						<!-- Standard CSS-filtered preview -->
+						<img
+							bind:this={imageElement}
+							src={image.src}
+							alt={image.name}
+							class="max-w-none shadow-2xl"
+							style:filter={combinedFilterString}
+							style:transform={transformString}
+							style:opacity={history.currentState.opacity}
+							onload={handleImageLoad}
+							draggable="false"
+						/>
+					{/if}
+					<!-- Loading indicator for canvas preview -->
+					{#if needsCanvasPreview && isRenderingPreview && !previewDataUrl && !isComparing}
+						<div class="absolute inset-0 flex items-center justify-center bg-black/30">
+							<span class="loading loading-spinner loading-md text-phoenix-primary"></span>
+						</div>
+					{/if}
+				</div>
 
 				<!-- Gradient Map Overlay -->
 				{#if history.currentState.gradientMapOpacity > 0 && (app.gradients.activeGradient || app.palettes.activePalette)}
@@ -826,6 +1197,7 @@
 						style:opacity={history.currentState.gradientMapOpacity}
 						style:mix-blend-mode={history.currentState.gradientMapBlendMode}
 						style:transform={transformString}
+						style:clip-path={appliedCrop ? cropClipPath : "none"}
 					>
 						<img
 							src={image.src}
@@ -846,6 +1218,7 @@
 						style:opacity={effectIntensity / 100}
 						style:mix-blend-mode="color"
 						style:transform={transformString}
+						style:clip-path={appliedCrop ? cropClipPath : "none"}
 					>
 						<div
 							class="w-full h-full"
@@ -861,6 +1234,7 @@
 						style:background="radial-gradient(ellipse at center, transparent 0%, transparent 50%,
 						rgba(0,0,0,{history.currentState.vignette / 100}) 100%)"
 						style:transform={transformString}
+						style:clip-path={appliedCrop ? cropClipPath : "none"}
 					></div>
 				{/if}
 
@@ -889,12 +1263,13 @@
 							{#each ["top-left", "top-right", "bottom-left", "bottom-right"] as corner}
 								<div
 									class={cn(
-										"absolute w-4 h-4 bg-white rounded-full border-2 border-phoenix-primary",
+										"absolute w-4 h-4 bg-white rounded-full border-2 border-phoenix-primary pointer-events-auto",
 										corner.includes("top") && "top-0 -translate-y-1/2",
 										corner.includes("bottom") && "bottom-0 translate-y-1/2",
 										corner.includes("left") && "left-0 -translate-x-1/2",
 										corner.includes("right") && "right-0 translate-x-1/2"
 									)}
+									data-handle={corner}
 								></div>
 							{/each}
 						</div>
@@ -953,7 +1328,7 @@
 					</h4>
 					<CurvesPanel
 						imageSrc={image.src}
-						curves={history.currentState.curves}
+						curves={history.currentState.curves ?? DEFAULT_EDITOR_STATE.curves}
 						onCurvesChange={(newCurves) => handleStateUpdate({ curves: newCurves })}
 					/>
 				</div>
@@ -1019,9 +1394,13 @@
 				activeEffect={quickEffect}
 				{effectIntensity}
 				{duotoneColors}
+				appliedEffects={history.currentState.appliedEffects}
 				onEffectChange={(effect) => (quickEffect = effect)}
 				onIntensityChange={(intensity) => (effectIntensity = intensity)}
 				onDuotoneColorsChange={(colors) => (duotoneColors = colors)}
+				onApplyEffect={handleApplyEffect}
+				onRemoveEffect={handleRemoveEffect}
+				onClearEffects={handleClearEffects}
 			/>
 		</EditorPanel>
 
@@ -1046,6 +1425,41 @@
 	<!-- SVG Filters -->
 	<svg class="hidden" aria-hidden="true">
 		<defs>
+			<!-- Temperature/Tint Filter -->
+			<filter id="color-adjust-filter-{image.id}" color-interpolation-filters="sRGB">
+				<!-- Apply temperature adjustment -->
+				<feColorMatrix
+					type="matrix"
+					values={getTemperatureColorMatrix(history.currentState.temperature)}
+					result="temp-adjusted"
+				/>
+				<!-- Apply tint adjustment -->
+				<feColorMatrix
+					type="matrix"
+					in="temp-adjusted"
+					values={getTintColorMatrix(history.currentState.tint)}
+				/>
+			</filter>
+
+			<!-- Curves Filter -->
+			<filter id="curves-filter-{image.id}" color-interpolation-filters="sRGB">
+				<!-- First apply RGB master curve -->
+				<feComponentTransfer result="rgb-adjusted">
+					<feFuncR type="table" tableValues={getCurveTableValues("rgb")} />
+					<feFuncG type="table" tableValues={getCurveTableValues("rgb")} />
+					<feFuncB type="table" tableValues={getCurveTableValues("rgb")} />
+					<feFuncA type="identity" />
+				</feComponentTransfer>
+				<!-- Then apply individual channel curves -->
+				<feComponentTransfer in="rgb-adjusted">
+					<feFuncR type="table" tableValues={getCurveTableValues("red")} />
+					<feFuncG type="table" tableValues={getCurveTableValues("green")} />
+					<feFuncB type="table" tableValues={getCurveTableValues("blue")} />
+					<feFuncA type="identity" />
+				</feComponentTransfer>
+			</filter>
+
+			<!-- Gradient Map Filter -->
 			<filter id="gradient-map-{image.id}" color-interpolation-filters="sRGB">
 				<feColorMatrix
 					type="matrix"
