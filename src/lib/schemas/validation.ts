@@ -91,17 +91,40 @@ export const ReferenceImageSchema = z.object({
 export const GradientStopSchema = z.object({
 	color: ColorSchema,
 	position: z.number().min(0).max(100, "Position must be between 0 and 100"),
+	easing: z.enum(["linear", "ease-in", "ease-out", "ease-in-out"]).optional(),
+});
+
+// Mesh gradient point schema
+export const MeshPointSchema = z.object({
+	id: z.string().uuid(),
+	x: z.number().min(0).max(100),
+	y: z.number().min(0).max(100),
+	color: ColorSchema,
+	radius: z.number().min(1).max(200).default(50),
+});
+
+// Noise configuration schema
+export const NoiseConfigSchema = z.object({
+	enabled: z.boolean().default(false),
+	intensity: z.number().min(0).max(100).default(10),
+	scale: z.number().min(0.1).max(10).default(1),
+	type: z.enum(["perlin", "simplex", "grain"]).default("grain"),
 });
 
 export const GradientSchema = z.object({
 	id: z.string().uuid().transform((val) => val as GradientId),
 	name: z.string().min(1, "Gradient name is required").max(50, "Name too long"),
-	type: z.enum(["linear", "radial", "conic"]),
+	type: z.enum(["linear", "radial", "conic", "mesh"]),
 	stops: z.array(GradientStopSchema).min(2, "Gradient must have at least 2 color stops"),
 	angle: z.number().min(0).max(360).optional(),
 	centerX: z.number().min(0).max(100).optional(),
 	centerY: z.number().min(0).max(100).optional(),
 	createdAt: z.date(),
+	// Enhanced properties
+	interpolationMode: z.enum(["oklch", "oklab", "rgb", "hsl", "lab", "lch"]).optional(),
+	meshPoints: z.array(MeshPointSchema).optional(),
+	noise: NoiseConfigSchema.optional(),
+	tags: z.array(z.string().max(20)).max(10).optional(),
 });
 
 // Color Palette validation
@@ -223,6 +246,8 @@ export function validateAppData(data: unknown): {
 // Runtime type guards
 export type ValidatedReferenceImage = z.infer<typeof ReferenceImageSchema>;
 export type ValidatedGradientStop = z.infer<typeof GradientStopSchema>;
+export type ValidatedMeshPoint = z.infer<typeof MeshPointSchema>;
+export type ValidatedNoiseConfig = z.infer<typeof NoiseConfigSchema>;
 export type ValidatedGradient = z.infer<typeof GradientSchema>;
 export type ValidatedColorPalette = z.infer<typeof ColorPaletteSchema>;
 export type ValidatedAppSettings = z.infer<typeof AppSettingsSchema>;

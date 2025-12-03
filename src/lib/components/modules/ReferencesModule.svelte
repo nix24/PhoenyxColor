@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from "svelte";
 	import { app } from "$lib/stores/root.svelte";
 	import type { ValidatedReferenceImage } from "$lib/schemas/validation";
 	import type { ReferenceId } from "$lib/types/brands";
@@ -6,6 +7,7 @@
 	import { toast } from "svelte-sonner";
 	import { performanceService } from "$lib/services/performance";
 	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
+	import SkeletonCard from "$lib/components/ui/SkeletonCard.svelte";
 	import { cn } from "$lib/utils/cn";
 	import ImageEditor from "$lib/components/modules/references/ImageEditor.svelte";
 
@@ -15,6 +17,16 @@
 	let selectedImageId: string | null = $state(null);
 	let viewMode: "gallery" | "transform" = $state("gallery");
 	let showControls = $state(false);
+
+	// Initial loading state for skeleton display
+	let isLoading = $state(true);
+
+	onMount(() => {
+		const timer = setTimeout(() => {
+			isLoading = false;
+		}, 400);
+		return () => clearTimeout(timer);
+	});
 
 	// File validation constants
 	const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -440,15 +452,35 @@
 
 	<!-- Main Content -->
 	<div class="flex-1 overflow-hidden relative rounded-xl">
-		{#if app.references.references.length > 0}
-			<!-- Image Gallery -->
+		{#if isLoading}
+			<!-- Skeleton Loading State - Bento Pattern -->
 			<div class="h-full overflow-y-auto p-1">
 				<div
-					class="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+					class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 auto-rows-fr"
 				>
-					{#each app.references.references as reference (reference.id)}
+					{#each Array(7) as _, i}
+						<div
+							style:animation-delay="{i * 50}ms"
+							class={cn("stagger-item", i === 0 && "col-span-2 row-span-2")}
+						>
+							<SkeletonCard type="image" class="h-full" />
+						</div>
+					{/each}
+				</div>
+			</div>
+		{:else if app.references.references.length > 0}
+			<!-- Bento Grid Image Gallery -->
+			<div class="h-full overflow-y-auto p-1">
+				<div
+					class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 auto-rows-fr"
+				>
+					{#each app.references.references as reference, idx (reference.id)}
+						{@const isFeatured = idx === 0 && app.references.references.length > 3}
 						<GlassPanel
-							class="group cursor-pointer p-0! overflow-visible!"
+							class={cn(
+								"group cursor-pointer p-0! overflow-visible!",
+								isFeatured && "col-span-2 row-span-2"
+							)}
 							intensity="low"
 							hoverEffect={true}
 							onclick={() => handleImageClick(reference)}
@@ -463,7 +495,8 @@
 						>
 							<div
 								class={cn(
-									"relative aspect-square overflow-hidden rounded-t-xl transition-all duration-300",
+									"relative overflow-hidden rounded-t-xl transition-all duration-300",
+									isFeatured ? "aspect-square" : "aspect-square",
 									selectedImageId === reference.id
 										? "ring-2 ring-phoenix-primary ring-offset-2 ring-offset-void"
 										: ""
@@ -479,6 +512,15 @@
 									style:transform="scale({reference.scale}) rotate({reference.rotation}deg)"
 									loading="lazy"
 								/>
+
+								<!-- Featured badge for first item -->
+								{#if isFeatured}
+									<div
+										class="absolute top-3 left-3 px-2 py-1 bg-phoenix-primary/90 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg"
+									>
+										Featured
+									</div>
+								{/if}
 
 								<!-- Gradient Overlay (Bottom Fade) -->
 								<div
@@ -500,24 +542,36 @@
 											class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2"
 										>
 											<button
-												class="hidden md:inline-flex btn btn-xs md:btn-sm btn-circle bg-phoenix-primary border-none text-white pointer-events-auto hover:bg-phoenix-primary/80"
+												class={cn(
+													"hidden md:inline-flex btn btn-circle bg-phoenix-primary border-none text-white pointer-events-auto hover:bg-phoenix-primary/80",
+													isFeatured ? "btn-sm" : "btn-xs md:btn-sm"
+												)}
 												onclick={(e) => {
 													e.stopPropagation();
 													duplicateReference(reference.id);
 												}}
 												title="Duplicate"
 											>
-												<Icon icon="material-symbols:content-copy" class="w-4 h-4" />
+												<Icon
+													icon="material-symbols:content-copy"
+													class={isFeatured ? "w-5 h-5" : "w-4 h-4"}
+												/>
 											</button>
 											<button
-												class="hidden md:inline-flex btn btn-xs md:btn-sm btn-circle btn-error pointer-events-auto"
+												class={cn(
+													"hidden md:inline-flex btn btn-circle btn-error pointer-events-auto",
+													isFeatured ? "btn-sm" : "btn-xs md:btn-sm"
+												)}
 												onclick={(e) => {
 													e.stopPropagation();
 													removeReference(reference.id);
 												}}
 												title="Delete"
 											>
-												<Icon icon="material-symbols:delete-outline" class="w-4 h-4" />
+												<Icon
+													icon="material-symbols:delete-outline"
+													class={isFeatured ? "w-5 h-5" : "w-4 h-4"}
+												/>
 											</button>
 										</div>
 									{/if}
@@ -525,9 +579,12 @@
 							</div>
 
 							<!-- Image name -->
-							<div class="p-2 border-t border-white/5 bg-black/20">
+							<div class={cn("p-2 border-t border-white/5 bg-black/20", isFeatured && "p-3")}>
 								<p
-									class="text-xs text-center text-text-muted truncate group-hover:text-white transition-colors"
+									class={cn(
+										"text-center text-text-muted truncate group-hover:text-white transition-colors",
+										isFeatured ? "text-sm font-medium" : "text-xs"
+									)}
 									title={reference.name}
 								>
 									{reference.name}

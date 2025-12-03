@@ -29,7 +29,7 @@
 	const { saveAs } = pkg;
 
 	// View mode
-	type ViewMode = "editor" | "analysis" | "preview";
+	type ViewMode = "editor" | "analysis" | "preview" | "gallery";
 	let viewMode = $state<ViewMode>("editor");
 
 	// State
@@ -463,25 +463,33 @@
 			<!-- View Mode Toggle -->
 			<div class="join">
 				<button
+					class={cn("join-item btn btn-sm", viewMode === "gallery" ? "btn-primary" : "btn-ghost")}
+					onclick={() => (viewMode = "gallery")}
+					title="Bento Gallery View"
+				>
+					<Icon icon="material-symbols:grid-view" class="w-4 h-4" />
+					<span class="hidden sm:inline">Gallery</span>
+				</button>
+				<button
 					class={cn("join-item btn btn-sm", viewMode === "editor" ? "btn-primary" : "btn-ghost")}
 					onclick={() => (viewMode = "editor")}
 				>
 					<Icon icon="material-symbols:edit" class="w-4 h-4" />
-					Editor
+					<span class="hidden sm:inline">Editor</span>
 				</button>
 				<button
 					class={cn("join-item btn btn-sm", viewMode === "analysis" ? "btn-primary" : "btn-ghost")}
 					onclick={() => (viewMode = "analysis")}
 				>
 					<Icon icon="material-symbols:analytics" class="w-4 h-4" />
-					Analysis
+					<span class="hidden sm:inline">Analysis</span>
 				</button>
 				<button
 					class={cn("join-item btn btn-sm", viewMode === "preview" ? "btn-primary" : "btn-ghost")}
 					onclick={() => (viewMode = "preview")}
 				>
 					<Icon icon="material-symbols:preview" class="w-4 h-4" />
-					Preview
+					<span class="hidden sm:inline">Preview</span>
 				</button>
 			</div>
 
@@ -586,34 +594,195 @@
 
 	<!-- Main Content -->
 	<div class="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden">
-		<!-- Palettes List -->
-		<PaletteList {searchTerm} onCreateNew={() => (showCreateDialog = true)} />
+		{#if viewMode === "gallery"}
+			<!-- Bento Gallery View - Full Width -->
+			<GlassPanel class="flex-1 overflow-hidden" intensity="low">
+				<div class="flex flex-col h-full">
+					<div class="p-4 border-b border-white/5 bg-black/20">
+						<h3 class="font-semibold text-white flex items-center gap-2">
+							<Icon icon="material-symbols:grid-view" class="w-5 h-5" />
+							Palette Gallery
+							<span class="text-text-muted/60 text-sm font-normal"
+								>({app.palettes.palettes.length} palettes)</span
+							>
+						</h3>
+					</div>
 
-		<!-- Main View Area -->
-		{#if viewMode === "editor"}
-			<PaletteEditor
-				{selectedColor}
-				{colorHistory}
-				onColorHistoryAdd={addToColorHistory}
-				onShowColorPicker={() => (showColorPicker = true)}
-				onImport={importPaletteFile}
-				onExport={exportPalette}
-				onCreateNew={() => (showCreateDialog = true)}
-			/>
-		{:else if viewMode === "analysis"}
-			<PaletteAnalysis />
-		{:else if viewMode === "preview"}
-			<PalettePreview />
+					<div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
+						{#if app.palettes.palettes.length === 0}
+							<div class="flex items-center justify-center h-full text-text-muted/50">
+								<div class="text-center">
+									<Icon
+										icon="material-symbols:palette-outline"
+										class="w-16 h-16 mx-auto mb-4 opacity-30"
+									/>
+									<p class="text-lg mb-2">No palettes yet</p>
+									<p class="text-sm mb-4">Create your first palette to see it here</p>
+									<button class="btn btn-primary btn-sm" onclick={() => (showCreateDialog = true)}>
+										<Icon icon="material-symbols:add" class="w-4 h-4" />
+										Create Palette
+									</button>
+								</div>
+							</div>
+						{:else}
+							<!-- Bento Grid Layout -->
+							<div
+								class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 auto-rows-fr"
+							>
+								{#each app.palettes.palettes.filter((p) => p.name
+											.toLowerCase()
+											.includes(searchTerm.toLowerCase()) || p.colors.some((c) => c
+												.toLowerCase()
+												.includes(searchTerm.toLowerCase()))) as palette, idx (palette.id)}
+									{@const isFeatured = idx === 0 && app.palettes.palettes.length > 4}
+									{@const isLarge = palette.colors.length >= 8}
+									<button
+										class={cn(
+											"group text-left rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer",
+											isFeatured && "col-span-2 row-span-2",
+											!isFeatured && isLarge && "col-span-2",
+											app.palettes.activePaletteId === palette.id
+												? "border-phoenix-primary/50 shadow-[0_0_20px_rgba(255,0,127,0.3)] scale-[1.02]"
+												: "border-white/10 hover:border-white/20 hover:shadow-lg hover:scale-[1.01]"
+										)}
+										style:background="linear-gradient(135deg, rgba(30,30,45,0.6), rgba(20,20,30,0.8))"
+										onclick={() => {
+											app.palettes.setActive(palette.id);
+											viewMode = "editor";
+										}}
+									>
+										<!-- Color Grid Display -->
+										<div
+											class={cn(
+												"grid gap-0.5 p-2",
+												isFeatured
+													? "grid-cols-5 h-40"
+													: isLarge
+														? "grid-cols-4 h-24"
+														: "grid-cols-3 h-20"
+											)}
+										>
+											{#each palette.colors.slice(0, isFeatured ? 15 : isLarge ? 12 : 9) as color}
+												<div
+													class="rounded-sm transition-transform group-hover:scale-105"
+													style:background-color={color}
+												></div>
+											{/each}
+											{#if palette.colors.length === 0}
+												<div
+													class="col-span-full flex items-center justify-center text-text-muted/30"
+												>
+													<Icon
+														icon="material-symbols:palette-outline"
+														class={isFeatured ? "w-12 h-12" : "w-8 h-8"}
+													/>
+												</div>
+											{/if}
+										</div>
+
+										<!-- Palette Info -->
+										<div class={cn("p-3 border-t border-white/5 bg-black/30", isFeatured && "p-4")}>
+											<div class="flex items-center justify-between gap-2">
+												<div class="min-w-0 flex-1">
+													<h4
+														class={cn(
+															"font-medium truncate text-white group-hover:text-phoenix-primary transition-colors",
+															isFeatured ? "text-lg" : "text-sm"
+														)}
+													>
+														{palette.name}
+													</h4>
+													<p
+														class={cn(
+															"text-text-muted/60 uppercase tracking-wider",
+															isFeatured ? "text-xs" : "text-[10px]"
+														)}
+													>
+														{palette.colors.length}/{palette.maxSlots} colors
+													</p>
+												</div>
+												{#if app.palettes.activePaletteId === palette.id}
+													<div
+														class="shrink-0 w-2 h-2 rounded-full bg-phoenix-primary animate-pulse"
+													></div>
+												{/if}
+											</div>
+
+											{#if isFeatured && palette.tags && palette.tags.length > 0}
+												<div class="flex flex-wrap gap-1 mt-2">
+													{#each palette.tags.slice(0, 3) as tag}
+														<span
+															class="px-2 py-0.5 bg-white/5 rounded-full text-[10px] text-text-muted"
+														>
+															{tag}
+														</span>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									</button>
+								{/each}
+
+								<!-- Add New Palette Card -->
+								<button
+									class="rounded-xl border-2 border-dashed border-white/10 hover:border-phoenix-primary/50 hover:bg-white/5 transition-all duration-300 cursor-pointer flex items-center justify-center min-h-[120px] group"
+									onclick={() => (showCreateDialog = true)}
+								>
+									<div class="text-center group-hover:scale-105 transition-transform">
+										<div
+											class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-2 group-hover:bg-phoenix-primary/20 transition-colors"
+										>
+											<Icon
+												icon="material-symbols:add"
+												class="w-6 h-6 text-text-muted group-hover:text-phoenix-primary transition-colors"
+											/>
+										</div>
+										<p class="text-xs text-text-muted group-hover:text-white transition-colors">
+											New Palette
+										</p>
+									</div>
+								</button>
+							</div>
+						{/if}
+					</div>
+				</div>
+			</GlassPanel>
+		{:else}
+			<!-- Palettes List Sidebar -->
+			<PaletteList {searchTerm} onCreateNew={() => (showCreateDialog = true)} />
+
+			<!-- Main View Area -->
+			{#if viewMode === "editor"}
+				<PaletteEditor
+					{selectedColor}
+					{colorHistory}
+					onColorHistoryAdd={addToColorHistory}
+					onShowColorPicker={() => (showColorPicker = true)}
+					onImport={importPaletteFile}
+					onExport={exportPalette}
+					onCreateNew={() => (showCreateDialog = true)}
+				/>
+			{:else if viewMode === "analysis"}
+				<PaletteAnalysis />
+			{:else if viewMode === "preview"}
+				<PalettePreview />
+			{/if}
 		{/if}
 	</div>
 </div>
 
 <!-- Create Palette Dialog -->
 {#if showCreateDialog}
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+	<div
+		class="fixed inset-0 modal-backdrop-blur flex items-center justify-center z-50 p-4"
+		onclick={(e) => e.target === e.currentTarget && (showCreateDialog = false)}
+		onkeydown={(e) => e.key === "Escape" && (showCreateDialog = false)}
+		role="dialog"
+		tabindex="-1"
+	>
 		<div
 			in:scale={{ duration: 300, start: 0.9, easing: elasticOut }}
-			class="bg-base-100 rounded-lg p-6 w-96 shadow-xl"
+			class="bg-base-100/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/10 modal-enter"
 		>
 			<h3 class="text-lg font-semibold text-base-content mb-4">Create New Palette</h3>
 
@@ -677,10 +846,16 @@
 
 <!-- Smart Generator Dialog -->
 {#if showSmartGenerator}
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+	<div
+		class="fixed inset-0 modal-backdrop-blur flex items-center justify-center z-50 p-4"
+		onclick={(e) => e.target === e.currentTarget && (showSmartGenerator = false)}
+		onkeydown={(e) => e.key === "Escape" && (showSmartGenerator = false)}
+		role="dialog"
+		tabindex="-1"
+	>
 		<div
 			in:scale={{ duration: 300, start: 0.9, easing: elasticOut }}
-			class="bg-base-100 rounded-lg p-6 w-md shadow-xl"
+			class="bg-base-100/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/10 modal-enter"
 		>
 			<div class="flex items-center justify-between mb-4">
 				<h3 class="text-lg font-semibold text-base-content flex items-center gap-2">
@@ -698,7 +873,12 @@
 			<div class="space-y-4">
 				<!-- Seed Color -->
 				<div>
-					<label for="smart-generator-seed" class="block text-sm font-medium text-base-content mb-2"> Seed Color </label>
+					<label
+						for="smart-generator-seed"
+						class="block text-sm font-medium text-base-content mb-2"
+					>
+						Seed Color
+					</label>
 					<div class="flex gap-2">
 						<input
 							type="color"
@@ -715,7 +895,10 @@
 
 				<!-- Color Count -->
 				<div>
-					<label for="smart-generator-count" class="block text-sm font-medium text-base-content mb-2">
+					<label
+						for="smart-generator-count"
+						class="block text-sm font-medium text-base-content mb-2"
+					>
 						Number of Colors: {smartGeneratorCount}
 					</label>
 					<input
@@ -729,7 +912,12 @@
 
 				<!-- Mood Generators -->
 				<div>
-					<label for="smart-generator-mood" class="block text-sm font-medium text-base-content mb-2"> Generate by Mood </label>
+					<label
+						for="smart-generator-mood"
+						class="block text-sm font-medium text-base-content mb-2"
+					>
+						Generate by Mood
+					</label>
 					<div class="grid grid-cols-3 gap-2">
 						{#each [{ mood: "pastel", label: "Pastel", icon: "material-symbols:cloud" }, { mood: "neon", label: "Neon", icon: "material-symbols:bolt" }, { mood: "earthy", label: "Earthy", icon: "material-symbols:forest" }, { mood: "muted", label: "Muted", icon: "material-symbols:water-drop" }, { mood: "jewel", label: "Jewel", icon: "material-symbols:diamond" }] as item}
 							<button
@@ -745,7 +933,12 @@
 
 				<!-- Semantic Theme -->
 				<div>
-					<label for="smart-generator-theme" class="block text-sm font-medium text-base-content mb-2"> Generate Theme </label>
+					<label
+						for="smart-generator-theme"
+						class="block text-sm font-medium text-base-content mb-2"
+					>
+						Generate Theme
+					</label>
 					<button class="btn btn-outline w-full gap-2" onclick={generateThemePalette}>
 						<Icon icon="material-symbols:palette" class="w-4 h-4" />
 						Generate Semantic Theme
@@ -850,9 +1043,9 @@
 <!-- Color Extraction Dialog -->
 {#if showExtractDialog}
 	<div
-		class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-		role="button"
-		tabindex="0"
+		class="fixed inset-0 modal-backdrop-blur flex items-center justify-center z-50 p-4"
+		role="dialog"
+		tabindex="-1"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) {
 				showExtractDialog = false;
@@ -867,8 +1060,8 @@
 		}}
 	>
 		<div
-			in:scale={{ duration: 500, start: 0.8, easing: elasticOut }}
-			class="bg-base-100 rounded-lg shadow-xl p-6 w-96"
+			in:scale={{ duration: 400, start: 0.9, easing: elasticOut }}
+			class="bg-base-100/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 w-full max-w-md border border-white/10 modal-enter"
 		>
 			<div class="flex items-center justify-between mb-4">
 				<h3 class="font-bold text-lg">Extract Colors from Reference</h3>

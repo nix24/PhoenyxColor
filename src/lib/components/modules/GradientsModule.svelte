@@ -1,18 +1,30 @@
 <script lang="ts">
+	import { scale } from "svelte/transition";
+	import { elasticOut } from "svelte/easing";
 	import { app } from "$lib/stores/root.svelte";
 	import type { ValidatedGradient, ValidatedGradientStop } from "$lib/schemas/validation";
-	import type { GradientId } from "$lib/types/brands";
-	import { validateGradient, validateColor } from "$lib/schemas/validation";
+	import { validateGradient } from "$lib/schemas/validation";
 	import pkg from "file-saver";
 	import Icon from "@iconify/svelte";
 	import { toast } from "svelte-sonner";
-	import { onMount } from "svelte";
-	import { colord } from "colord";
 	import chroma from "chroma-js";
 
-	import { sortPalette } from "$lib/utils/color-engine";
+	import { sortPalette, extractPalette } from "$lib/utils/color-engine";
 	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
 	import { cn } from "$lib/utils/cn";
+
+	// Sub-components
+	import { GradientList, GradientEditor } from "./gradients";
+	import {
+		GRADIENT_PRESETS,
+		PRESET_CATEGORIES,
+		generateCSSGradient,
+		generateMoodGradient,
+		generateRandomGradient,
+		type PresetCategory,
+		type MoodType,
+		type GradientPreset,
+	} from "./gradients/gradient-utils";
 
 	const { saveAs } = pkg;
 
@@ -20,213 +32,35 @@
 	let newGradientName = $state("");
 	let showCreateDialog = $state(false);
 	let showPresetsDialog = $state(false);
-	let showExportDialog = $state(false);
+	let showSmartGeneratorDialog = $state(false);
+	let showImageExtractDialog = $state(false);
 	let gradientType: "linear" | "radial" | "conic" = $state("linear");
-	let previewSize = $state({ width: 400, height: 200 });
 	let searchTerm = $state("");
-	let selectedCategory = $state("all");
-	let isEditingStops = $state(false);
-	let selectedStopIndex = $state(-1);
+	let selectedPresetCategory = $state<PresetCategory | "all">("all");
 
-	// Gradient editor state
-	let gradientAngle = $state(45);
-	let gradientCenterX = $state(50);
-	let gradientCenterY = $state(50);
-	let gradientScale = $state(100);
-	let colorPickerValue = $state("#3b82f6");
-	let showColorPicker = $state(false);
+	// Smart generator state
+	let smartGeneratorSeedColor = $state("#3b82f6");
+	let smartGeneratorColorCount = $state(4);
+	let smartGeneratorMood = $state<MoodType>("calm");
 
-	// Enhanced gradient presets with better categorization
-	const gradientPresets = [
-		// Trending
-		{
-			name: "Sunset Vibes",
-			colors: ["#ff9a9e", "#fecfef", "#fecfef"],
-			category: "trending",
-			type: "linear",
-			angle: 135,
-		},
-		{
-			name: "Ocean Breeze",
-			colors: ["#667eea", "#764ba2"],
-			category: "trending",
-			type: "linear",
-			angle: 45,
-		},
-		{
-			name: "Northern Lights",
-			colors: ["#00c3f7", "#9921e8"],
-			category: "trending",
-			type: "radial",
-		},
-		{
-			name: "Cyber Wave",
-			colors: ["#4facfe", "#00f2fe"],
-			category: "trending",
-			type: "linear",
-			angle: 90,
-		},
+	// Image extraction state
+	let imageExtractFile: File | null = $state(null);
+	let imageExtractPreview = $state("");
+	let imageExtractColorCount = $state(5);
+	let isExtracting = $state(false);
 
-		// Nature
-		{
-			name: "Forest Dawn",
-			colors: ["#134e5e", "#71b280"],
-			category: "nature",
-			type: "linear",
-			angle: 45,
-		},
-		{
-			name: "Desert Sand",
-			colors: ["#ffeaa7", "#fab1a0"],
-			category: "nature",
-			type: "linear",
-			angle: 135,
-		},
-		{
-			name: "Mountain Peak",
-			colors: ["#74b9ff", "#0984e3", "#2d3436"],
-			category: "nature",
-			type: "linear",
-			angle: 0,
-		},
-		{
-			name: "Tropical Storm",
-			colors: ["#00b894", "#00cec9"],
-			category: "nature",
-			type: "radial",
-		},
+	// Gradient creation state
+	let newGradientAngle = $state(45);
 
-		// Vibrant
-		{
-			name: "Electric Lime",
-			colors: ["#00f260", "#0575e6"],
-			category: "vibrant",
-			type: "linear",
-			angle: 45,
-		},
-		{
-			name: "Pink Burst",
-			colors: ["#f093fb", "#f5576c"],
-			category: "vibrant",
-			type: "radial",
-		},
-		{
-			name: "Neon Dreams",
-			colors: ["#ff0844", "#00dbde"],
-			category: "vibrant",
-			type: "linear",
-			angle: 90,
-		},
-		{
-			name: "Rainbow Explosion",
-			colors: ["#ff006e", "#fb5607", "#ffbe0b", "#8338ec"],
-			category: "vibrant",
-			type: "conic",
-		},
-
-		// Dark
-		{
-			name: "Midnight",
-			colors: ["#232526", "#414345"],
-			category: "dark",
-			type: "linear",
-			angle: 45,
-		},
-		{
-			name: "Deep Space",
-			colors: ["#000428", "#004e92"],
-			category: "dark",
-			type: "radial",
-		},
-		{
-			name: "Shadow Realm",
-			colors: ["#1a1a2e", "#16213e", "#0f3460"],
-			category: "dark",
-			type: "linear",
-			angle: 135,
-		},
-
-		// Pastel
-		{
-			name: "Cotton Candy",
-			colors: ["#ffecd2", "#fcb69f"],
-			category: "pastel",
-			type: "linear",
-			angle: 45,
-		},
-		{
-			name: "Dreamy Cloud",
-			colors: ["#a8edea", "#fed6e3"],
-			category: "pastel",
-			type: "radial",
-		},
-		{
-			name: "Soft Sunrise",
-			colors: ["#fff1eb", "#ace0f9"],
-			category: "pastel",
-			type: "linear",
-			angle: 90,
-		},
-	];
-
-	const categories = [
-		{ id: "all", name: "All", icon: "material-symbols:grid-view" },
-		{
-			id: "trending",
-			name: "Trending",
-			icon: "material-symbols:trending-up",
-		},
-		{ id: "nature", name: "Nature", icon: "material-symbols:eco" },
-		{
-			id: "vibrant",
-			name: "Vibrant",
-			icon: "material-symbols:electric-bolt",
-		},
-		{ id: "dark", name: "Dark", icon: "material-symbols:dark-mode" },
-		{ id: "pastel", name: "Pastel", icon: "material-symbols:cloud" },
-	];
-
-	// Computed values
+	// Filtered presets
 	let filteredPresets = $derived(
-		gradientPresets.filter((preset) => {
+		GRADIENT_PRESETS.filter((preset) => {
 			const matchesSearch = preset.name.toLowerCase().includes(searchTerm.toLowerCase());
-			const matchesCategory = selectedCategory === "all" || preset.category === selectedCategory;
+			const matchesCategory =
+				selectedPresetCategory === "all" || preset.category === selectedPresetCategory;
 			return matchesSearch && matchesCategory;
 		})
 	);
-
-	let filteredGradients = $derived(
-		app.gradients.gradients.filter((gradient) =>
-			gradient.name.toLowerCase().includes(searchTerm.toLowerCase())
-		)
-	);
-
-	// Clear any persistent gradients on mount
-	onMount(async () => {
-		// Initialize gradient module - removed auto-clear to prevent data loss
-		console.log("Gradients module initialized");
-	});
-
-	// Enhanced gradient CSS generation
-	function generateCSSGradient(gradient: ValidatedGradient | null): string {
-		if (!gradient || !gradient.stops.length) {
-			return "linear-gradient(45deg in oklch, #3b82f6, #8b5cf6)";
-		}
-
-		const sortedStops = [...gradient.stops].sort((a, b) => a.position - b.position);
-		const colorStops = sortedStops.map((stop) => `${stop.color} ${stop.position}%`).join(", ");
-
-		switch (gradient.type) {
-			case "linear":
-				return `linear-gradient(${gradient.angle || 45}deg in oklch, ${colorStops})`;
-			case "radial":
-				return `radial-gradient(circle at ${gradient.centerX || 50}% ${gradient.centerY || 50}% in oklch, ${colorStops})`;
-			case "conic":
-				return `conic-gradient(from ${gradient.angle || 0}deg at ${gradient.centerX || 50}% ${gradient.centerY || 50}% in oklch, ${colorStops})`;
-			default:
-				return `linear-gradient(45deg in oklch, ${colorStops})`;
-		}
-	}
 
 	// Create new gradient
 	function createGradient() {
@@ -245,13 +79,12 @@
 			name: newGradientName.trim(),
 			type: gradientType,
 			stops: defaultStops,
-			angle: gradientType === "linear" ? gradientAngle : 0,
-			centerX: gradientType === "radial" ? gradientCenterX : 50,
-			centerY: gradientType === "radial" ? gradientCenterY : 50,
+			angle: gradientType === "linear" ? newGradientAngle : 0,
+			centerX: 50,
+			centerY: 50,
 			createdAt: new Date(),
 		};
 
-		// Validate gradient data before adding
 		const validation = validateGradient(gradientData);
 		if (!validation.valid) {
 			toast.error(`Invalid gradient: ${validation.error}`);
@@ -270,7 +103,7 @@
 	}
 
 	// Apply preset gradient
-	function applyPreset(preset: any) {
+	function applyPreset(preset: GradientPreset) {
 		const stops: ValidatedGradientStop[] = preset.colors.map((color: string, index: number) => ({
 			color,
 			position:
@@ -309,7 +142,6 @@
 			return;
 		}
 
-		// Sort colors using perceptual color ordering for better gradient flow
 		let colors = sortPalette(palette.colors);
 
 		if (interpolateGradient && colors.length < 5) {
@@ -338,302 +170,168 @@
 		}
 	}
 
-	// Color stop management
-	function addColorStop(
-		gradient: ValidatedGradient,
-		color: string = colorPickerValue,
-		position?: number
-	) {
-		// Validate color before adding
-		const colorValidation = validateColor(color);
-		if (!colorValidation.valid) {
-			toast.error(`Invalid color: ${colorValidation.error}`);
-			return;
-		}
+	// Smart generator functions
+	function generateSmartGradient() {
+		const colors = generateMoodGradient(
+			smartGeneratorMood,
+			smartGeneratorSeedColor,
+			smartGeneratorColorCount
+		);
 
-		if (position === undefined) {
-			// Find best position between existing stops
-			const positions = gradient.stops.map((s) => s.position).sort((a, b) => a - b);
-			position = 50; // Default to middle
-			if (positions.length >= 2) {
-				for (let i = 0; i < positions.length - 1; i++) {
-					const p1 = positions[i];
-					const p2 = positions[i + 1];
-					if (p1 !== undefined && p2 !== undefined) {
-						const gap = p2 - p1;
-						if (gap > 20) {
-							position = p1 + gap / 2;
-							break;
-						}
-					}
-				}
-			}
-		}
-
-		// Validate position
-		if (position < 0 || position > 100) {
-			toast.error("Position must be between 0 and 100");
-			return;
-		}
-
-		const newStop: ValidatedGradientStop = { color, position };
-		gradient.stops.push(newStop);
-		gradient.stops.sort((a, b) => a.position - b.position);
-		toast.success("Color stop added!");
-	}
-
-	function removeColorStop(gradient: ValidatedGradient, index: number) {
-		if (gradient.stops.length <= 2) {
-			toast.warning("Gradient must have at least 2 color stops");
-			return;
-		}
-		gradient.stops.splice(index, 1);
-		toast.info("Color stop removed");
-	}
-
-	function updateColorStop(
-		gradient: ValidatedGradient,
-		index: number,
-		updates: Partial<ValidatedGradientStop>
-	) {
-		if (gradient.stops[index]) {
-			Object.assign(gradient.stops[index], updates);
-			if (updates.position !== undefined) {
-				gradient.stops.sort((a, b) => a.position - b.position);
-			}
-		}
-	}
-
-	// Advanced gradient operations
-	function reverseGradient(gradient: ValidatedGradient) {
-		gradient.stops = gradient.stops
-			.map((stop) => ({
-				...stop,
-				position: 100 - stop.position,
-			}))
-			.reverse();
-		toast.success("Gradient reversed!");
-	}
-
-	function randomizeGradient(gradient: ValidatedGradient) {
-		const colors = chroma
-			.scale(["red", "yellow", "green", "blue", "purple"])
-			.mode("lch")
-			.colors(gradient.stops.length);
-		gradient.stops.forEach((stop, index) => {
-			if (colors[index]) {
-				stop.color = colors[index];
-			}
-		});
-		toast.success("Gradient randomized!");
-	}
-
-	function smoothenGradient(gradient: ValidatedGradient) {
-		if (gradient.stops.length < 3) return;
-
-		const colors = gradient.stops.map((stop) => stop.color);
-		const smoothColors = chroma.scale(colors).mode("lch").colors(gradient.stops.length);
-
-		gradient.stops.forEach((stop, index) => {
-			if (smoothColors[index]) {
-				stop.color = smoothColors[index];
-			}
-		});
-		toast.success("Gradient smoothened!");
-	}
-
-	function smartSortStops(gradient: ValidatedGradient) {
-		const colors = gradient.stops.map((s) => s.color);
-		const sortedColors = sortPalette(colors);
-
-		gradient.stops = sortedColors.map((color, index) => ({
+		const stops: ValidatedGradientStop[] = colors.map((color, index) => ({
 			color,
-			position: (index / (sortedColors.length - 1)) * 100,
+			position: (index / (colors.length - 1)) * 100,
 		}));
-		toast.success("Smart sorted gradient stops!");
-	}
 
-	// Export functions
-	async function exportAsSVG(gradient: ValidatedGradient) {
-		const gradientId = `gradient-${Date.now()}`;
-		let gradientDef = "";
-
-		switch (gradient.type) {
-			case "linear": {
-				const angle = gradient.angle || 45;
-				const x1 = 50 - 50 * Math.cos((angle * Math.PI) / 180);
-				const y1 = 50 - 50 * Math.sin((angle * Math.PI) / 180);
-				const x2 = 50 + 50 * Math.cos((angle * Math.PI) / 180);
-				const y2 = 50 + 50 * Math.sin((angle * Math.PI) / 180);
-				gradientDef = `<linearGradient id="${gradientId}" x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%">
-                    ${gradient.stops.map((stop) => `<stop offset="${stop.position}%" stop-color="${stop.color}"/>`).join("\n")}
-                </linearGradient>`;
-				break;
-			}
-			case "radial":
-				gradientDef = `<radialGradient id="${gradientId}" cx="${gradient.centerX || 50}%" cy="${gradient.centerY || 50}%" r="50%">
-                    ${gradient.stops.map((stop) => `<stop offset="${stop.position}%" stop-color="${stop.color}"/>`).join("\n")}
-                </radialGradient>`;
-				break;
-			default:
-				gradientDef = `<linearGradient id="${gradientId}">
-                    ${gradient.stops.map((stop) => `<stop offset="${stop.position}%" stop-color="${stop.color}"/>`).join("\n")}
-                </linearGradient>`;
+		const moodLabel = smartGeneratorMood.charAt(0).toUpperCase() + smartGeneratorMood.slice(1);
+		let gradientName = `${moodLabel} Gradient`;
+		let counter = 1;
+		while (app.gradients.gradients.some((g) => g.name === gradientName)) {
+			gradientName = `${moodLabel} Gradient ${counter++}`;
 		}
 
-		const svg = `<svg width="${previewSize.width}" height="${previewSize.height}" xmlns="http://www.w3.org/2000/svg">
-            <defs>${gradientDef}</defs>
-            <rect width="100%" height="100%" fill="url(#${gradientId})"/>
-        </svg>`;
+		app.gradients.add({
+			name: gradientName,
+			type: "linear",
+			stops,
+			angle: 45,
+			centerX: 50,
+			centerY: 50,
+		});
 
-		// Use file-saver for reliable downloads
-		const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-		saveAs(blob, `${gradient.name}.svg`);
-		toast.success("SVG exported!");
+		showSmartGeneratorDialog = false;
+		toast.success(`Created "${gradientName}"!`);
 	}
 
-	// Export functions
-	async function exportGradient(
-		gradient: ValidatedGradient,
-		format: "css" | "png" | "svg" | "json"
-	) {
-		// Validate gradient before export
-		const validation = validateGradient(gradient);
-		if (!validation.valid) {
-			toast.error(`Cannot export invalid gradient: ${validation.error}`);
+	function generateRandomGradientHandler() {
+		const colors = generateRandomGradient(smartGeneratorColorCount);
+
+		const stops: ValidatedGradientStop[] = colors.map((color, index) => ({
+			color,
+			position: (index / (colors.length - 1)) * 100,
+		}));
+
+		let gradientName = "Random Gradient";
+		let counter = 1;
+		while (app.gradients.gradients.some((g) => g.name === gradientName)) {
+			gradientName = `Random Gradient ${counter++}`;
+		}
+
+		app.gradients.add({
+			name: gradientName,
+			type: "linear",
+			stops,
+			angle: Math.floor(Math.random() * 360),
+			centerX: 50,
+			centerY: 50,
+		});
+
+		showSmartGeneratorDialog = false;
+		toast.success(`Created "${gradientName}"!`);
+	}
+
+	// Image extraction functions
+	function handleImageSelect(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		if (!file.type.startsWith("image/")) {
+			toast.error("Please select an image file");
 			return;
 		}
+
+		imageExtractFile = file;
+		imageExtractPreview = URL.createObjectURL(file);
+	}
+
+	async function extractColorsFromImage() {
+		if (!imageExtractFile || !imageExtractPreview) {
+			toast.error("Please select an image first");
+			return;
+		}
+
+		isExtracting = true;
 
 		try {
-			switch (format) {
-				case "css": {
-					const css = `background: ${generateCSSGradient(gradient)};`;
-					await navigator.clipboard.writeText(css);
-					toast.success("CSS copied to clipboard!");
-					break;
-				}
-				case "json": {
-					const json = JSON.stringify(gradient, null, 2);
-					const jsonBlob = new Blob([json], { type: "application/json;charset=utf-8" });
-					saveAs(jsonBlob, `${gradient.name}.json`);
-					break;
-				}
-				case "png":
-					await exportAsPNG(gradient);
-					break;
-				case "svg":
-					await exportAsSVG(gradient);
-					break;
-			}
-		} catch (error) {
-			console.error("Export error:", error);
-			toast.error(`Failed to export as ${format.toUpperCase()}`);
-		}
-	}
-
-	async function exportAsPNG(gradient: ValidatedGradient) {
-		const canvas = document.createElement("canvas");
-		const ctx = canvas.getContext("2d");
-		if (!ctx) return;
-
-		canvas.width = previewSize.width;
-		canvas.height = previewSize.height;
-
-		// Create gradient based on type
-		let grad: CanvasGradient;
-		switch (gradient.type) {
-			case "linear": {
-				const angle = ((gradient.angle || 45) * Math.PI) / 180;
-				const x1 = canvas.width / 2 - (Math.cos(angle) * canvas.width) / 2;
-				const y1 = canvas.height / 2 - (Math.sin(angle) * canvas.height) / 2;
-				const x2 = canvas.width / 2 + (Math.cos(angle) * canvas.width) / 2;
-				const y2 = canvas.height / 2 + (Math.sin(angle) * canvas.height) / 2;
-				grad = ctx.createLinearGradient(x1, y1, x2, y2);
-				break;
-			}
-			case "radial": {
-				const centerX = ((gradient.centerX || 50) / 100) * canvas.width;
-				const centerY = ((gradient.centerY || 50) / 100) * canvas.height;
-				grad = ctx.createRadialGradient(
-					centerX,
-					centerY,
-					0,
-					centerX,
-					centerY,
-					Math.max(canvas.width, canvas.height) / 2
-				);
-				break;
-			}
-			default:
-				grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
-		}
-
-		// Add color stops
-		gradient.stops.forEach((stop) => {
-			grad.addColorStop(stop.position / 100, stop.color);
-		});
-
-		ctx.fillStyle = grad;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-		// Download
-		canvas.toBlob((blob) => {
-			if (blob) {
-				const url = URL.createObjectURL(blob);
-				const a = document.createElement("a");
-				a.href = url;
-				a.download = `${gradient.name}.png`;
-				a.click();
-				URL.revokeObjectURL(url);
-				toast.success("PNG exported!");
-			}
-		});
-	}
-
-	// Enhanced drag and drop for color stops
-	function handleStopDndConsider(e: CustomEvent) {
-		if (app.gradients.activeGradient) {
-			app.gradients.activeGradient.stops = e.detail.items;
-		}
-	}
-
-	function handleStopDndFinalize(e: CustomEvent) {
-		const activeGradient = app.gradients.activeGradient;
-		if (activeGradient) {
-			activeGradient.stops = e.detail.items;
-			// Update positions based on new order
-			activeGradient.stops.forEach((stop, index) => {
-				stop.position = (index / (activeGradient.stops.length - 1)) * 100;
+			const colors = await extractPalette(imageExtractPreview, {
+				colorCount: imageExtractColorCount,
+				quality: "balanced",
 			});
-			toast.success("Color stops reordered!");
+
+			// Sort colors for better gradient flow
+			const sortedColors = sortPalette(colors);
+
+			const stops: ValidatedGradientStop[] = sortedColors.map((color, index) => ({
+				color,
+				position: (index / (sortedColors.length - 1)) * 100,
+			}));
+
+			const baseName = imageExtractFile.name.replace(/\.[^/.]+$/, "");
+			let gradientName = `${baseName} Gradient`;
+			let counter = 1;
+			while (app.gradients.gradients.some((g) => g.name === gradientName)) {
+				gradientName = `${baseName} Gradient ${counter++}`;
+			}
+
+			app.gradients.add({
+				name: gradientName,
+				type: "linear",
+				stops,
+				angle: 45,
+				centerX: 50,
+				centerY: 50,
+			});
+
+			// Cleanup
+			URL.revokeObjectURL(imageExtractPreview);
+			imageExtractFile = null;
+			imageExtractPreview = "";
+			showImageExtractDialog = false;
+
+			toast.success(`Created "${gradientName}" from image!`);
+		} catch (error) {
+			console.error("Error extracting colors:", error);
+			toast.error("Failed to extract colors from image");
+		} finally {
+			isExtracting = false;
 		}
 	}
-	import { fly, scale } from "svelte/transition";
-	import { elasticOut } from "svelte/easing";
+
+	function closeImageExtractDialog() {
+		if (imageExtractPreview) {
+			URL.revokeObjectURL(imageExtractPreview);
+		}
+		imageExtractFile = null;
+		imageExtractPreview = "";
+		showImageExtractDialog = false;
+	}
 </script>
 
 <div class="h-full flex flex-col gap-4">
-	<!-- Enhanced Header -->
+	<!-- Module Header -->
 	<GlassPanel
-		class="flex flex-col md:flex-row md:items-center justify-between p-6 gap-4 shrink-0 overflow-visible z-20"
+		class="flex flex-col md:flex-row md:items-center justify-between p-4 md:p-6 gap-4 shrink-0 overflow-visible z-20"
 		intensity="low"
 	>
 		<div>
-			<h2 class="text-2xl font-bold text-white flex items-center gap-2 tracking-wide">
+			<h2 class="text-xl md:text-2xl font-bold text-white flex items-center gap-2 tracking-wide">
 				<Icon icon="material-symbols:gradient" class="w-6 h-6 text-phoenix-primary" />
-				Gradient Generator
+				Gradient Studio
 			</h2>
-			<p class="text-sm text-text-muted mt-1">Create beautiful gradients with advanced controls</p>
+			<p class="text-sm text-text-muted mt-1">
+				Create beautiful gradients with advanced controls and mesh support
+			</p>
 		</div>
 
-		<div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-4 md:mt-0">
+		<div class="flex flex-wrap items-center gap-2 md:gap-3">
 			<!-- Search -->
 			<div class="relative">
 				<input
 					bind:value={searchTerm}
 					type="text"
 					placeholder="Search gradients..."
-					class="input input-sm bg-black/20 border-white/10 text-white placeholder:text-text-muted/50 w-48 pl-8 focus:border-phoenix-primary focus:outline-none transition-colors"
+					class="input input-sm bg-black/20 border-white/10 text-white placeholder:text-text-muted/50 w-40 md:w-48 pl-8 focus:border-phoenix-primary focus:outline-none transition-colors"
 				/>
 				<Icon
 					icon="material-symbols:search"
@@ -642,528 +340,117 @@
 			</div>
 
 			<!-- Action Buttons -->
-			<div class="flex gap-2">
-				<button
-					class="btn btn-sm border-none bg-linear-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300 gap-2"
-					onclick={() => (showCreateDialog = true)}
-					type="button"
-				>
-					<Icon icon="material-symbols:add" class="w-4 h-4" />
-					New Gradient
-				</button>
+			<button
+				class="btn btn-sm border-none bg-linear-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300 gap-2"
+				onclick={() => (showCreateDialog = true)}
+				type="button"
+			>
+				<Icon icon="material-symbols:add" class="w-4 h-4" />
+				<span class="hidden sm:inline">New</span>
+			</button>
 
-				<button
-					class="btn btn-sm btn-outline border-white/20 text-white hover:bg-white/10 hover:border-white/40 gap-2"
-					onclick={() => (showPresetsDialog = true)}
-					type="button"
-				>
-					<Icon icon="material-symbols:auto-awesome" class="w-4 h-4" />
-					Presets
-				</button>
+			<button
+				class="btn btn-sm btn-outline border-white/20 text-white hover:bg-white/10 hover:border-white/40 gap-2"
+				onclick={() => (showPresetsDialog = true)}
+				type="button"
+			>
+				<Icon icon="material-symbols:auto-awesome" class="w-4 h-4" />
+				<span class="hidden sm:inline">Presets</span>
+			</button>
 
-				{#if app.palettes.palettes.length > 0}
-					<div class="dropdown dropdown-end">
-						<button
-							class="btn btn-sm btn-outline border-white/20 text-white hover:bg-white/10 hover:border-white/40 gap-2"
-							type="button"
-							tabindex="0"
-						>
-							<Icon icon="material-symbols:palette" class="w-4 h-4" />
-							From Palette
-						</button>
-						<ul
-							class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-100 w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
-						>
-							<div class="p-2 border-b border-white/10 mb-2">
-								<label class="label cursor-pointer justify-start gap-2 p-0">
-									<input
-										type="checkbox"
-										class="checkbox checkbox-xs checkbox-primary"
-										bind:checked={interpolateGradient}
-									/>
-									<span class="label-text text-xs text-white">Smooth Gradient</span>
-								</label>
-							</div>
-							{#each app.palettes.palettes as palette (palette.id)}
-								<li>
-									<button
-										onclick={() => generateFromPalette(palette.id)}
-										type="button"
-										class="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg text-text-muted hover:text-white transition-colors"
-										disabled={palette.colors.length < 2}
-										title="Generate gradient with perceptually ordered colors"
-									>
-										<div class="flex gap-1">
-											{#each palette.colors.slice(0, 4) as color}
-												<div
-													class="w-3 h-3 rounded-full border border-white/10"
-													style:background-color={color}
-												></div>
-											{/each}
-										</div>
-										<div class="flex-1 text-left min-w-0">
-											<p class="text-sm font-medium truncate">
-												{palette.name}
-											</p>
-											<p class="text-[10px] text-text-muted/60 uppercase tracking-wider">
-												{palette.colors.length} colors
-											</p>
-										</div>
-									</button>
-								</li>
-							{/each}
-						</ul>
-					</div>
-				{/if}
-			</div>
+			<button
+				class="btn btn-sm btn-outline border-white/20 text-white hover:bg-white/10 hover:border-white/40 gap-2"
+				onclick={() => (showSmartGeneratorDialog = true)}
+				type="button"
+			>
+				<Icon icon="material-symbols:magic-button" class="w-4 h-4" />
+				<span class="hidden sm:inline">Generate</span>
+			</button>
+
+			<button
+				class="btn btn-sm btn-outline border-white/20 text-white hover:bg-white/10 hover:border-white/40 gap-2"
+				onclick={() => (showImageExtractDialog = true)}
+				type="button"
+			>
+				<Icon icon="material-symbols:image" class="w-4 h-4" />
+				<span class="hidden sm:inline">From Image</span>
+			</button>
+
+			{#if app.palettes.palettes.length > 0}
+				<div class="dropdown dropdown-end">
+					<button
+						class="btn btn-sm btn-outline border-white/20 text-white hover:bg-white/10 hover:border-white/40 gap-2"
+						type="button"
+						tabindex="0"
+					>
+						<Icon icon="material-symbols:palette" class="w-4 h-4" />
+						<span class="hidden sm:inline">From Palette</span>
+					</button>
+					<ul
+						class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-100 w-64 p-2 shadow-xl max-h-64 overflow-y-auto backdrop-blur-xl"
+					>
+						<div class="p-2 border-b border-white/10 mb-2">
+							<label class="label cursor-pointer justify-start gap-2 p-0">
+								<input
+									type="checkbox"
+									class="checkbox checkbox-xs checkbox-primary"
+									bind:checked={interpolateGradient}
+								/>
+								<span class="label-text text-xs text-white">Smooth Interpolation</span>
+							</label>
+						</div>
+						{#each app.palettes.palettes as palette (palette.id)}
+							<li>
+								<button
+									onclick={() => generateFromPalette(palette.id)}
+									type="button"
+									class="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg text-text-muted hover:text-white transition-colors"
+									disabled={palette.colors.length < 2}
+								>
+									<div class="flex gap-1">
+										{#each palette.colors.slice(0, 4) as color}
+											<div
+												class="w-3 h-3 rounded-full border border-white/10"
+												style:background-color={color}
+											></div>
+										{/each}
+									</div>
+									<div class="flex-1 text-left min-w-0">
+										<p class="text-sm font-medium truncate">{palette.name}</p>
+										<p class="text-[10px] text-text-muted/60">{palette.colors.length} colors</p>
+									</div>
+								</button>
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
 		</div>
 	</GlassPanel>
 
 	<!-- Main Content -->
 	<div class="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden">
 		<!-- Gradients Sidebar -->
-		<GlassPanel class="w-full lg:w-80 overflow-hidden" intensity="low">
-			<div class="flex flex-col h-full">
-				<div class="p-4 border-b border-white/5 bg-black/20">
-					<h3 class="font-semibold text-white mb-0 flex items-center justify-between">
-						Gradients ({filteredGradients.length})
-						{#if app.gradients.gradients.length > 0}
-							<button
-								class="btn btn-xs btn-ghost text-error hover:bg-error/10 hover:scale-110 transition-transform duration-300"
-								onclick={async () => {
-									if (confirm("Are you sure you want to delete all gradients?")) {
-										app.gradients.gradients.forEach((g) => app.gradients.remove(g.id));
-										toast.success("All gradients cleared!");
-									}
-								}}
-								title="Clear all gradients"
-							>
-								<Icon icon="material-symbols:clear-all" class="w-3 h-3" />
-							</button>
-						{/if}
-					</h3>
-				</div>
-
-				<div class="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-					{#each filteredGradients as gradient, i (gradient.id)}
-						<button
-							in:fly={{ y: 20, duration: 400, delay: i * 50, easing: elasticOut }}
-							class={cn(
-								"w-full text-left p-3 rounded-xl cursor-pointer transition-all duration-200 border group relative overflow-hidden",
-								app.gradients.activeGradientId === gradient.id
-									? "bg-phoenix-primary/20 border-phoenix-primary/50 shadow-[0_0_15px_rgba(255,0,127,0.2)]"
-									: "bg-transparent border-transparent hover:bg-white/5 hover:border-white/10"
-							)}
-							onclick={() => app.gradients.setActive(gradient.id)}
-							tabindex="0"
-						>
-							<div class="flex items-center justify-between mb-2 relative z-10">
-								<h4
-									class={cn(
-										"font-medium text-sm truncate",
-										app.gradients.activeGradientId === gradient.id
-											? "text-white"
-											: "text-text-muted group-hover:text-white"
-									)}
-								>
-									{gradient.name}
-								</h4>
-								<div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-									<div
-										role="button"
-										onkeydown={(e) => {
-											if (e.key === "Enter") {
-												exportGradient(gradient, "css");
-											}
-										}}
-										tabindex="0"
-										class="btn btn-xs btn-ghost text-text-muted hover:text-white hover:scale-110 transition-transform duration-300"
-										onclick={(e) => {
-											e.stopPropagation();
-											exportGradient(gradient, "css");
-										}}
-										title="Copy CSS"
-									>
-										<Icon icon="material-symbols:code" class="w-3 h-3" />
-									</div>
-									<div
-										role="button"
-										onkeydown={(e) => {
-											if (e.key === "Enter") {
-												app.gradients.remove(gradient.id);
-												toast.info(`Deleted "${gradient.name}"`);
-											}
-										}}
-										tabindex="0"
-										class="btn btn-xs btn-ghost text-error hover:bg-error/10 hover:scale-110 transition-transform duration-300"
-										onclick={(e) => {
-											e.stopPropagation();
-											app.gradients.remove(gradient.id);
-											toast.info(`Deleted "${gradient.name}"`);
-										}}
-										title="Delete gradient"
-									>
-										<Icon icon="material-symbols:delete-outline" class="w-3 h-3" />
-									</div>
-								</div>
-							</div>
-							<div
-								class="h-12 rounded-lg border border-white/10 shadow-inner"
-								style:background={generateCSSGradient(gradient)}
-							></div>
-							<p
-								class="text-[10px] text-text-muted/60 mt-1 capitalize tracking-wider relative z-10"
-							>
-								{gradient.type} • {gradient.stops.length} stops
-							</p>
-						</button>
-					{/each}
-
-					{#if filteredGradients.length === 0}
-						<div class="text-center py-8 text-text-muted/50">
-							<Icon icon="material-symbols:gradient" class="w-12 h-12 mx-auto mb-2 opacity-30" />
-							<p>No gradients found</p>
-						</div>
-					{/if}
-				</div>
-			</div>
-		</GlassPanel>
+		<GradientList {searchTerm} onCreateNew={() => (showCreateDialog = true)} />
 
 		<!-- Gradient Editor -->
-		<GlassPanel class="flex-1 overflow-hidden relative" intensity="medium">
-			<div class="flex flex-col h-full">
-				{#if app.gradients.activeGradient}
-					<div class="p-6 flex-1 overflow-y-auto custom-scrollbar">
-						<!-- Editor Header -->
-						<div class="flex items-center justify-between mb-6">
-							<div>
-								<h3 class="text-xl font-bold text-white tracking-wide">
-									{app.gradients.activeGradient.name}
-								</h3>
-								<p class="text-sm text-text-muted">
-									{app.gradients.activeGradient.type} gradient • {app.gradients.activeGradient.stops
-										.length} stops
-								</p>
-							</div>
-
-							<div class="flex gap-2">
-								<!-- Gradient Type Selector -->
-								<div class="join border border-white/10 rounded-lg">
-									{#each ["linear", "radial", "conic"] as type}
-										<button
-											class={cn(
-												"btn btn-sm join-item border-none",
-												app.gradients.activeGradient.type === type
-													? "bg-phoenix-primary text-white"
-													: "bg-transparent text-text-muted hover:bg-white/5 hover:text-white"
-											)}
-											onclick={() => {
-												app.gradients.update(app.gradients.activeGradient!.id, {
-													type: type as "linear" | "radial" | "conic",
-												});
-												toast.success(`Changed to ${type} gradient`);
-											}}
-										>
-											{type}
-										</button>
-									{/each}
-								</div>
-
-								<!-- Export Button -->
-								<div class="dropdown dropdown-end">
-									<button
-										class="btn btn-sm btn-outline border-white/20 text-white hover:bg-white/10 hover:border-white/40 gap-2"
-										type="button"
-										tabindex="0"
-									>
-										<Icon icon="material-symbols:download" class="w-4 h-4" />
-										Export
-									</button>
-									<ul
-										class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-1 w-48 p-2 shadow-xl backdrop-blur-xl"
-									>
-										<li>
-											<button
-												onclick={() => exportGradient(app.gradients.activeGradient!, "css")}
-												class="text-text-muted hover:text-white hover:bg-white/5">Copy CSS</button
-											>
-										</li>
-										<li>
-											<button
-												onclick={() => exportGradient(app.gradients.activeGradient!, "json")}
-												class="text-text-muted hover:text-white hover:bg-white/5">JSON File</button
-											>
-										</li>
-										<li>
-											<button
-												onclick={() => exportGradient(app.gradients.activeGradient!, "png")}
-												class="text-text-muted hover:text-white hover:bg-white/5">PNG Image</button
-											>
-										</li>
-										<li>
-											<button
-												onclick={() => exportGradient(app.gradients.activeGradient!, "svg")}
-												class="text-text-muted hover:text-white hover:bg-white/5">SVG File</button
-											>
-										</li>
-									</ul>
-								</div>
-							</div>
-						</div>
-
-						<!-- Large Preview -->
-						<div
-							class="bg-void-deep rounded-xl border border-white/10 shadow-inner p-4 mb-6 flex items-center justify-center relative overflow-hidden"
-						>
-							<!-- Checkerboard pattern for transparency -->
-							<div
-								class="absolute inset-0 opacity-20"
-								style="background-image: radial-gradient(#444 1px, transparent 1px); background-size: 10px 10px;"
-							></div>
-
-							<div
-								class="rounded-lg transition-all duration-300 shadow-2xl relative z-10"
-								style:background={generateCSSGradient(app.gradients.activeGradient)}
-								style:width="{previewSize.width}px"
-								style:height="{previewSize.height}px"
-							></div>
-						</div>
-
-						<!-- Gradient Controls -->
-						<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-							<!-- Type-specific Controls -->
-							<div class="space-y-4">
-								<h4 class="font-semibold text-white">Gradient Settings</h4>
-
-								{#if app.gradients.activeGradient.type === "linear"}
-									<div>
-										<label class="label" for="angle-input">
-											<span class="label-text text-text-muted"
-												>Angle: {app.gradients.activeGradient.angle || 45}°</span
-											>
-										</label>
-										<input
-											type="range"
-											min="0"
-											max="360"
-											value={app.gradients.activeGradient.angle || 45}
-											class="range range-xs range-primary"
-											onchange={(e) => {
-												const angle = parseInt((e.target as HTMLInputElement).value);
-												app.gradients.update(app.gradients.activeGradient!.id, { angle });
-											}}
-										/>
-									</div>
-								{/if}
-
-								{#if app.gradients.activeGradient.type === "radial" || app.gradients.activeGradient.type === "conic"}
-									<div class="grid grid-cols-2 gap-4">
-										<div>
-											<label class="label" for="center-x-input">
-												<span class="label-text text-text-muted"
-													>Center X: {app.gradients.activeGradient.centerX || 50}%</span
-												>
-											</label>
-											<input
-												type="range"
-												min="0"
-												max="100"
-												value={app.gradients.activeGradient.centerX || 50}
-												class="range range-xs range-primary"
-												onchange={(e) => {
-													const centerX = parseInt((e.target as HTMLInputElement).value);
-													app.gradients.update(app.gradients.activeGradient!.id, { centerX });
-												}}
-											/>
-										</div>
-										<div>
-											<label class="label" for="center-y-input">
-												<span class="label-text text-text-muted"
-													>Center Y: {app.gradients.activeGradient.centerY || 50}%</span
-												>
-											</label>
-											<input
-												type="range"
-												min="0"
-												max="100"
-												value={app.gradients.activeGradient.centerY || 50}
-												class="range range-xs range-primary"
-												onchange={(e) => {
-													const centerY = parseInt((e.target as HTMLInputElement).value);
-													app.gradients.update(app.gradients.activeGradient!.id, { centerY });
-												}}
-											/>
-										</div>
-									</div>
-								{/if}
-							</div>
-
-							<!-- Preview Size Controls -->
-							<div class="space-y-4">
-								<h4 class="font-semibold text-white">Preview Size</h4>
-								<div class="grid grid-cols-2 gap-4">
-									<div>
-										<label class="label" for="width-input">
-											<span class="label-text text-text-muted">Width: {previewSize.width}px</span>
-										</label>
-										<input
-											type="range"
-											min="200"
-											max="600"
-											bind:value={previewSize.width}
-											class="range range-xs range-secondary"
-										/>
-									</div>
-									<div>
-										<label class="label" for="height-input">
-											<span class="label-text text-text-muted">Height: {previewSize.height}px</span>
-										</label>
-										<input
-											type="range"
-											min="100"
-											max="400"
-											bind:value={previewSize.height}
-											class="range range-xs range-secondary"
-										/>
-									</div>
-								</div>
-							</div>
-						</div>
-
-						<!-- Color Stops Editor -->
-						<div class="space-y-4">
-							<div class="flex items-center justify-between">
-								<h4 class="font-semibold text-white">Color Stops</h4>
-								<div class="flex gap-2">
-									<button
-										class="btn btn-sm btn-outline border-white/20 text-text-muted hover:text-white hover:bg-white/10 gap-2"
-										onclick={() => reverseGradient(app.gradients.activeGradient!)}
-									>
-										<Icon icon="material-symbols:swap-horiz" class="w-4 h-4" />
-										Reverse
-									</button>
-									<button
-										class="btn btn-sm btn-outline border-white/20 text-text-muted hover:text-white hover:bg-white/10 gap-2"
-										onclick={() => smoothenGradient(app.gradients.activeGradient!)}
-									>
-										<Icon icon="material-symbols:auto-fix-high" class="w-4 h-4" />
-										Smooth
-									</button>
-									<button
-										class="btn btn-sm btn-outline border-white/20 text-text-muted hover:text-white hover:bg-white/10 gap-2"
-										onclick={() => smartSortStops(app.gradients.activeGradient!)}
-									>
-										<Icon icon="material-symbols:sort" class="w-4 h-4" />
-										Smart Sort
-									</button>
-									<button
-										class="btn btn-sm bg-phoenix-primary border-none text-white hover:bg-phoenix-primary/80 gap-2"
-										onclick={() => addColorStop(app.gradients.activeGradient!)}
-									>
-										<Icon icon="material-symbols:add" class="w-4 h-4" />
-										Add Stop
-									</button>
-								</div>
-							</div>
-
-							<!-- Color Stops List -->
-							<div class="space-y-2">
-								{#each app.gradients.activeGradient.stops as stop, index (stop.color + stop.position)}
-									<div
-										class="flex items-center gap-4 p-3 bg-black/20 rounded-lg border border-white/10 hover:border-white/20 transition-colors"
-									>
-										<!-- Color Preview -->
-										<div
-											role="button"
-											tabindex="0"
-											class="w-8 h-8 rounded border border-white/20 cursor-pointer shadow-sm"
-											style={`background-color: ${stop.color}`}
-											onclick={() => {
-												selectedStopIndex = index;
-												colorPickerValue = stop.color;
-												showColorPicker = true;
-											}}
-											onkeydown={(e) => {
-												if (e.key === "Enter") {
-													selectedStopIndex = index;
-													colorPickerValue = stop.color;
-													showColorPicker = true;
-												}
-											}}
-										></div>
-
-										<!-- Color Input -->
-										<input
-											type="text"
-											value={stop.color}
-											class="input input-sm bg-black/30 border-white/10 text-white w-24 font-mono focus:border-phoenix-primary"
-											onchange={(e) => {
-												const color = (e.target as HTMLInputElement).value;
-												updateColorStop(app.gradients.activeGradient!, index, { color });
-											}}
-										/>
-
-										<!-- Position Slider -->
-										<div class="flex-1">
-											<label for="position-input" class="text-xs text-text-muted"
-												>Position: {stop.position}%</label
-											>
-											<input
-												type="range"
-												min="0"
-												max="100"
-												value={stop.position}
-												class="range range-xs range-primary w-full"
-												onchange={(e) => {
-													const position = parseInt((e.target as HTMLInputElement).value);
-													updateColorStop(app.gradients.activeGradient!, index, { position });
-												}}
-											/>
-										</div>
-
-										<!-- Remove Button -->
-										<button
-											class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10"
-											onclick={() => removeColorStop(app.gradients.activeGradient!, index)}
-											disabled={app.gradients.activeGradient.stops.length <= 2}
-										>
-											<Icon icon="material-symbols:delete-outline" class="w-4 h-4" />
-										</button>
-									</div>
-								{/each}
-							</div>
-						</div>
-					</div>
-				{:else}
-					<!-- Empty State -->
-					<div class="flex items-center justify-center h-full">
-						<div class="text-center text-text-muted/50">
-							<div
-								class="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 animate-float"
-							>
-								<Icon icon="material-symbols:gradient" class="w-12 h-12 opacity-50" />
-							</div>
-							<h3 class="text-xl font-bold text-white mb-2">No Gradient Selected</h3>
-							<p class="mb-6 max-w-xs mx-auto">Create or select a gradient to start editing</p>
-							<button
-								class="btn btn-primary bg-linear-to-r from-phoenix-primary to-phoenix-violet border-none text-white shadow-lg hover:shadow-phoenix-primary/50 gap-2"
-								onclick={() => (showCreateDialog = true)}
-							>
-								<Icon icon="material-symbols:add" class="w-4 h-4" />
-								Create Gradient
-							</button>
-						</div>
-					</div>
-				{/if}
-			</div>
-		</GlassPanel>
+		<GradientEditor onCreateNew={() => (showCreateDialog = true)} />
 	</div>
 </div>
 
 <!-- Create Gradient Dialog -->
 {#if showCreateDialog}
-	<div class="modal modal-open">
-		<div in:scale={{ duration: 500, start: 0.8, easing: elasticOut }} class="modal-box">
+	<div
+		class="fixed inset-0 modal-backdrop-blur flex items-center justify-center z-50 p-4"
+		onclick={(e) => e.target === e.currentTarget && (showCreateDialog = false)}
+		onkeydown={(e) => e.key === "Escape" && (showCreateDialog = false)}
+		role="dialog"
+		tabindex="-1"
+	>
+		<div
+			in:scale={{ duration: 400, start: 0.9, easing: elasticOut }}
+			class="bg-base-100/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/10 modal-enter"
+		>
 			<h3 class="font-bold text-lg mb-4">Create New Gradient</h3>
 
 			<div class="space-y-4">
@@ -1172,6 +459,7 @@
 						<span class="label-text">Gradient Name</span>
 					</label>
 					<input
+						id="gradient-name-input"
 						bind:value={newGradientName}
 						type="text"
 						placeholder="Enter gradient name..."
@@ -1197,9 +485,25 @@
 						{/each}
 					</div>
 				</div>
+
+				{#if gradientType === "linear"}
+					<div>
+						<label class="label" for="gradient-angle">
+							<span class="label-text">Initial Angle: {newGradientAngle}°</span>
+						</label>
+						<input
+							id="gradient-angle"
+							type="range"
+							min="0"
+							max="360"
+							bind:value={newGradientAngle}
+							class="range range-primary"
+						/>
+					</div>
+				{/if}
 			</div>
 
-			<div class="modal-action">
+			<div class="flex items-center justify-end gap-3 mt-6">
 				<button class="btn btn-ghost" onclick={() => (showCreateDialog = false)}>Cancel</button>
 				<button class="btn btn-primary" onclick={createGradient} disabled={!newGradientName.trim()}>
 					Create Gradient
@@ -1211,18 +515,40 @@
 
 <!-- Presets Dialog -->
 {#if showPresetsDialog}
-	<div class="modal modal-open">
-		<div in:scale={{ duration: 500, start: 0.8, easing: elasticOut }} class="modal-box max-w-4xl">
-			<h3 class="font-bold text-lg mb-4">Gradient Presets</h3>
+	<div
+		class="fixed inset-0 modal-backdrop-blur flex items-center justify-center z-50 p-4"
+		onclick={(e) => e.target === e.currentTarget && (showPresetsDialog = false)}
+		onkeydown={(e) => e.key === "Escape" && (showPresetsDialog = false)}
+		role="dialog"
+		tabindex="-1"
+	>
+		<div
+			in:scale={{ duration: 400, start: 0.9, easing: elasticOut }}
+			class="bg-base-100/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-4xl shadow-2xl border border-white/10 modal-enter max-h-[90vh] overflow-hidden flex flex-col"
+		>
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="font-bold text-lg">Gradient Presets</h3>
+				<button class="btn btn-sm btn-circle btn-ghost" onclick={() => (showPresetsDialog = false)}>
+					<Icon icon="material-symbols:close" class="w-4 h-4" />
+				</button>
+			</div>
 
 			<!-- Categories -->
 			<div class="flex flex-wrap gap-2 mb-4">
-				{#each categories as category}
+				<button
+					class={cn("btn btn-sm", selectedPresetCategory === "all" ? "btn-primary" : "btn-outline")}
+					onclick={() => (selectedPresetCategory = "all")}
+				>
+					<Icon icon="material-symbols:grid-view" class="w-4 h-4" />
+					All
+				</button>
+				{#each PRESET_CATEGORIES as category}
 					<button
-						class="btn btn-sm"
-						class:btn-primary={selectedCategory === category.id}
-						class:btn-outline={selectedCategory !== category.id}
-						onclick={() => (selectedCategory = category.id)}
+						class={cn(
+							"btn btn-sm",
+							selectedPresetCategory === category.id ? "btn-primary" : "btn-outline"
+						)}
+						onclick={() => (selectedPresetCategory = category.id)}
 					>
 						<Icon icon={category.icon} class="w-4 h-4" />
 						{category.name}
@@ -1233,44 +559,218 @@
 			<!-- Presets Grid -->
 			<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
 				{#each filteredPresets as preset}
-					<div
-						role="button"
-						tabindex="0"
-						class="card bg-base-100 border cursor-pointer hover:shadow-md transition-all"
+					<button
+						class="card bg-base-100 border cursor-pointer hover:shadow-md transition-all hover:border-phoenix-primary/50 group"
 						onclick={() => applyPreset(preset)}
-						onkeydown={(e) => {
-							if (e.key === "Enter") {
-								applyPreset(preset);
-							}
-						}}
 					>
 						<div class="card-body p-3">
 							<div
-								class="h-16 rounded border border-base-300 mb-2"
+								class="h-16 rounded border border-base-300 mb-2 group-hover:scale-105 transition-transform"
 								style:background={`linear-gradient(45deg in oklch, ${preset.colors.join(", ")})`}
 							></div>
 							<h4 class="font-medium text-sm">{preset.name}</h4>
-							<p class="text-xs text-base-content/60 capitalize">
-								{preset.type}
-							</p>
+							<p class="text-xs text-base-content/60 capitalize">{preset.type}</p>
 						</div>
-					</div>
+					</button>
 				{/each}
 			</div>
 
-			<div class="modal-action">
+			<div class="flex justify-end mt-4 pt-4 border-t border-white/5">
 				<button class="btn btn-ghost" onclick={() => (showPresetsDialog = false)}>Close</button>
 			</div>
 		</div>
 	</div>
 {/if}
 
-<style>
-	.range-primary::-webkit-slider-thumb {
-		background: hsl(var(--p));
-	}
+<!-- Smart Generator Dialog -->
+{#if showSmartGeneratorDialog}
+	<div
+		class="fixed inset-0 modal-backdrop-blur flex items-center justify-center z-50 p-4"
+		onclick={(e) => e.target === e.currentTarget && (showSmartGeneratorDialog = false)}
+		onkeydown={(e) => e.key === "Escape" && (showSmartGeneratorDialog = false)}
+		role="dialog"
+		tabindex="-1"
+	>
+		<div
+			in:scale={{ duration: 400, start: 0.9, easing: elasticOut }}
+			class="bg-base-100/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/10 modal-enter"
+		>
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="font-bold text-lg flex items-center gap-2">
+					<Icon icon="material-symbols:magic-button" class="w-5 h-5 text-phoenix-primary" />
+					Smart Generator
+				</h3>
+				<button
+					class="btn btn-sm btn-circle btn-ghost"
+					onclick={() => (showSmartGeneratorDialog = false)}
+				>
+					<Icon icon="material-symbols:close" class="w-4 h-4" />
+				</button>
+			</div>
 
-	.range-secondary::-webkit-slider-thumb {
-		background: hsl(var(--s));
-	}
-</style>
+			<div class="space-y-4">
+				<!-- Seed Color -->
+				<div>
+					<label class="label" for="seed-color">
+						<span class="label-text">Seed Color</span>
+					</label>
+					<div class="flex gap-2">
+						<input
+							type="color"
+							bind:value={smartGeneratorSeedColor}
+							class="w-12 h-10 rounded cursor-pointer"
+						/>
+						<input
+							type="text"
+							bind:value={smartGeneratorSeedColor}
+							class="input input-bordered flex-1 font-mono"
+						/>
+					</div>
+				</div>
+
+				<!-- Color Count -->
+				<div>
+					<label class="label" for="color-count">
+						<span class="label-text">Number of Colors: {smartGeneratorColorCount}</span>
+					</label>
+					<input
+						type="range"
+						min="2"
+						max="8"
+						bind:value={smartGeneratorColorCount}
+						class="range range-primary"
+					/>
+				</div>
+
+				<!-- Mood Selection -->
+				<div>
+					<label class="label" for="mood-select">
+						<span class="label-text">Mood</span>
+					</label>
+					<div class="grid grid-cols-3 gap-2">
+						{#each [{ id: "calm", label: "Calm", icon: "material-symbols:spa" }, { id: "energetic", label: "Energetic", icon: "material-symbols:bolt" }, { id: "corporate", label: "Corporate", icon: "material-symbols:business" }, { id: "playful", label: "Playful", icon: "material-symbols:celebration" }, { id: "luxury", label: "Luxury", icon: "material-symbols:diamond" }, { id: "natural", label: "Natural", icon: "material-symbols:eco" }] as mood}
+							<button
+								class={cn(
+									"btn btn-sm gap-1",
+									smartGeneratorMood === mood.id ? "btn-primary" : "btn-outline"
+								)}
+								onclick={() => (smartGeneratorMood = mood.id as MoodType)}
+							>
+								<Icon icon={mood.icon} class="w-4 h-4" />
+								{mood.label}
+							</button>
+						{/each}
+					</div>
+				</div>
+			</div>
+
+			<div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-white/5">
+				<button class="btn btn-ghost" onclick={() => (showSmartGeneratorDialog = false)}>
+					Cancel
+				</button>
+				<button class="btn btn-outline gap-2" onclick={generateRandomGradientHandler}>
+					<Icon icon="material-symbols:casino" class="w-4 h-4" />
+					Random
+				</button>
+				<button class="btn btn-primary gap-2" onclick={generateSmartGradient}>
+					<Icon icon="material-symbols:auto-awesome" class="w-4 h-4" />
+					Generate
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Image Extract Dialog -->
+{#if showImageExtractDialog}
+	<div
+		class="fixed inset-0 modal-backdrop-blur flex items-center justify-center z-50 p-4"
+		onclick={(e) => e.target === e.currentTarget && closeImageExtractDialog()}
+		onkeydown={(e) => e.key === "Escape" && closeImageExtractDialog()}
+		role="dialog"
+		tabindex="-1"
+	>
+		<div
+			in:scale={{ duration: 400, start: 0.9, easing: elasticOut }}
+			class="bg-base-100/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/10 modal-enter"
+		>
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="font-bold text-lg flex items-center gap-2">
+					<Icon icon="material-symbols:image" class="w-5 h-5 text-phoenix-primary" />
+					Extract from Image
+				</h3>
+				<button class="btn btn-sm btn-circle btn-ghost" onclick={closeImageExtractDialog}>
+					<Icon icon="material-symbols:close" class="w-4 h-4" />
+				</button>
+			</div>
+
+			<div class="space-y-4">
+				<!-- Image Upload -->
+				{#if !imageExtractPreview}
+					<label
+						class="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-base-300 rounded-lg cursor-pointer hover:border-phoenix-primary/50 transition-colors"
+					>
+						<div class="flex flex-col items-center justify-center pt-5 pb-6">
+							<Icon
+								icon="material-symbols:cloud-upload"
+								class="w-10 h-10 text-base-content/40 mb-2"
+							/>
+							<p class="text-sm text-base-content/60">Click to upload an image</p>
+							<p class="text-xs text-base-content/40">PNG, JPG, WebP</p>
+						</div>
+						<input type="file" class="hidden" accept="image/*" onchange={handleImageSelect} />
+					</label>
+				{:else}
+					<div class="relative">
+						<img
+							src={imageExtractPreview}
+							alt="Preview"
+							class="w-full h-48 object-cover rounded-lg"
+						/>
+						<button
+							class="btn btn-sm btn-circle btn-error absolute top-2 right-2"
+							onclick={() => {
+								URL.revokeObjectURL(imageExtractPreview);
+								imageExtractFile = null;
+								imageExtractPreview = "";
+							}}
+						>
+							<Icon icon="material-symbols:close" class="w-4 h-4" />
+						</button>
+					</div>
+				{/if}
+
+				<!-- Color Count -->
+				<div>
+					<label class="label" for="extract-color-count">
+						<span class="label-text">Number of Colors: {imageExtractColorCount}</span>
+					</label>
+					<input
+						type="range"
+						min="2"
+						max="10"
+						bind:value={imageExtractColorCount}
+						class="range range-primary"
+					/>
+				</div>
+			</div>
+
+			<div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-white/5">
+				<button class="btn btn-ghost" onclick={closeImageExtractDialog}>Cancel</button>
+				<button
+					class="btn btn-primary gap-2"
+					onclick={extractColorsFromImage}
+					disabled={!imageExtractPreview || isExtracting}
+				>
+					{#if isExtracting}
+						<span class="loading loading-spinner loading-sm"></span>
+						Extracting...
+					{:else}
+						<Icon icon="material-symbols:colorize" class="w-4 h-4" />
+						Extract Colors
+					{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

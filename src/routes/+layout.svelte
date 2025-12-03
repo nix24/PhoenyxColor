@@ -10,10 +10,31 @@
 	import { browser } from "$app/environment";
 	import { page } from "$app/state";
 
-	import { fly } from "svelte/transition";
-	import { cubicOut } from "svelte/easing";
+	import { fly, scale, fade } from "svelte/transition";
+	import { cubicOut, backOut } from "svelte/easing";
 
 	let { children } = $props();
+
+	// Track previous path for directional transitions
+	let previousPath = $state("");
+	let transitionDirection = $state<"up" | "down" | "left" | "right">("up");
+
+	// Route hierarchy for spatial awareness
+	const routeOrder = ["/references", "/palettes", "/gradients", "/settings"];
+
+	$effect(() => {
+		const currentPath = page.url.pathname;
+		const prevIndex = routeOrder.findIndex((r) => previousPath.includes(r.slice(1)));
+		const currIndex = routeOrder.findIndex((r) => currentPath.includes(r.slice(1)));
+
+		if (currIndex > prevIndex) {
+			transitionDirection = "up";
+		} else if (currIndex < prevIndex) {
+			transitionDirection = "down";
+		}
+
+		previousPath = currentPath;
+	});
 
 	// Derived title based on current route
 	let pageTitle = $derived.by(() => {
@@ -72,7 +93,16 @@
 		<main class="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 pt-0 scroll-smooth">
 			<div class="max-w-7xl mx-auto w-full h-full">
 				{#key page.url.pathname}
-					<div in:fly={{ y: 20, duration: 400, delay: 100, easing: cubicOut }} class="h-full">
+					<div
+						in:fly={{
+							y: transitionDirection === "up" ? 30 : -30,
+							duration: 450,
+							delay: 80,
+							easing: backOut,
+						}}
+						out:fade={{ duration: 150 }}
+						class="h-full"
+					>
 						{@render children()}
 					</div>
 				{/key}
@@ -80,6 +110,17 @@
 		</main>
 	</div>
 
-	<!-- Toast notifications -->
-	<Toaster richColors position="bottom-right" theme="dark" closeButton duration={2000} />
+	<!-- Toast notifications with enhanced styling -->
+	<Toaster
+		richColors
+		position="bottom-right"
+		theme="dark"
+		closeButton
+		duration={2500}
+		toastOptions={{
+			style:
+				"backdrop-filter: blur(12px); background: rgba(30,30,45,0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem;",
+			class: "shadow-2xl",
+		}}
+	/>
 </div>
