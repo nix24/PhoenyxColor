@@ -19,6 +19,33 @@ export class RootStore {
 	isEyedropperActive = $state(false);
 	globalColorBuffer = $state<string | null>(null);
 
+	// Mobile navigation state
+	mobileMenuOpen = $state(false);
+
+	/**
+	 * Derived state: true when all stores have finished loading
+	 */
+	get isReady(): boolean {
+		return (
+			this.settings.isReady &&
+			this.palettes.isReady &&
+			this.references.isReady &&
+			this.gradients.isReady
+		);
+	}
+
+	/**
+	 * Wait for all stores to be ready
+	 */
+	async whenReady(): Promise<void> {
+		await Promise.all([
+			this.settings.whenReady(),
+			this.palettes.whenReady(),
+			this.references.whenReady(),
+			this.gradients.whenReady(),
+		]);
+	}
+
 	toggleEyedropper() {
 		this.isEyedropperActive = !this.isEyedropperActive;
 	}
@@ -29,6 +56,18 @@ export class RootStore {
 
 	clearGlobalColor() {
 		this.globalColorBuffer = null;
+	}
+
+	toggleMobileMenu() {
+		this.mobileMenuOpen = !this.mobileMenuOpen;
+	}
+
+	closeMobileMenu() {
+		this.mobileMenuOpen = false;
+	}
+
+	openMobileMenu() {
+		this.mobileMenuOpen = true;
 	}
 }
 

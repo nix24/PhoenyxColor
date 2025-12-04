@@ -28,17 +28,33 @@ const DEFAULT_SETTINGS: ValidatedAppSettings = {
 
 export class SettingsStore {
 	state = $state<ValidatedAppSettings>(DEFAULT_SETTINGS);
+	isReady = $state(false);
 	private STORAGE_KEY = "phoenyx_settings";
+	private loadPromise: Promise<void>;
 
 	constructor() {
-		this.load();
+		// Non-blocking initialization - store the promise but don't await
+		this.loadPromise = this.load();
+	}
+
+	/**
+	 * Wait for the store to be ready (for components that need data immediately)
+	 */
+	async whenReady(): Promise<void> {
+		return this.loadPromise;
 	}
 
 	async load() {
-		const saved = await storage.local.get<ValidatedAppSettings>(this.STORAGE_KEY);
-		if (saved) {
-			// Merge with defaults to handle new settings in future versions
-			this.state = { ...DEFAULT_SETTINGS, ...saved };
+		try {
+			const saved = await storage.local.get<ValidatedAppSettings>(this.STORAGE_KEY);
+			if (saved) {
+				// Merge with defaults to handle new settings in future versions
+				this.state = { ...DEFAULT_SETTINGS, ...saved };
+			}
+		} catch (error) {
+			console.warn("Failed to load settings, using defaults:", error);
+		} finally {
+			this.isReady = true;
 		}
 	}
 

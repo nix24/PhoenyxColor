@@ -9,9 +9,13 @@
 	import { onMount, onDestroy } from "svelte";
 	import { browser } from "$app/environment";
 	import { page } from "$app/state";
+	import { SITE_CONFIG, getStructuredData } from "$lib/config/seo";
 
-	import { fly, scale, fade } from "svelte/transition";
-	import { cubicOut, backOut } from "svelte/easing";
+	import { fly, fade } from "svelte/transition";
+	import { backOut } from "svelte/easing";
+
+	// Generate structured data for JSON-LD
+	const structuredData = JSON.stringify(getStructuredData());
 
 	let { children } = $props();
 
@@ -34,6 +38,11 @@
 		}
 
 		previousPath = currentPath;
+
+		// Close mobile menu on route change
+		if (browser) {
+			app.closeMobileMenu();
+		}
 	});
 
 	// Derived title based on current route
@@ -59,6 +68,17 @@
 	}
 
 	let mediaQuery: MediaQueryList | undefined;
+	let mobileMediaQuery: MediaQueryList | undefined;
+
+	// Responsive toast position - bottom-center on mobile, bottom-right on desktop
+	let isMobile = $state(false);
+	let toastPosition = $derived<"bottom-center" | "bottom-right">(
+		isMobile ? "bottom-center" : "bottom-right"
+	);
+
+	function handleMobileChange(e: MediaQueryListEvent) {
+		isMobile = !e.matches;
+	}
 
 	$effect(() => {
 		if (!browser) return;
@@ -70,13 +90,28 @@
 		keyboardShortcuts.startListening();
 		mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 		mediaQuery.addEventListener("change", handleMediaChange);
+
+		// Track mobile viewport for responsive toast position
+		mobileMediaQuery = window.matchMedia("(min-width: 768px)");
+		isMobile = !mobileMediaQuery.matches;
+		mobileMediaQuery.addEventListener("change", handleMobileChange);
 	});
 
 	onDestroy(() => {
 		mediaQuery?.removeEventListener("change", handleMediaChange);
+		mobileMediaQuery?.removeEventListener("change", handleMobileChange);
 		keyboardShortcuts.stopListening();
 	});
 </script>
+
+<!-- Base SEO metadata and structured data -->
+<svelte:head>
+	<!-- Base meta tags (can be overridden by pages) -->
+	<meta name="keywords" content={SITE_CONFIG.keywords.join(", ")} />
+
+	<!-- JSON-LD Structured Data -->
+	{@html `<script type="application/ld+json">${structuredData}</script>`}
+</svelte:head>
 
 <!-- Background System -->
 <ProceduralBackground />
@@ -84,24 +119,35 @@
 <div
 	class="flex h-screen w-full bg-void text-text-main font-sans relative z-10 selection:bg-phoenix-primary selection:text-white leading-relaxed"
 >
+	<!-- Mobile Menu Backdrop Overlay -->
+	{#if app.mobileMenuOpen}
+		<button
+			class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300"
+			onclick={() => app.closeMobileMenu()}
+			aria-label="Close menu"
+			transition:fade={{ duration: 200 }}
+		></button>
+	{/if}
+
 	<Sidebar />
 
 	<div class="flex-1 flex flex-col min-w-0 bg-void/50 relative">
 		<Header title={pageTitle} />
 
 		<!-- Scrollable Content -->
-		<main class="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 pt-0 scroll-smooth">
+		<main class="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8 pt-0 scroll-smooth">
 			<div class="max-w-7xl mx-auto w-full h-full">
 				{#key page.url.pathname}
 					<div
 						in:fly={{
-							y: transitionDirection === "up" ? 30 : -30,
-							duration: 450,
-							delay: 80,
+							y: transitionDirection === "up" ? 20 : -20,
+							duration: 280,
+							delay: 0,
 							easing: backOut,
 						}}
-						out:fade={{ duration: 150 }}
-						class="h-full"
+						out:fade={{ duration: 100 }}
+						class="h-full will-change-transform"
+						style="contain: layout style;"
 					>
 						{@render children()}
 					</div>
@@ -111,9 +157,10 @@
 	</div>
 
 	<!-- Toast notifications with enhanced styling -->
+	<!-- Position is responsive: bottom-center on mobile, bottom-right on desktop -->
 	<Toaster
 		richColors
-		position="bottom-right"
+		position={toastPosition}
 		theme="dark"
 		closeButton
 		duration={2500}

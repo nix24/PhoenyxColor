@@ -1,19 +1,37 @@
 <script lang="ts">
-	import { goto } from "$app/navigation";
-	import { onMount } from "svelte";
+	// This page should not render as it redirects server-side
+	// This is a fallback loading state in case the redirect is slow
 	import Icon from "@iconify/svelte";
+	import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
 
-	// Redirect to references page on load
-	onMount(() => {
-		// Small delay for visual feedback
-		const timer = setTimeout(() => {
-			goto("/references");
-		}, 400);
-		return () => clearTimeout(timer);
-	});
+	const meta = PAGE_METADATA.home!;
+	const canonicalUrl = getFullUrl(meta.path);
+	const ogImage = getOgImageUrl();
 </script>
 
-<!-- Skeleton-style loading state instead of spinner -->
+<svelte:head>
+	<title>{meta.title}</title>
+	<meta name="description" content={meta.description} />
+	<link rel="canonical" href={canonicalUrl} />
+
+	<!-- Open Graph -->
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content={canonicalUrl} />
+	<meta property="og:title" content={meta.title} />
+	<meta property="og:description" content={meta.description} />
+	<meta property="og:image" content={ogImage} />
+	<meta property="og:site_name" content={SITE_CONFIG.name} />
+	<meta property="og:locale" content={SITE_CONFIG.locale} />
+
+	<!-- Twitter Card -->
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:site" content={SITE_CONFIG.twitter} />
+	<meta name="twitter:title" content={meta.title} />
+	<meta name="twitter:description" content={meta.description} />
+	<meta name="twitter:image" content={ogImage} />
+</svelte:head>
+
+<!-- Fallback loading state (shouldn't normally be seen due to redirect) -->
 <div class="h-full flex items-center justify-center">
 	<div class="text-center">
 		<!-- Animated logo skeleton -->

@@ -6,12 +6,22 @@ import type { PaletteId } from "$lib/types/brands";
 export class PaletteStore {
 	palettes = $state<ValidatedColorPalette[]>([]);
 	activePaletteId = $state<string | null>(null);
+	isReady = $state(false);
 	history = new HistoryStore<ValidatedColorPalette[]>();
 
 	private STORAGE_KEY = "phoenyx_palettes";
+	private loadPromise: Promise<void>;
 
 	constructor() {
-		this.load();
+		// Non-blocking initialization - store the promise but don't await
+		this.loadPromise = this.load();
+	}
+
+	/**
+	 * Wait for the store to be ready (for components that need data immediately)
+	 */
+	async whenReady(): Promise<void> {
+		return this.loadPromise;
 	}
 
 	get activePalette() {
@@ -19,13 +29,19 @@ export class PaletteStore {
 	}
 
 	async load() {
-		const saved = await storage.db.get<ValidatedColorPalette[]>(this.STORAGE_KEY);
-		if (saved) {
-			// Hydrate dates
-			this.palettes = saved.map((p) => ({
-				...p,
-				createdAt: new Date(p.createdAt),
-			}));
+		try {
+			const saved = await storage.db.get<ValidatedColorPalette[]>(this.STORAGE_KEY);
+			if (saved) {
+				// Hydrate dates
+				this.palettes = saved.map((p) => ({
+					...p,
+					createdAt: new Date(p.createdAt),
+				}));
+			}
+		} catch (error) {
+			console.warn("Failed to load palettes:", error);
+		} finally {
+			this.isReady = true;
 		}
 	}
 

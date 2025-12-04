@@ -1,15 +1,13 @@
 <script lang="ts">
 	import { scale } from "svelte/transition";
-	import { elasticOut } from "svelte/easing";
+	import { cubicOut } from "svelte/easing";
 	import { app } from "$lib/stores/root.svelte";
 	import type { ValidatedGradient, ValidatedGradientStop } from "$lib/schemas/validation";
 	import { validateGradient } from "$lib/schemas/validation";
-	import pkg from "file-saver";
 	import Icon from "@iconify/svelte";
 	import { toast } from "svelte-sonner";
-	import chroma from "chroma-js";
 
-	import { sortPalette, extractPalette } from "$lib/utils/color-engine";
+	import { sortPalette } from "$lib/utils/color-engine";
 	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
 	import { cn } from "$lib/utils/cn";
 
@@ -18,7 +16,6 @@
 	import {
 		GRADIENT_PRESETS,
 		PRESET_CATEGORIES,
-		generateCSSGradient,
 		generateMoodGradient,
 		generateRandomGradient,
 		type PresetCategory,
@@ -26,7 +23,16 @@
 		type GradientPreset,
 	} from "./gradients/gradient-utils";
 
-	const { saveAs } = pkg;
+	// Lazy load heavy dependencies only when needed
+	async function getChroma() {
+		const { default: chroma } = await import("chroma-js");
+		return chroma;
+	}
+
+	async function getExtractPalette() {
+		const { extractPalette } = await import("$lib/utils/color-engine");
+		return extractPalette;
+	}
 
 	// State management
 	let newGradientName = $state("");
@@ -134,8 +140,8 @@
 
 	let interpolateGradient = $state(true);
 
-	// Generate from palette
-	function generateFromPalette(paletteId: string) {
+	// Generate from palette (uses dynamic import for chroma)
+	async function generateFromPalette(paletteId: string) {
 		const palette = app.palettes.palettes.find((p) => p.id === paletteId);
 		if (!palette || palette.colors.length < 2) {
 			toast.error("Need at least 2 colors in palette");
@@ -145,6 +151,8 @@
 		let colors = sortPalette(palette.colors);
 
 		if (interpolateGradient && colors.length < 5) {
+			// Lazy load chroma only when needed
+			const chroma = await getChroma();
 			colors = chroma.scale(colors).mode("lch").colors(5);
 		}
 
@@ -254,6 +262,8 @@
 		isExtracting = true;
 
 		try {
+			// Lazy load extractPalette only when needed
+			const extractPalette = await getExtractPalette();
 			const colors = await extractPalette(imageExtractPreview, {
 				colorCount: imageExtractColorCount,
 				quality: "balanced",
@@ -448,7 +458,7 @@
 		tabindex="-1"
 	>
 		<div
-			in:scale={{ duration: 400, start: 0.9, easing: elasticOut }}
+			in:scale={{ duration: 200, start: 0.95, easing: cubicOut }}
 			class="bg-base-100/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/10 modal-enter"
 		>
 			<h3 class="font-bold text-lg mb-4">Create New Gradient</h3>
@@ -523,7 +533,7 @@
 		tabindex="-1"
 	>
 		<div
-			in:scale={{ duration: 400, start: 0.9, easing: elasticOut }}
+			in:scale={{ duration: 200, start: 0.95, easing: cubicOut }}
 			class="bg-base-100/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-4xl shadow-2xl border border-white/10 modal-enter max-h-[90vh] overflow-hidden flex flex-col"
 		>
 			<div class="flex items-center justify-between mb-4">
@@ -592,7 +602,7 @@
 		tabindex="-1"
 	>
 		<div
-			in:scale={{ duration: 400, start: 0.9, easing: elasticOut }}
+			in:scale={{ duration: 200, start: 0.95, easing: cubicOut }}
 			class="bg-base-100/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/10 modal-enter"
 		>
 			<div class="flex items-center justify-between mb-4">
@@ -691,7 +701,7 @@
 		tabindex="-1"
 	>
 		<div
-			in:scale={{ duration: 400, start: 0.9, easing: elasticOut }}
+			in:scale={{ duration: 200, start: 0.95, easing: cubicOut }}
 			class="bg-base-100/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/10 modal-enter"
 		>
 			<div class="flex items-center justify-between mb-4">
