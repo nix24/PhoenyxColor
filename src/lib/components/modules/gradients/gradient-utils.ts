@@ -609,12 +609,29 @@ export function generateMeshGradientCSS(points: MeshPoint[]): string {
 }
 
 export function generateDefaultMeshPoints(): MeshPoint[] {
+	// Generate random colors instead of hardcoded ones
+	const baseHue = Math.random() * 360;
 	return [
-		createMeshPoint(20, 20, "#ff6b6b"),
-		createMeshPoint(80, 20, "#4ecdc4"),
-		createMeshPoint(50, 80, "#45b7d1"),
-		createMeshPoint(50, 50, "#96ceb4"),
+		createMeshPoint(20, 20, chroma.hsl(baseHue, 0.7, 0.55).hex()),
+		createMeshPoint(80, 20, chroma.hsl((baseHue + 120) % 360, 0.7, 0.55).hex()),
+		createMeshPoint(50, 80, chroma.hsl((baseHue + 240) % 360, 0.7, 0.55).hex()),
+		createMeshPoint(50, 50, chroma.hsl((baseHue + 60) % 360, 0.6, 0.6).hex()),
 	];
+}
+
+export function generateMeshPointsFromColors(colors: string[]): MeshPoint[] {
+	if (colors.length === 0) return generateDefaultMeshPoints();
+	
+	// Predefined positions for mesh points based on count
+	const positions: [number, number][] = [
+		[25, 25], [75, 25], [50, 75], [50, 50],
+		[15, 50], [85, 50], [25, 85], [75, 85],
+	];
+	
+	return colors.slice(0, 8).map((color, index) => {
+		const pos = positions[index] || [Math.random() * 80 + 10, Math.random() * 80 + 10];
+		return createMeshPoint(pos[0], pos[1], color);
+	});
 }
 
 // --- Export Utilities ---

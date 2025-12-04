@@ -365,7 +365,7 @@
 	>
 		<div>
 			<h2 class="text-xl md:text-2xl font-bold text-white tracking-wide">Reference Images</h2>
-			<p class="text-sm text-text-muted">
+			<p class="text-sm text-text-muted mt-2 mb-4">
 				{viewMode === "gallery"
 					? "Click images to transform them"
 					: "Transform your reference images"}

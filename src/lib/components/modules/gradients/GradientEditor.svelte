@@ -17,6 +17,7 @@
 		type InterpolationMode,
 		type MeshPoint,
 		generateDefaultMeshPoints,
+		generateMeshPointsFromColors,
 		generateMeshGradientCSS,
 	} from "./gradient-utils";
 	import chroma from "chroma-js";
@@ -69,13 +70,6 @@
 
 	function handleMeshPointMove(id: string, x: number, y: number) {
 		meshPoints = meshPoints.map((p) => (p.id === id ? { ...p, x, y } : p));
-	}
-
-	function toggleMeshMode() {
-		isMeshMode = !isMeshMode;
-		if (isMeshMode && meshPoints.length === 0) {
-			meshPoints = generateDefaultMeshPoints();
-		}
 	}
 
 	function addMeshPoint() {
@@ -268,12 +262,12 @@
 								<Icon icon="material-symbols:grid-4x4" class="w-6 h-6 text-phoenix-violet" />
 								Mesh Gradient
 							</h3>
-							<p class="text-sm text-text-muted">{meshPoints.length} color points</p>
+							<p class="text-sm text-text-muted mt-1">{meshPoints.length} color points</p>
 						{:else if app.gradients.activeGradient}
 							<h3 class="text-2xl font-bold text-white tracking-wide">
 								{app.gradients.activeGradient.name}
 							</h3>
-							<p class="text-sm text-text-muted">
+							<p class="text-sm text-text-muted mt-1">
 								{app.gradients.activeGradient.type} gradient • {app.gradients.activeGradient.stops
 									.length} stops
 							</p>
@@ -281,20 +275,52 @@
 					</div>
 
 					<div class="flex flex-wrap items-center gap-2">
-						<!-- Mesh Mode Toggle -->
-						<button
-							class={cn(
-								"btn btn-sm gap-2",
-								isMeshMode
-									? "bg-phoenix-violet text-white border-none"
-									: "btn-ghost text-text-muted hover:text-white"
-							)}
-							onclick={toggleMeshMode}
-							title="Toggle mesh gradient mode"
-						>
-							<Icon icon="material-symbols:grid-4x4" class="w-4 h-4" />
-							Mesh
-						</button>
+						<!-- Mode Toggle: Gradient / Mesh -->
+						<div class="join border border-white/10 rounded-lg">
+							<button
+								class={cn(
+									"btn btn-sm join-item gap-2 border-none",
+									!isMeshMode
+										? "bg-phoenix-primary text-white"
+										: "bg-transparent text-text-muted hover:text-white hover:bg-white/5"
+								)}
+								onclick={() => {
+									if (isMeshMode) isMeshMode = false;
+								}}
+								title="Standard gradient mode"
+							>
+								<Icon icon="material-symbols:gradient" class="w-4 h-4" />
+								Gradient
+							</button>
+							<button
+								class={cn(
+									"btn btn-sm join-item gap-2 border-none",
+									isMeshMode
+										? "bg-phoenix-violet text-white"
+										: "bg-transparent text-text-muted hover:text-white hover:bg-white/5"
+								)}
+								onclick={() => {
+									if (!isMeshMode) {
+										isMeshMode = true;
+										// Only generate new mesh points if none exist
+										if (meshPoints.length === 0) {
+											// Use gradient colors if available, otherwise random
+											const gradient = app.gradients.activeGradient;
+											if (gradient && gradient.stops.length > 0) {
+												const colors = gradient.stops.map((s) => s.color);
+												meshPoints = generateMeshPointsFromColors(colors);
+											} else {
+												meshPoints = generateDefaultMeshPoints();
+											}
+										}
+									}
+								}}
+								title="Mesh gradient mode"
+							>
+								<Icon icon="material-symbols:grid-4x4" class="w-4 h-4" />
+								Mesh
+							</button>
+						</div>
 
 						<!-- Interactive Handles Toggle -->
 						<button
@@ -367,7 +393,7 @@
 							{:else}
 								<GradientPreview
 									gradient={app.gradients.activeGradient ?? null}
-									{meshPoints}
+									meshPoints={[]}
 									{interpolationMode}
 									{previewSize}
 									{showInteractiveHandles}
@@ -412,8 +438,8 @@
 					<div class="w-full lg:w-80 xl:w-96">
 						{#if isMeshMode}
 							<!-- Mesh Controls -->
-							<div class="space-y-4">
-								<div class="flex items-center justify-between">
+							<div class="space-y-6">
+								<div class="flex items-center justify-between mb-2">
 									<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider">
 										Mesh Points
 									</h4>
@@ -484,7 +510,7 @@
 								</div>
 
 								<!-- Noise Controls -->
-								<div class="mt-4 p-3 rounded-lg bg-black/20 border border-white/10 space-y-3">
+								<div class="mt-6 p-4 rounded-lg bg-black/20 border border-white/10 space-y-4">
 									<div class="flex items-center justify-between">
 										<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider">
 											Noise Effect
@@ -497,12 +523,12 @@
 									</div>
 
 									{#if noiseEnabled}
-										<div class="space-y-2">
+										<div class="space-y-3 mt-3">
 											<div class="flex items-center justify-between">
-												<label for="noise-intensity" class="text-xs text-text-muted"
+												<label for="noise-intensity" class="text-sm text-text-muted"
 													>Intensity</label
 												>
-												<span class="text-xs font-mono text-phoenix-primary">{noiseIntensity}%</span
+												<span class="text-sm font-mono text-phoenix-primary">{noiseIntensity}%</span
 												>
 											</div>
 											<input
@@ -515,10 +541,10 @@
 											/>
 										</div>
 
-										<div class="space-y-2">
+										<div class="space-y-3">
 											<div class="flex items-center justify-between">
-												<label for="noise-scale" class="text-xs text-text-muted">Scale</label>
-												<span class="text-xs font-mono text-phoenix-primary"
+												<label for="noise-scale" class="text-sm text-text-muted">Scale</label>
+												<span class="text-sm font-mono text-phoenix-primary"
 													>{noiseScale.toFixed(1)}</span
 												>
 											</div>
@@ -571,7 +597,12 @@
 						</button>
 						<button
 							class="btn btn-outline border-white/20 text-white hover:bg-white/10"
-							onclick={toggleMeshMode}
+							onclick={() => {
+								isMeshMode = true;
+								if (meshPoints.length === 0) {
+									meshPoints = generateDefaultMeshPoints();
+								}
+							}}
 							type="button"
 						>
 							<Icon icon="material-symbols:grid-4x4" class="w-4 h-4" />

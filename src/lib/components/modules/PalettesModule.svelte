@@ -456,7 +456,7 @@
 	>
 		<div>
 			<h2 class="text-xl md:text-2xl font-bold text-white tracking-wide">Palette Studio</h2>
-			<p class="text-sm text-text-muted">Create, analyze, and preview color palettes</p>
+			<p class="text-sm text-text-muted mt-2 mb-4">Create, analyze, and preview color palettes</p>
 		</div>
 
 		<div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">

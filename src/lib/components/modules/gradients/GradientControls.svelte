@@ -111,33 +111,48 @@
 	}
 
 	function handleRandomize() {
-		const colors = chroma
-			.scale(["red", "yellow", "green", "blue", "purple"])
-			.mode("lch")
-			.colors(gradient.stops.length);
-		gradient.stops.forEach((stop, index) => {
-			if (colors[index]) {
-				stop.color = colors[index];
+		// Generate truly random colors based on existing palette or completely random
+		const numStops = gradient.stops.length;
+		
+		// Extract existing hues to create variations, or generate completely random
+		const existingColors = gradient.stops.map(s => s.color);
+		const baseHue = Math.random() * 360; // Random starting hue
+		const hueSpread = 60 + Math.random() * 180; // Random spread between 60-240 degrees
+		
+		// Generate random colors with good variation
+		const newColors: string[] = [];
+		for (let i = 0; i < numStops; i++) {
+			const hue = (baseHue + (i * hueSpread / numStops) + Math.random() * 30 - 15) % 360;
+			const saturation = 0.5 + Math.random() * 0.4; // 50-90%
+			const lightness = 0.35 + Math.random() * 0.35; // 35-70%
+			newColors.push(chroma.hsl(hue, saturation, lightness).hex());
+		}
+		
+		// Generate random positions (keeping first at 0 and last at 100)
+		const randomPositions: number[] = [];
+		for (let i = 0; i < numStops; i++) {
+			if (i === 0) {
+				randomPositions.push(0);
+			} else if (i === numStops - 1) {
+				randomPositions.push(100);
+			} else {
+				// Random position between 5 and 95, with some spacing
+				randomPositions.push(Math.round(5 + Math.random() * 90));
 			}
+		}
+		// Sort positions to maintain gradient order
+		randomPositions.sort((a, b) => a - b);
+		
+		// Apply new colors and positions
+		gradient.stops.forEach((stop, index) => {
+			stop.color = newColors[index] || stop.color;
+			stop.position = randomPositions[index] ?? stop.position;
 		});
+		
+		// Re-sort stops by position
+		gradient.stops.sort((a, b) => a.position - b.position);
 		app.gradients.update(gradient.id, { stops: gradient.stops });
 		toast.success("Gradient randomized!");
-	}
-
-	function handleSmartSort() {
-		// Sort by hue for smoother transitions
-		const sortedStops = [...gradient.stops].sort((a, b) => {
-			const hueA = chroma(a.color).hsl()[0] || 0;
-			const hueB = chroma(b.color).hsl()[0] || 0;
-			return hueA - hueB;
-		});
-		// Redistribute positions
-		sortedStops.forEach((stop, index) => {
-			stop.position = (index / (sortedStops.length - 1)) * 100;
-		});
-		gradient.stops = sortedStops;
-		app.gradients.update(gradient.id, { stops: gradient.stops });
-		toast.success("Smart sorted by hue!");
 	}
 
 	function duplicateStop(index: number) {
@@ -159,10 +174,10 @@
 	}
 </script>
 
-<div class="space-y-6">
+<div class="space-y-8">
 	<!-- Gradient Type Selector -->
-	<div class="space-y-3">
-		<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider">Gradient Type</h4>
+	<div class="space-y-4">
+		<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider mb-3">Gradient Type</h4>
 		<div class="join w-full border border-white/10 rounded-lg">
 			{#each ["linear", "radial", "conic"] as type}
 				<button
@@ -192,8 +207,8 @@
 	</div>
 
 	<!-- Type-Specific Controls -->
-	<div class="space-y-3">
-		<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider">Settings</h4>
+	<div class="space-y-4">
+		<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider mb-3">Settings</h4>
 
 		{#if gradient.type === "linear"}
 			<div class="space-y-2">
@@ -288,9 +303,9 @@
 	</div>
 
 	<!-- Interpolation Mode -->
-	<div class="space-y-3">
-		<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider">Color Space</h4>
-		<div class="flex flex-wrap gap-1">
+	<div class="space-y-4">
+		<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider mb-3">Color Space</h4>
+		<div class="flex flex-wrap gap-2">
 			{#each INTERPOLATION_MODES as mode}
 				<button
 					class={cn(
@@ -307,8 +322,8 @@
 	</div>
 
 	<!-- Color Stops -->
-	<div class="space-y-3">
-		<div class="flex items-center justify-between">
+	<div class="space-y-4">
+		<div class="flex items-center justify-between mb-2">
 			<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider">Color Stops</h4>
 			<button
 				class="btn btn-xs bg-phoenix-primary border-none text-white hover:bg-phoenix-primary/80"
@@ -320,7 +335,7 @@
 		</div>
 
 		<!-- Quick Actions -->
-		<div class="flex flex-wrap gap-1">
+		<div class="flex flex-wrap gap-2 mb-2">
 			<button
 				class="btn btn-xs btn-ghost text-text-muted hover:text-white"
 				onclick={handleReverse}
@@ -347,16 +362,8 @@
 			</button>
 			<button
 				class="btn btn-xs btn-ghost text-text-muted hover:text-white"
-				onclick={handleSmartSort}
-				title="Sort by hue"
-			>
-				<Icon icon="material-symbols:sort" class="w-3 h-3" />
-				Sort
-			</button>
-			<button
-				class="btn btn-xs btn-ghost text-text-muted hover:text-white"
 				onclick={handleRandomize}
-				title="Randomize colors"
+				title="Randomize colors and positions"
 			>
 				<Icon icon="material-symbols:casino" class="w-3 h-3" />
 				Random

@@ -319,7 +319,7 @@
 				<Icon icon="material-symbols:gradient" class="w-6 h-6 text-phoenix-primary" />
 				Gradient Studio
 			</h2>
-			<p class="text-sm text-text-muted mt-1">
+			<p class="text-sm text-text-muted mt-2 mb-4">
 				Create beautiful gradients with advanced controls and mesh support
 			</p>
 		</div>
