@@ -429,9 +429,10 @@ export function applyGlitch(
 				const srcI = (y * width + srcX) * 4;
 				const dstI = (y * width + x) * 4;
 
-				data[dstI] = data[srcI] ?? 0;
-				data[dstI + 1] = data[srcI + 1] ?? 0;
-				data[dstI + 2] = data[srcI + 2] ?? 0;
+				// Read from tempData (original) instead of data (already modified)
+				data[dstI] = tempData[srcI] ?? 0;
+				data[dstI + 1] = tempData[srcI + 1] ?? 0;
+				data[dstI + 2] = tempData[srcI + 2] ?? 0;
 			}
 		}
 	}
@@ -490,10 +491,10 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 	const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
 	return result
 		? {
-				r: parseInt(result[1], 16),
-				g: parseInt(result[2], 16),
-				b: parseInt(result[3], 16),
-			}
+			r: parseInt(result[1], 16),
+			g: parseInt(result[2], 16),
+			b: parseInt(result[3], 16),
+		}
 		: { r: 0, g: 0, b: 0 };
 }
 

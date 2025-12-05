@@ -176,15 +176,15 @@ export function applyVibrance(
         // Apply saturation adjustment
         if (adjustAmount > 0) {
             // Increase saturation for less saturated colors
-            data[i] = Math.min(255, r + (r - gray) * adjustAmount);
-            data[i + 1] = Math.min(255, g + (g - gray) * adjustAmount);
-            data[i + 2] = Math.min(255, b + (b - gray) * adjustAmount);
+            data[i] = Math.max(0, Math.min(255, r + (r - gray) * adjustAmount));
+            data[i + 1] = Math.max(0, Math.min(255, g + (g - gray) * adjustAmount));
+            data[i + 2] = Math.max(0, Math.min(255, b + (b - gray) * adjustAmount));
         } else {
             // Decrease saturation
             const desatAmount = Math.abs(adjustAmount);
-            data[i] = r + (gray - r) * desatAmount;
-            data[i + 1] = g + (gray - g) * desatAmount;
-            data[i + 2] = b + (gray - b) * desatAmount;
+            data[i] = Math.max(0, Math.min(255, r + (gray - r) * desatAmount));
+            data[i + 1] = Math.max(0, Math.min(255, g + (gray - g) * desatAmount));
+            data[i + 2] = Math.max(0, Math.min(255, b + (gray - b) * desatAmount));
         }
     }
 

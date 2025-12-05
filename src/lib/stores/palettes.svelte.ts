@@ -113,6 +113,10 @@ export class PaletteStore {
 		const item = this.palettes[index];
 		if (item) {
 			const prevState = $state.snapshot(this.palettes);
+			// Create next state before applying updates
+			const nextState = prevState.map((p, i) =>
+				i === index ? { ...p, ...updates } : p
+			);
 			Object.assign(item, updates);
 			this.save();
 
@@ -123,7 +127,6 @@ export class PaletteStore {
 					this.save();
 				},
 				redo: () => {
-					const nextState = $state.snapshot(this.palettes); // Current state is the redo state
 					this.palettes = nextState;
 					this.save();
 				},

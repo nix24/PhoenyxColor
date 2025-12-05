@@ -175,7 +175,12 @@
 	}
 
 	async function saveCustomPresets() {
-		await storage.db.set("phoenyx_filter_presets", customPresets);
+		try {
+			await storage.db.set("phoenyx_filter_presets", customPresets);
+		} catch (error) {
+			console.error("Failed to save custom presets:", error);
+			toast.error("Failed to save preset");
+		}
 	}
 
 	function handlePresetClick(preset: (typeof builtInPresets)[0]) {
@@ -197,7 +202,7 @@
 		}
 	}
 
-	function handleSavePreset() {
+	async function handleSavePreset() {
 		if (!newPresetName.trim()) {
 			toast.error("Please enter a preset name");
 			return;
@@ -225,15 +230,15 @@
 		};
 
 		customPresets = [...customPresets, newPreset];
-		saveCustomPresets();
+		await saveCustomPresets();
 		newPresetName = "";
 		showSaveDialog = false;
 		toast.success("Preset saved!");
 	}
 
-	function deleteCustomPreset(id: string) {
+	async function deleteCustomPreset(id: string) {
 		customPresets = customPresets.filter((p) => p.id !== id);
-		saveCustomPresets();
+		await saveCustomPresets();
 		toast.success("Preset deleted");
 	}
 </script>

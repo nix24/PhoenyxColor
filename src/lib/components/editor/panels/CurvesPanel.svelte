@@ -29,6 +29,8 @@
 	let selectedPointIndex = $state<number | null>(null);
 
 	const CANVAS_SIZE = 180;
+	const DATA_RANGE = 255;
+	const SCALE_FACTOR = CANVAS_SIZE / DATA_RANGE;
 	const channelColors: Record<CurveChannel, string> = {
 		rgb: "#ffffff",
 		red: "#ff4444",
@@ -41,8 +43,9 @@
 		const img = new Image();
 		img.crossOrigin = "anonymous";
 
-		await new Promise((resolve) => {
-			img.onload = resolve;
+		await new Promise<void>((resolve, reject) => {
+			img.onload = () => resolve();
+			img.onerror = () => reject(new Error("Failed to load image"));
 			img.src = imageSrc;
 		});
 
@@ -132,11 +135,17 @@
 
 		// Simple Catmull-Rom spline for smooth curve
 		const curvePoints = interpolateCurve(points);
-		ctx.moveTo(curvePoints[0]?.x ?? 0, size - (curvePoints[0]?.y ?? 0));
+		// Scale coordinates from 0-255 to 0-180
+		const scaledX0 = (curvePoints[0]?.x ?? 0) * SCALE_FACTOR;
+		const scaledY0 = size - (curvePoints[0]?.y ?? 0) * SCALE_FACTOR;
+		ctx.moveTo(scaledX0, scaledY0);
 		for (let i = 1; i < curvePoints.length; i++) {
 			const pt = curvePoints[i];
 			if (pt) {
-				ctx.lineTo(pt.x, size - pt.y);
+				// Scale coordinates from 0-255 to 0-180
+				const scaledX = pt.x * SCALE_FACTOR;
+				const scaledY = size - pt.y * SCALE_FACTOR;
+				ctx.lineTo(scaledX, scaledY);
 			}
 		}
 		ctx.stroke();
@@ -146,9 +155,13 @@
 			const pt = points[i];
 			if (!pt) continue;
 
+			// Scale coordinates from 0-255 to 0-180
+			const scaledX = pt.x * SCALE_FACTOR;
+			const scaledY = size - pt.y * SCALE_FACTOR;
+
 			ctx.fillStyle = selectedPointIndex === i ? "#ff007f" : channelColors[activeChannel];
 			ctx.beginPath();
-			ctx.arc(pt.x, size - pt.y, 6, 0, Math.PI * 2);
+			ctx.arc(scaledX, scaledY, 6, 0, Math.PI * 2);
 			ctx.fill();
 			ctx.strokeStyle = "#000";
 			ctx.lineWidth = 1;
@@ -208,11 +221,14 @@
 		const y = CANVAS_SIZE - ((e.clientY - rect.top) / rect.height) * CANVAS_SIZE;
 
 		// Check if clicking near existing point
+		// Convert canvas coordinates (0-180) to data coordinates (0-255)
+		const dataX = (x / CANVAS_SIZE) * DATA_RANGE;
+		const dataY = (y / CANVAS_SIZE) * DATA_RANGE;
 		const points = curves[activeChannel];
 		for (let i = 0; i < points.length; i++) {
 			const pt = points[i];
 			if (!pt) continue;
-			const dist = Math.sqrt((pt.x - x) ** 2 + (pt.y - y) ** 2);
+			const dist = Math.sqrt((pt.x - dataX) ** 2 + (pt.y - dataY) ** 2);
 			if (dist < 12) {
 				selectedPointIndex = i;
 				isDragging = true;
@@ -220,9 +236,11 @@
 			}
 		}
 
-		// Add new point
-		const newPoints = [...points, { x, y }].sort((a, b) => a.x - b.x);
-		const newIndex = newPoints.findIndex((p) => p.x === x && p.y === y);
+		// Add new point (convert canvas coordinates to data coordinates)
+		const dataX = Math.max(0, Math.min(DATA_RANGE, (x / CANVAS_SIZE) * DATA_RANGE));
+		const dataY = Math.max(0, Math.min(DATA_RANGE, (y / CANVAS_SIZE) * DATA_RANGE));
+		const newPoints = [...points, { x: dataX, y: dataY }].sort((a, b) => a.x - b.x);
+		const newIndex = newPoints.findIndex((p) => p.x === dataX && p.y === dataY);
 		selectedPointIndex = newIndex;
 		isDragging = true;
 
@@ -234,11 +252,18 @@
 		if (!isDragging || selectedPointIndex === null) return;
 
 		const rect = canvasElement.getBoundingClientRect();
-		const x = Math.max(0, Math.min(255, ((e.clientX - rect.left) / rect.width) * CANVAS_SIZE));
-		const y = Math.max(
+		// Get canvas coordinates (0-180)
+		const canvasX = Math.max(
 			0,
-			Math.min(255, CANVAS_SIZE - ((e.clientY - rect.top) / rect.height) * CANVAS_SIZE)
+			Math.min(CANVAS_SIZE, ((e.clientX - rect.left) / rect.width) * CANVAS_SIZE)
 		);
+		const canvasY = Math.max(
+			0,
+			Math.min(CANVAS_SIZE, CANVAS_SIZE - ((e.clientY - rect.top) / rect.height) * CANVAS_SIZE)
+		);
+		// Convert to data coordinates (0-255)
+		const x = Math.max(0, Math.min(DATA_RANGE, (canvasX / CANVAS_SIZE) * DATA_RANGE));
+		const y = Math.max(0, Math.min(DATA_RANGE, (canvasY / CANVAS_SIZE) * DATA_RANGE));
 
 		const points = [...curves[activeChannel]];
 		const point = points[selectedPointIndex];
@@ -247,7 +272,7 @@
 			if (selectedPointIndex === 0) {
 				points[selectedPointIndex] = { x: 0, y };
 			} else if (selectedPointIndex === points.length - 1) {
-				points[selectedPointIndex] = { x: 255, y };
+				points[selectedPointIndex] = { x: DATA_RANGE, y };
 			} else {
 				points[selectedPointIndex] = { x, y };
 			}
@@ -304,7 +329,9 @@
 	}
 
 	$effect(() => {
-		generateHistogram();
+		generateHistogram().catch((error) => {
+			console.error("Failed to generate histogram:", error);
+		});
 	});
 
 	$effect(() => {

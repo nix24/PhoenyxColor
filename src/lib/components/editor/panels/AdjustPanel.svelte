@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from "@iconify/svelte";
 	import { cn } from "$lib/utils/cn";
-	import type { ImageEditorState } from "../EditorHistory.svelte";
+	import type { ImageEditorState } from "../EditorHistory.svelte.ts";
 
 	let { editorState, onUpdate } = $props<{
 		editorState: ImageEditorState;

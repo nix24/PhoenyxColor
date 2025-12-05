@@ -48,13 +48,14 @@ export async function extractPalette(
 	const pixels: [number, number, number][] = [];
 	for (let i = 0; i < pixelData.length; i += 4) {
 		// Skip transparent pixels
-		if (pixelData[i + 3] < 128) continue;
+		const alpha = pixelData[i + 3];
+		if (alpha === undefined || alpha < 128) continue;
 
-		const r = pixelData[i] / 255;
-		const g = pixelData[i + 1] / 255;
-		const b = pixelData[i + 2] / 255;
+		const r = pixelData[i] ?? 0;
+		const g = pixelData[i + 1] ?? 0;
+		const b = pixelData[i + 2] ?? 0;
 
-		const oklab = toOklab({ mode: "rgb" as const, r, g, b });
+		const oklab = toOklab({ mode: "rgb" as const, r: r / 255, g: g / 255, b: b / 255 });
 		if (oklab) {
 			pixels.push([oklab.l, oklab.a, oklab.b]);
 		}
@@ -68,7 +69,13 @@ export async function extractPalette(
 	// 4. Convert centroids back to CSS strings
 	return centroids.map((c) => {
 		const color = { mode: "oklab", l: c[0], a: c[1], b: c[2] } as Oklab;
-		return formatHex(toRgb(color)) || "#000000";
+		const rgb = toRgb(color);
+		// Validate RGB values to prevent NaN in CSS output
+		if (!rgb || isNaN(rgb.r) || isNaN(rgb.g) || isNaN(rgb.b)) {
+			return "#000000";
+		}
+		const hex = formatHex(rgb);
+		return hex || "#000000";
 	});
 }
 
@@ -110,13 +117,18 @@ export function sortPalette(colors: string[]): string[] {
 
 	while (sortedIndices.length < colors.length) {
 		const current = oklabColors[currentIndex];
+		if (!current) break;
+
 		let nearestDist = Infinity;
 		let nearestIndex = -1;
 
 		for (let i = 0; i < colors.length; i++) {
 			if (visited.has(i)) continue;
 
-			const d = dist(current, oklabColors[i]);
+			const nextColor = oklabColors[i];
+			if (!nextColor) continue;
+
+			const d = dist(current, nextColor);
 			if (d < nearestDist) {
 				nearestDist = d;
 				nearestIndex = i;
@@ -132,7 +144,7 @@ export function sortPalette(colors: string[]): string[] {
 		}
 	}
 
-	return sortedIndices.map((i) => colors[i]);
+	return sortedIndices.map((i) => colors[i]).filter((c): c is string => c !== undefined);
 }
 
 /**
@@ -187,13 +199,16 @@ function kMeans(
 	iterations: number,
 ): [number, number, number][] {
 	// Initialize centroids randomly from points
-	const centroids = [];
+	const centroids: [number, number, number][] = [];
 	const usedIndices = new Set<number>();
 	while (centroids.length < k && centroids.length < points.length) {
 		const idx = Math.floor(Math.random() * points.length);
 		if (!usedIndices.has(idx)) {
-			centroids.push([...points[idx]] as [number, number, number]);
-			usedIndices.add(idx);
+			const point = points[idx];
+			if (point) {
+				centroids.push([...point] as [number, number, number]);
+				usedIndices.add(idx);
+			}
 		}
 	}
 
@@ -205,11 +220,15 @@ function kMeans(
 		// Assignment Step
 		for (let i = 0; i < points.length; i++) {
 			const p = points[i];
+			if (!p) continue;
+
 			let minDist = Infinity;
 			let bestCluster = 0;
 
 			for (let c = 0; c < k; c++) {
 				const cent = centroids[c];
+				if (!cent) continue;
+
 				const d = (p[0] - cent[0]) ** 2 + (p[1] - cent[1]) ** 2 + (p[2] - cent[2]) ** 2;
 				if (d < minDist) {
 					minDist = d;
@@ -226,23 +245,42 @@ function kMeans(
 		for (let i = 0; i < points.length; i++) {
 			const cluster = assignments[i];
 			const p = points[i];
-			clusterSizes[cluster]++;
-			clusterSums[cluster * 3] += p[0];
-			clusterSums[cluster * 3 + 1] += p[1];
-			clusterSums[cluster * 3 + 2] += p[2];
+			if (p === undefined || cluster === undefined || cluster < 0 || cluster >= k) continue;
+
+			const p0 = p[0];
+			const p1 = p[1];
+			const p2 = p[2];
+			if (p0 === undefined || p1 === undefined || p2 === undefined) continue;
+
+			clusterSizes[cluster] = (clusterSizes[cluster] ?? 0) + 1;
+			const baseIdx = cluster * 3;
+			clusterSums[baseIdx] = (clusterSums[baseIdx] ?? 0) + p0;
+			clusterSums[baseIdx + 1] = (clusterSums[baseIdx + 1] ?? 0) + p1;
+			clusterSums[baseIdx + 2] = (clusterSums[baseIdx + 2] ?? 0) + p2;
 		}
 
 		let changed = false;
-		for (let c = 0; c < k; c++) {
-			if (clusterSizes[c] > 0) {
-				const newL = clusterSums[c * 3] / clusterSizes[c];
-				const newA = clusterSums[c * 3 + 1] / clusterSizes[c];
-				const newB = clusterSums[c * 3 + 2] / clusterSizes[c];
+		for (let c = 0; c < k && c < centroids.length; c++) {
+			const clusterSize = clusterSizes[c];
+			if (clusterSize !== undefined && clusterSize > 0) {
+				const baseIdx = c * 3;
+				const sumL = clusterSums[baseIdx];
+				const sumA = clusterSums[baseIdx + 1];
+				const sumB = clusterSums[baseIdx + 2];
 
-				// Check for convergence (optional optimization, skipping for fixed iterations)
-				centroids[c][0] = newL;
-				centroids[c][1] = newA;
-				centroids[c][2] = newB;
+				if (sumL !== undefined && sumA !== undefined && sumB !== undefined) {
+					const newL = sumL / clusterSize;
+					const newA = sumA / clusterSize;
+					const newB = sumB / clusterSize;
+
+					// Check for convergence (optional optimization, skipping for fixed iterations)
+					const centroid = centroids[c];
+					if (centroid) {
+						centroid[0] = newL;
+						centroid[1] = newA;
+						centroid[2] = newB;
+					}
+				}
 			}
 		}
 	}

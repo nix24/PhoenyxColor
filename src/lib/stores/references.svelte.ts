@@ -100,6 +100,10 @@ export class ReferenceStore {
 		const item = this.references[index];
 		if (item) {
 			const prevState = $state.snapshot(this.references);
+			// Create next state before applying updates
+			const nextState = prevState.map((r, i) =>
+				i === index ? { ...r, ...updates } : r
+			);
 			Object.assign(item, updates);
 			this.save();
 
@@ -110,9 +114,6 @@ export class ReferenceStore {
 					this.save();
 				},
 				redo: () => {
-					// We can't just re-apply updates because we need the full state snapshot
-					// But since we modified the state in place above, we can just snapshot it now
-					const nextState = $state.snapshot(this.references);
 					this.references = nextState;
 					this.save();
 				},

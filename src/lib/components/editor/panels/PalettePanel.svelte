@@ -276,7 +276,11 @@
 
 	function getGradientBackground(gradient: ValidatedGradient) {
 		const stops = gradient.stops.map((s) => `${s.color} ${s.position}%`).join(", ");
-		return `${gradient.type}-gradient(${gradient.angle || 90}deg, ${stops})`;
+		// Only include angle for linear gradients; radial and conic don't support it
+		if (gradient.type === "linear") {
+			return `${gradient.type}-gradient(${gradient.angle || 90}deg, ${stops})`;
+		}
+		return `${gradient.type}-gradient(${stops})`;
 	}
 </script>
 
@@ -363,16 +367,16 @@
 				<!-- Save Dialog -->
 				{#if showSaveDialog}
 					<div class="p-3 bg-white/5 rounded-lg border border-white/10 space-y-3">
-					<div class="space-y-2">
-						<span class="text-xs text-white/60">Palette Name</span>
-						<input
-							type="text"
-							class="input input-sm w-full bg-white/5 border-white/10 text-white"
-							bind:value={paletteName}
-							placeholder="Enter palette name..."
-							onkeydown={(e) => e.key === "Enter" && handleSavePalette()}
-						/>
-					</div>
+						<div class="space-y-2">
+							<span class="text-xs text-white/60">Palette Name</span>
+							<input
+								type="text"
+								class="input input-sm w-full bg-white/5 border-white/10 text-white"
+								bind:value={paletteName}
+								placeholder="Enter palette name..."
+								onkeydown={(e) => e.key === "Enter" && handleSavePalette()}
+							/>
+						</div>
 						<div class="flex gap-2">
 							<button
 								class="btn btn-xs flex-1 btn-ghost text-white/60"

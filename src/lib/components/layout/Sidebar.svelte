@@ -179,7 +179,12 @@
 				icon="material-symbols:settings-outline"
 				class="text-xl group-hover:rotate-90 transition-transform duration-500"
 			/>
-			<span class="hidden md:block font-medium tracking-wide text-sm">Settings</span>
+			<span
+				class={cn(
+					"font-medium tracking-wide text-sm",
+					app.mobileMenuOpen ? "block" : "hidden md:block"
+				)}>Settings</span
+			>
 		</a>
 	</div>
 </aside>

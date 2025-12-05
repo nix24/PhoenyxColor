@@ -114,10 +114,17 @@ export const DEFAULT_EDITOR_STATE: ImageEditorState = {
 
 const MAX_HISTORY_SIZE = 50;
 
+/**
+ * Deep clone an ImageEditorState to prevent mutation of history entries
+ */
+function deepCloneState(state: ImageEditorState): ImageEditorState {
+    return structuredClone(state);
+}
+
 export class EditorHistoryService {
     private undoStack = $state<ImageEditorState[]>([]);
     private redoStack = $state<ImageEditorState[]>([]);
-    currentState = $state<ImageEditorState>({ ...DEFAULT_EDITOR_STATE });
+    currentState = $state<ImageEditorState>(deepCloneState(DEFAULT_EDITOR_STATE));
 
     canUndo = $derived(this.undoStack.length > 0);
     canRedo = $derived(this.redoStack.length > 0);
@@ -127,7 +134,7 @@ export class EditorHistoryService {
      * Initialize with a state (typically from stored image properties)
      */
     initialize(initialState: Partial<ImageEditorState>) {
-        this.currentState = { ...DEFAULT_EDITOR_STATE, ...initialState };
+        this.currentState = deepCloneState({ ...DEFAULT_EDITOR_STATE, ...initialState });
         this.undoStack = [];
         this.redoStack = [];
     }
@@ -155,7 +162,15 @@ export class EditorHistoryService {
      * Update current state without pushing to history (for live preview during drag)
      */
     updateWithoutHistory(newState: Partial<ImageEditorState>) {
-        this.currentState = { ...this.currentState, ...newState };
+        const mergedState = { ...this.currentState, ...newState };
+        // Deep clone nested objects if they're being updated
+        if (newState.curves) {
+            mergedState.curves = deepCloneState({ ...DEFAULT_EDITOR_STATE, curves: newState.curves }).curves;
+        }
+        if (newState.appliedEffects) {
+            mergedState.appliedEffects = structuredClone(newState.appliedEffects);
+        }
+        this.currentState = mergedState;
     }
 
     /**
@@ -168,8 +183,10 @@ export class EditorHistoryService {
         if (!previousState) return null;
 
         this.undoStack = this.undoStack.slice(0, -1);
-        this.redoStack = [...this.redoStack, { ...this.currentState }];
-        this.currentState = { ...DEFAULT_EDITOR_STATE, ...previousState };
+        // Deep clone current state before adding to redo stack
+        this.redoStack = [...this.redoStack, deepCloneState(this.currentState)];
+        // Deep clone previous state to prevent mutation
+        this.currentState = deepCloneState({ ...DEFAULT_EDITOR_STATE, ...previousState });
 
         return this.currentState;
     }
@@ -184,8 +201,10 @@ export class EditorHistoryService {
         if (!nextState) return null;
 
         this.redoStack = this.redoStack.slice(0, -1);
-        this.undoStack = [...this.undoStack, { ...this.currentState }];
-        this.currentState = { ...DEFAULT_EDITOR_STATE, ...nextState };
+        // Deep clone current state before adding to undo stack
+        this.undoStack = [...this.undoStack, deepCloneState(this.currentState)];
+        // Deep clone next state to prevent mutation
+        this.currentState = deepCloneState({ ...DEFAULT_EDITOR_STATE, ...nextState });
 
         return this.currentState;
     }
@@ -201,7 +220,7 @@ export class EditorHistoryService {
      * Get a snapshot of the current state
      */
     getSnapshot(): ImageEditorState {
-        return { ...this.currentState };
+        return deepCloneState(this.currentState);
     }
 }
 
