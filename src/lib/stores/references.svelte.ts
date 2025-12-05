@@ -5,21 +5,37 @@ import type { ReferenceId } from "$lib/types/brands";
 
 export class ReferenceStore {
 	references = $state<ValidatedReferenceImage[]>([]);
+	isReady = $state(false);
 	history = new HistoryStore<ValidatedReferenceImage[]>();
 
 	private STORAGE_KEY = "phoenyx_references";
+	private loadPromise: Promise<void>;
 
 	constructor() {
-		this.load();
+		// Non-blocking initialization - store the promise but don't await
+		this.loadPromise = this.load();
+	}
+
+	/**
+	 * Wait for the store to be ready (for components that need data immediately)
+	 */
+	async whenReady(): Promise<void> {
+		return this.loadPromise;
 	}
 
 	async load() {
-		const saved = await storage.db.get<ValidatedReferenceImage[]>(this.STORAGE_KEY);
-		if (saved) {
-			this.references = saved.map((r) => ({
-				...r,
-				createdAt: new Date(r.createdAt),
-			}));
+		try {
+			const saved = await storage.db.get<ValidatedReferenceImage[]>(this.STORAGE_KEY);
+			if (saved) {
+				this.references = saved.map((r) => ({
+					...r,
+					createdAt: new Date(r.createdAt),
+				}));
+			}
+		} catch (error) {
+			console.warn("Failed to load references:", error);
+		} finally {
+			this.isReady = true;
 		}
 	}
 

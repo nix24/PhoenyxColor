@@ -6,12 +6,22 @@ import type { GradientId } from "$lib/types/brands";
 export class GradientStore {
 	gradients = $state<ValidatedGradient[]>([]);
 	activeGradientId = $state<string | null>(null);
+	isReady = $state(false);
 	history = new HistoryStore<ValidatedGradient[]>();
 
 	private STORAGE_KEY = "phoenyx_gradients";
+	private loadPromise: Promise<void>;
 
 	constructor() {
-		this.load();
+		// Non-blocking initialization - store the promise but don't await
+		this.loadPromise = this.load();
+	}
+
+	/**
+	 * Wait for the store to be ready (for components that need data immediately)
+	 */
+	async whenReady(): Promise<void> {
+		return this.loadPromise;
 	}
 
 	get activeGradient() {
@@ -21,12 +31,18 @@ export class GradientStore {
 	}
 
 	async load() {
-		const saved = await storage.db.get<ValidatedGradient[]>(this.STORAGE_KEY);
-		if (saved) {
-			this.gradients = saved.map((g) => ({
-				...g,
-				createdAt: new Date(g.createdAt),
-			}));
+		try {
+			const saved = await storage.db.get<ValidatedGradient[]>(this.STORAGE_KEY);
+			if (saved) {
+				this.gradients = saved.map((g) => ({
+					...g,
+					createdAt: new Date(g.createdAt),
+				}));
+			}
+		} catch (error) {
+			console.warn("Failed to load gradients:", error);
+		} finally {
+			this.isReady = true;
 		}
 	}
 

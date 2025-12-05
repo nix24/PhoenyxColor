@@ -16,6 +16,35 @@ const DimensionsSchema = z.object({
 	height: z.number().positive("Height must be positive"),
 });
 
+// Applied Effect schema for stacked effects
+const AppliedEffectSchema = z.object({
+	type: z.enum(["none", "posterize", "pixelate", "solarize", "duotone", "halftone", "vhs", "glitch", "emboss", "sharpen"]),
+	intensity: z.number().min(0).max(100),
+	duotoneColors: z.tuple([z.string(), z.string()]).optional(),
+});
+
+// Curve point schema
+const CurvePointSchema = z.object({
+	x: z.number().min(0).max(255),
+	y: z.number().min(0).max(255),
+});
+
+// Curves schema
+const CurvesSchema = z.object({
+	rgb: z.array(CurvePointSchema),
+	red: z.array(CurvePointSchema),
+	green: z.array(CurvePointSchema),
+	blue: z.array(CurvePointSchema),
+});
+
+// Crop rect schema
+const CropRectSchema = z.object({
+	x: z.number(),
+	y: z.number(),
+	width: z.number(),
+	height: z.number(),
+});
+
 // Reference Image validation
 export const ReferenceImageSchema = z.object({
 	id: z.string().uuid().transform((val) => val as ReferenceId),
@@ -30,7 +59,7 @@ export const ReferenceImageSchema = z.object({
 	createdAt: z.date(),
 	fileSize: z.number().positive().optional(),
 	dimensions: DimensionsSchema.optional(),
-	// New properties from ReferenceImage interface in stores
+	// Basic adjustments
 	brightness: z.number().min(0).max(200).default(100).optional(),
 	contrast: z.number().min(0).max(200).default(100).optional(),
 	saturation: z.number().min(0).max(200).default(100).optional(),
@@ -42,23 +71,60 @@ export const ReferenceImageSchema = z.object({
 	flipY: z.boolean().optional(),
 	gradientMapOpacity: z.number().min(0).max(1).optional(),
 	gradientMapBlendMode: z.string().optional(),
+	// Enhanced adjustments
+	shadows: z.number().min(-100).max(100).optional(),
+	highlights: z.number().min(-100).max(100).optional(),
+	vibrance: z.number().min(-100).max(100).optional(),
+	temperature: z.number().min(-100).max(100).optional(),
+	tint: z.number().min(-100).max(100).optional(),
+	clarity: z.number().min(-100).max(100).optional(),
+	vignette: z.number().min(0).max(100).optional(),
+	// Curves
+	curves: CurvesSchema.optional(),
+	// Crop
+	cropRect: CropRectSchema.nullable().optional(),
+	// Stacked effects
+	appliedEffects: z.array(AppliedEffectSchema).optional(),
 });
 
 // Gradient validation
 export const GradientStopSchema = z.object({
 	color: ColorSchema,
 	position: z.number().min(0).max(100, "Position must be between 0 and 100"),
+	easing: z.enum(["linear", "ease-in", "ease-out", "ease-in-out"]).optional(),
+});
+
+// Mesh gradient point schema
+export const MeshPointSchema = z.object({
+	id: z.string().uuid(),
+	x: z.number().min(0).max(100),
+	y: z.number().min(0).max(100),
+	color: ColorSchema,
+	radius: z.number().min(1).max(200).default(50),
+});
+
+// Noise configuration schema
+export const NoiseConfigSchema = z.object({
+	enabled: z.boolean().default(false),
+	intensity: z.number().min(0).max(100).default(10),
+	scale: z.number().min(0.1).max(10).default(1),
+	type: z.enum(["perlin", "simplex", "grain"]).default("grain"),
 });
 
 export const GradientSchema = z.object({
 	id: z.string().uuid().transform((val) => val as GradientId),
 	name: z.string().min(1, "Gradient name is required").max(50, "Name too long"),
-	type: z.enum(["linear", "radial", "conic"]),
+	type: z.enum(["linear", "radial", "conic", "mesh"]),
 	stops: z.array(GradientStopSchema).min(2, "Gradient must have at least 2 color stops"),
 	angle: z.number().min(0).max(360).optional(),
 	centerX: z.number().min(0).max(100).optional(),
 	centerY: z.number().min(0).max(100).optional(),
 	createdAt: z.date(),
+	// Enhanced properties
+	interpolationMode: z.enum(["oklch", "oklab", "rgb", "hsl", "lab", "lch"]).optional(),
+	meshPoints: z.array(MeshPointSchema).optional(),
+	noise: NoiseConfigSchema.optional(),
+	tags: z.array(z.string().max(20)).max(10).optional(),
 });
 
 // Color Palette validation
@@ -180,6 +246,8 @@ export function validateAppData(data: unknown): {
 // Runtime type guards
 export type ValidatedReferenceImage = z.infer<typeof ReferenceImageSchema>;
 export type ValidatedGradientStop = z.infer<typeof GradientStopSchema>;
+export type ValidatedMeshPoint = z.infer<typeof MeshPointSchema>;
+export type ValidatedNoiseConfig = z.infer<typeof NoiseConfigSchema>;
 export type ValidatedGradient = z.infer<typeof GradientSchema>;
 export type ValidatedColorPalette = z.infer<typeof ColorPaletteSchema>;
 export type ValidatedAppSettings = z.infer<typeof AppSettingsSchema>;

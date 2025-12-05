@@ -1,3 +1,21 @@
+/* Late 2025 Typography System - Inter, Geist, Clash Display */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap');
+
+/* Geist Mono - Vercel's modern monospace */
+@font-face {
+	font-family: "Geist Mono";
+	src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Regular.woff2") format("woff2");
+	font-weight: 400;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Geist Mono";
+	src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Medium.woff2") format("woff2");
+	font-weight: 500;
+	font-display: swap;
+}
 @import "tailwindcss";
 @plugin "@tailwindcss/forms";
 @plugin "@tailwindcss/typography";
@@ -13,23 +31,12 @@
 		valentine;
 }
 
-/* Professional Font Loading */
-@font-face {
-	font-family: "Montserrat";
-	src: url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
-	font-display: swap;
-}
-
-@font-face {
-	font-family: "JetBrains Mono";
-	src: url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap");
-	font-display: swap;
-}
 
 @theme {
-	/* Fonts */
-	--font-sans: "Montserrat", system-ui, sans-serif;
-	--font-mono: "JetBrains Mono", monospace;
+	/* Late 2025 Font Stack */
+	--font-sans: "Inter", system-ui, -apple-system, sans-serif;
+	--font-mono: "Geist Mono", ui-monospace, monospace;
+	--font-display: "Clash Display", "Inter", system-ui, sans-serif;
 
 	/* Colors */
 	--color-void: #0f0c18;
@@ -83,21 +90,20 @@
 
 /* Phoenix Core Design System - Frutiger Metro / Pop Edition */
 :root {
-	/* The Void Palette - Fallback/CSS Var usage */
-	--color-void: #0f0c18;
-	--color-void-deep: #0a0810;
-	--color-glass: rgba(20, 20, 30, 0.6);
-	--color-glass-border: rgba(255, 255, 255, 0.08);
+	/* Colors - Dynamic OkLCH Theming */
+	--color-primary: oklch(65% 0.22 30); /* Phoenix Orange/Red */
+	--color-secondary: oklch(55% 0.25 290); /* Phoenix Violet */
+	--color-bg: oklch(15% 0.05 280); /* Dark Void */
+	--color-text: oklch(95% 0.01 280);
+	--color-accent: oklch(70% 0.15 40);
 
-	/* Accents */
-	--color-phoenix-primary: #ff007f; /* Electric Magenta */
-	--color-phoenix-violet: #7f00ff; /* Deep Violet */
-	--color-phoenix-accent: #ffd700; /* Cyber Yellow */
-
-	/* Text */
-	--color-text-main: #ffffff;
-	--color-text-muted: #a0a0c0;
-
+	/* Fallback/Legacy (mapped to new vars) */
+	--color-void: var(--color-bg);
+	--color-phoenix-primary: var(--color-primary);
+	--color-phoenix-violet: var(--color-secondary);
+	--color-phoenix-accent: var(--color-accent);
+	--color-text-main: var(--color-text);
+	
 	/* Animation Curves (Osu! / Persona style - snappy & elastic) */
 	--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
 	--ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Bouncy! */
@@ -108,13 +114,39 @@
 	--radius-pill: 9999px;
 }
 
+/* Neo-Aero Glass Materials */
+.glass-oled {
+	background: color-mix(in oklch, var(--color-bg), transparent 20%);
+	backdrop-filter: blur(24px) saturate(1.5);
+	-webkit-backdrop-filter: blur(24px) saturate(1.5);
+	border: 1px solid color-mix(in oklch, var(--color-text), transparent 90%);
+}
+
+.glass-aero {
+	background: color-mix(in oklch, var(--color-bg), transparent 60%);
+	backdrop-filter: blur(16px) saturate(2);
+	-webkit-backdrop-filter: blur(16px) saturate(2);
+	border: 1px solid color-mix(in oklch, var(--color-text), transparent 80%);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.glass-hud {
+	background: color-mix(in oklch, var(--color-bg), transparent 40%);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border-top: 1px solid color-mix(in oklch, var(--color-text), transparent 80%);
+}
+
 /* Base Styles */
 html,
 body {
 	background-color: var(--color-void);
 	color: var(--color-text-main);
-	font-family: "Montserrat", system-ui, sans-serif;
+	font-family: "Inter", system-ui, -apple-system, sans-serif;
+	font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* Inter stylistic sets */
 	overflow-x: hidden;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 /* The Noise Texture Overlay */
@@ -131,21 +163,34 @@ body::before {
 	background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
-/* Typography Overrides */
+/* Typography Overrides - Clash Display for Impact Headers */
 h1,
-h2,
+h2 {
+	font-family: "Clash Display", "Inter", system-ui, sans-serif;
+	font-weight: 600;
+	letter-spacing: -0.02em;
+}
+
 h3,
 h4,
 h5,
 h6 {
-	font-family: "Montserrat", sans-serif;
-	letter-spacing: 0.02em;
+	font-family: "Inter", system-ui, sans-serif;
+	font-weight: 600;
+	letter-spacing: -0.01em;
 }
 
+/* Geist Mono for code and data displays */
 code,
 pre,
 .font-mono {
-	font-family: "JetBrains Mono", monospace;
+	font-family: "Geist Mono", ui-monospace, monospace;
+	font-feature-settings: "ss01", "ss02"; /* Code ligatures */
+}
+
+/* Display text utility for large headers */
+.font-display {
+	font-family: "Clash Display", "Inter", system-ui, sans-serif;
 }
 
 /* Pop Glass Utilities */
@@ -201,22 +246,60 @@ pre,
 	background-color: rgba(255, 255, 255, 0.3);
 }
 
-/* DaisyUI Overrides - Frutiger Pop Style */
+/* DaisyUI Overrides - 2025 Button Physics */
 .btn {
 	border-radius: var(--radius-pill);
+	font-family: "Inter", system-ui, sans-serif;
 	font-weight: 600;
-	letter-spacing: 0.03em;
+	letter-spacing: 0.02em;
 	text-transform: uppercase;
 	border: 1px solid transparent;
-	transition: all 0.2s var(--ease-spring);
+	transition: 
+		transform 0.15s var(--ease-spring),
+		box-shadow 0.2s var(--ease-out-quart),
+		background 0.2s var(--ease-out-quart);
+	position: relative;
+	overflow: hidden;
 }
 
+/* Hover state - slight lift */
 .btn:hover {
-	transform: scale(1.05);
+	transform: scale(1.03) translateY(-1px);
 }
 
+/* Press state - compress with physics */
 .btn:active {
 	transform: scale(0.95);
+	transition: transform 0.08s ease-out;
+}
+
+/* Bounce-back animation on release */
+@keyframes btn-bounce-back {
+	0% { transform: scale(0.95); }
+	40% { transform: scale(1.02); }
+	70% { transform: scale(0.99); }
+	100% { transform: scale(1); }
+}
+
+.btn:not(:active):focus-visible {
+	animation: btn-bounce-back 0.4s var(--ease-spring);
+}
+
+/* Ripple effect base */
+.btn::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: radial-gradient(circle at center, rgba(255,255,255,0.3) 0%, transparent 70%);
+	opacity: 0;
+	transform: scale(0);
+	transition: transform 0.5s var(--ease-out-quart), opacity 0.3s ease;
+}
+
+.btn:active::after {
+	transform: scale(2);
+	opacity: 1;
+	transition: transform 0.1s ease-out, opacity 0s;
 }
 
 /* Primary Button - Liquid Gradient */
@@ -252,14 +335,19 @@ pre,
 	border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* Inputs & Selects */
+/* Inputs & Selects - Enhanced Focus Glow */
 .input,
 .select,
 .textarea {
+	font-family: "Inter", system-ui, sans-serif;
 	background: rgba(20, 20, 30, 0.6);
 	border: 1px solid rgba(255, 255, 255, 0.1);
 	border-radius: var(--radius-pop);
-	transition: all 0.2s var(--ease-out-quart);
+	transition: 
+		border-color 0.2s var(--ease-out-quart),
+		box-shadow 0.3s var(--ease-out-quart),
+		background 0.2s var(--ease-out-quart),
+		transform 0.2s var(--ease-spring);
 	backdrop-filter: blur(10px);
 }
 
@@ -268,7 +356,10 @@ pre,
 .textarea:focus {
 	outline: none;
 	border-color: var(--color-phoenix-primary);
-	box-shadow: 0 0 0 2px rgba(255, 0, 127, 0.2);
+	box-shadow: 
+		0 0 0 3px rgba(255, 0, 127, 0.15),
+		0 0 20px rgba(255, 0, 127, 0.2),
+		inset 0 1px 0 rgba(255, 255, 255, 0.1);
 	background: rgba(30, 30, 45, 0.8);
 	transform: translateY(-1px);
 }
@@ -295,5 +386,178 @@ pre,
 	
 	--rounded-box: var(--radius-pop);
 	--rounded-btn: var(--radius-pill);
+}
+
+/* ============================================
+   SKELETON LOADING SYSTEM - 2025 Standard
+   Replaces spinners with content-shaped placeholders
+   ============================================ */
+
+@keyframes skeleton-pulse {
+	0%, 100% {
+		opacity: 0.4;
+	}
+	50% {
+		opacity: 0.7;
+	}
+}
+
+@keyframes skeleton-shimmer {
+	0% {
+		transform: translateX(-100%);
+	}
+	100% {
+		transform: translateX(100%);
+	}
+}
+
+.skeleton {
+	position: relative;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.05);
+	border-radius: var(--radius-pop);
+	animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.skeleton::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		90deg,
+		transparent 0%,
+		rgba(255, 255, 255, 0.08) 50%,
+		transparent 100%
+	);
+	animation: skeleton-shimmer 2s infinite;
+}
+
+/* Skeleton variants */
+.skeleton-text {
+	height: 1em;
+	border-radius: 0.25rem;
+}
+
+.skeleton-text-sm {
+	height: 0.75em;
+	width: 60%;
+}
+
+.skeleton-circle {
+	border-radius: 50%;
+}
+
+.skeleton-card {
+	aspect-ratio: 1;
+	border-radius: var(--radius-pop);
+}
+
+.skeleton-rect {
+	border-radius: var(--radius-pop);
+}
+
+/* Glass skeleton variant - matches app aesthetic */
+.skeleton-glass {
+	background: rgba(30, 30, 45, 0.4);
+	backdrop-filter: blur(10px);
+	border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ============================================
+   SUCCESS STATE ANIMATIONS - Dopamine Feedback
+   ============================================ */
+
+@keyframes success-pulse {
+	0% {
+		box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+	}
+	70% {
+		box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+	}
+}
+
+@keyframes success-check {
+	0% {
+		transform: scale(0) rotate(-45deg);
+		opacity: 0;
+	}
+	50% {
+		transform: scale(1.2) rotate(-45deg);
+	}
+	100% {
+		transform: scale(1) rotate(-45deg);
+		opacity: 1;
+	}
+}
+
+.btn-success-state {
+	animation: success-pulse 0.6s ease-out;
+	background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+}
+
+/* Layout spring animation for list item removal */
+@keyframes list-item-collapse {
+	0% {
+		opacity: 1;
+		transform: scale(1);
+		max-height: 200px;
+	}
+	50% {
+		opacity: 0;
+		transform: scale(0.95);
+	}
+	100% {
+		opacity: 0;
+		transform: scale(0.9);
+		max-height: 0;
+		padding: 0;
+		margin: 0;
+	}
+}
+
+.list-item-exit {
+	animation: list-item-collapse 0.3s var(--ease-out-quart) forwards;
+}
+
+/* Staggered entrance for lists */
+@keyframes stagger-in {
+	0% {
+		opacity: 0;
+		transform: translateY(20px) scale(0.95);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+.stagger-item {
+	animation: stagger-in 0.4s var(--ease-spring) backwards;
+}
+
+/* Modal entrance from origin */
+@keyframes modal-scale-in {
+	0% {
+		opacity: 0;
+		transform: scale(0.9);
+	}
+	100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+.modal-enter {
+	animation: modal-scale-in 0.3s var(--ease-spring);
+}
+
+/* Enhanced modal backdrop */
+.modal-backdrop-blur {
+	backdrop-filter: blur(8px) saturate(1.2);
+	-webkit-backdrop-filter: blur(8px) saturate(1.2);
+	background: rgba(0, 0, 0, 0.6);
 }
 
