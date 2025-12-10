@@ -237,10 +237,10 @@
 		}
 
 		// Add new point (convert canvas coordinates to data coordinates)
-		const dataX = Math.max(0, Math.min(DATA_RANGE, (x / CANVAS_SIZE) * DATA_RANGE));
-		const dataY = Math.max(0, Math.min(DATA_RANGE, (y / CANVAS_SIZE) * DATA_RANGE));
-		const newPoints = [...points, { x: dataX, y: dataY }].sort((a, b) => a.x - b.x);
-		const newIndex = newPoints.findIndex((p) => p.x === dataX && p.y === dataY);
+		const newDataX = Math.max(0, Math.min(DATA_RANGE, (x / CANVAS_SIZE) * DATA_RANGE));
+		const newDataY = Math.max(0, Math.min(DATA_RANGE, (y / CANVAS_SIZE) * DATA_RANGE));
+		const newPoints = [...points, { x: newDataX, y: newDataY }].sort((a, b) => a.x - b.x);
+		const newIndex = newPoints.findIndex((p) => p.x === newDataX && p.y === newDataY);
 		selectedPointIndex = newIndex;
 		isDragging = true;
 

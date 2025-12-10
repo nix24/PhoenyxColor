@@ -403,7 +403,7 @@ export function generateCSSGradient(
 	gradient: ValidatedGradient | null,
 	interpolationMode: InterpolationMode = "oklch"
 ): string {
-	if (!gradient || !gradient.stops.length) {
+	if (!gradient || !gradient.stops || !gradient.stops.length) {
 		return `linear-gradient(45deg in oklch, #3b82f6, #8b5cf6)`;
 	}
 
@@ -425,7 +425,7 @@ export function generateCSSGradient(
 }
 
 export function generateTailwindGradient(gradient: ValidatedGradient): string {
-	if (!gradient || gradient.stops.length < 2) return "";
+	if (!gradient || !gradient.stops || gradient.stops.length < 2) return "";
 
 	const sortedStops = [...gradient.stops].sort((a, b) => a.position - b.position);
 	const firstColor = sortedStops[0]?.color || "#000";
@@ -462,10 +462,12 @@ export function generateCSSVariables(gradient: ValidatedGradient, prefix = "grad
 	lines.push(`  --${prefix}-type: ${gradient.type};`);
 	lines.push(`  --${prefix}-angle: ${gradient.angle || 45}deg;`);
 
-	gradient.stops.forEach((stop, index) => {
-		lines.push(`  --${prefix}-color-${index + 1}: ${stop.color};`);
-		lines.push(`  --${prefix}-position-${index + 1}: ${stop.position}%;`);
-	});
+	if (gradient.stops && gradient.stops.length > 0) {
+		gradient.stops.forEach((stop, index) => {
+			lines.push(`  --${prefix}-color-${index + 1}: ${stop.color};`);
+			lines.push(`  --${prefix}-position-${index + 1}: ${stop.position}%;`);
+		});
+	}
 
 	lines.push(`  --${prefix}: ${generateCSSGradient(gradient)};`);
 	lines.push(`}`);
@@ -621,13 +623,13 @@ export function generateDefaultMeshPoints(): MeshPoint[] {
 
 export function generateMeshPointsFromColors(colors: string[]): MeshPoint[] {
 	if (colors.length === 0) return generateDefaultMeshPoints();
-	
+
 	// Predefined positions for mesh points based on count
 	const positions: [number, number][] = [
 		[25, 25], [75, 25], [50, 75], [50, 50],
 		[15, 50], [85, 50], [25, 85], [75, 85],
 	];
-	
+
 	return colors.slice(0, 8).map((color, index) => {
 		const pos = positions[index] || [Math.random() * 80 + 10, Math.random() * 80 + 10];
 		return createMeshPoint(pos[0], pos[1], color);
@@ -644,7 +646,8 @@ export function gradientToSVG(
 	const gradientId = `gradient-${Date.now()}`;
 	let gradientDef = "";
 
-	const sortedStops = [...gradient.stops].sort((a, b) => a.position - b.position);
+	const stops = gradient.stops || [];
+	const sortedStops = [...stops].sort((a, b) => a.position - b.position);
 	const stopsXML = sortedStops
 		.map((stop) => `<stop offset="${stop.position}%" stop-color="${stop.color}"/>`)
 		.join("\n      ");

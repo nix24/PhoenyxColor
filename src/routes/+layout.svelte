@@ -119,7 +119,6 @@
 <div
 	class="flex h-screen w-full bg-void text-text-main font-sans relative z-10 selection:bg-phoenix-primary selection:text-white leading-relaxed"
 >
-	<!-- Mobile Menu Backdrop Overlay -->
 	{#if app.mobileMenuOpen}
 		<button
 			class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300"
@@ -129,14 +128,12 @@
 		></button>
 	{/if}
 
-	<Sidebar />
-
 	<div class="flex-1 flex flex-col min-w-0 bg-void/50 relative">
 		<Header title={pageTitle} />
 
 		<!-- Scrollable Content -->
-		<main class="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8 pt-0 scroll-smooth">
-			<div class="max-w-7xl mx-auto w-full h-full">
+		<main class="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth">
+			<div class="w-full h-full">
 				{#key page.url.pathname}
 					<div
 						in:fly={{

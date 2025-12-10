@@ -6,6 +6,7 @@
 	import EyedropperTool from "$lib/components/common/EyedropperTool.svelte";
 	import { toast } from "svelte-sonner";
 	import { app } from "$lib/stores/root.svelte";
+	import { cn } from "$lib/utils/cn";
 
 	interface NavItem {
 		id: string;
@@ -35,7 +36,7 @@
 			path: "/gradients",
 			label: "Gradients",
 			icon: "material-symbols:gradient",
-			description: "Generate beautiful gradients",
+			description: "Generate color gradients",
 		},
 	];
 
@@ -55,11 +56,11 @@
 	}
 </script>
 
-<nav class="navbar glass-panel mx-4 mt-4 mb-6 h-20 min-h-20 z-50 relative">
-	<!-- Mobile Hamburger Menu -->
-	<div class="navbar-start md:hidden">
+<nav class="navbar w-full h-20 px-6 z-50 flex items-center justify-between relative bg-transparent">
+	<!-- Left: Logo & Brand -->
+	<div class="flex items-center gap-3">
 		<button
-			class="btn btn-ghost btn-circle text-primary hover:text-secondary transition-transform hover:scale-110 active:scale-90"
+			class="btn btn-ghost btn-circle md:hidden"
 			onclick={() => (isMobileMenuOpen = !isMobileMenuOpen)}
 			aria-label="Toggle mobile menu"
 		>
@@ -69,151 +70,92 @@
 			/>
 		</button>
 
-		<!-- Mobile Logo -->
-		<div class="ml-2 animate-[pop-in_0.5s_var(--ease-spring)]">
-			<div class="avatar placeholder">
-				<div
-					class="bg-linear-to-br from-primary to-secondary rounded-2xl w-10 text-primary-content shadow-lg shadow-primary/30"
-				>
-					<Icon icon="material-symbols:brush" class="text-2xl" />
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Desktop Logo/Brand -->
-	<div class="navbar-start hidden md:flex">
-		<div
-			class="flex items-center space-x-4 cursor-pointer group"
-			onclick={() => navigateTo("/")}
-			onkeydown={(e) => e.key === "Enter" && navigateTo("/")}
-			role="button"
-			tabindex="0"
-		>
+		<button class="flex items-center gap-3 group" onclick={() => navigateTo("/")} type="button">
 			<div
-				class="avatar placeholder transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6"
+				class="w-10 h-10 rounded-xl bg-linear-to-br from-phoenix-primary to-phoenix-violet flex items-center justify-center text-white shadow-lg shadow-phoenix-primary/20 transition-transform group-hover:scale-105"
 			>
-				<div
-					class="bg-linear-to-br from-primary to-secondary rounded-2xl w-12 text-primary-content shadow-lg shadow-primary/30"
-				>
-					<Icon icon="material-symbols:brush" class="text-3xl" />
-				</div>
+				<Icon icon="material-symbols:brush" class="text-xl" />
 			</div>
-			<div>
-				<h1
-					class="text-2xl font-bold text-transparent bg-clip-text bg-linear-to-r from-white to-white/80 group-hover:from-primary group-hover:to-secondary transition-all duration-300"
-				>
-					PhoenyxColor
-				</h1>
-				<p class="text-xs font-medium text-base-content/60 tracking-wider uppercase">
-					Artist's Workflow Suite
-				</p>
-			</div>
-		</div>
+			<span
+				class="text-xl font-bold tracking-wide text-white group-hover:text-phoenix-primary transition-colors"
+			>
+				Phoenyx<span class="text-phoenix-primary">Color</span>
+			</span>
+		</button>
 	</div>
 
-	<!-- Desktop Navigation Tabs -->
-	<div class="navbar-center hidden md:flex">
+	<!-- Center: Pill Navigation -->
+	<div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:block">
 		<div
-			class="flex items-center space-x-2 p-1 bg-base-100/30 backdrop-blur-md rounded-full border border-white/5"
+			class="glass-panel rounded-full p-1.5 flex items-center gap-1 border border-white/10 bg-void-deep/50 backdrop-blur-xl"
 		>
 			{#each navItems as item (item.id)}
 				<button
-					class="btn btn-sm btn-ghost rounded-full px-6 h-10 font-medium relative overflow-hidden group transition-all duration-300 hover:bg-white/10"
-					class:btn-active={currentPath === item.path}
-					class:text-primary={currentPath === item.path}
-					class:bg-white-10={currentPath === item.path}
+					class={cn(
+						"px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 relative",
+						currentPath.includes(item.path)
+							? "text-white bg-white/10 shadow-sm"
+							: "text-text-muted hover:text-white hover:bg-white/5"
+					)}
 					onclick={() => navigateTo(item.path)}
-					onmouseenter={() => (hoveredItem = item.id)}
-					onmouseleave={() => (hoveredItem = null)}
 					type="button"
-					aria-label="Switch to {item.label} module"
 				>
-					<div class="relative z-10 flex items-center space-x-2">
-						<Icon
-							icon={item.icon}
-							class="text-lg transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-12"
-						/>
-						<span>{item.label}</span>
-					</div>
-
-					<!-- Active Indicator (Bottom Line) -->
-					{#if currentPath === item.path}
-						<div
-							class="absolute bottom-0 left-0 w-full h-1 bg-linear-to-r from-primary to-secondary animate-[slide-up-fade_0.3s_var(--ease-spring)]"
-						></div>
-					{/if}
-
-					<!-- Tooltip -->
-					{#if hoveredItem === item.id && hoveredItem !== currentPath}
-						<div class="tooltip-container">
-							<div class="tooltip-content glass-panel border-primary/20 text-glow">
-								{item.description}
-							</div>
-						</div>
-					{/if}
+					{item.label}
 				</button>
 			{/each}
 		</div>
 	</div>
 
-	<!-- Mobile Title Center -->
-	<div class="navbar-center md:hidden">
-		<h1 class="text-xl font-bold text-base-content tracking-wide">PhoenyxColor</h1>
-	</div>
-
-	<!-- Utility Actions -->
-	<div class="navbar-end">
-		<div class="flex items-center space-x-3">
-			<!-- Global Color Buffer Display -->
-			{#if app.globalColorBuffer}
+	<!-- Right: Status, Buffer & Profile -->
+	<div class="flex items-center gap-4">
+		<!-- Global Color Buffer -->
+		{#if app.globalColorBuffer}
+			<div
+				class="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-black/20 rounded-lg border border-white/5 animate-in fade-in slide-in-from-right-4"
+			>
 				<div
-					class="hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-base-100/40 backdrop-blur-md rounded-full border border-white/10 animate-[pop-in_0.4s_var(--ease-spring)]"
-				>
-					<div
-						onkeydown={(e) => {
-							if (e.key === "Enter") {
-								navigator.clipboard.writeText(app.globalColorBuffer!);
-								toast.success(`Copied ${app.globalColorBuffer}!`);
-							}
-						}}
-						role="button"
-						tabindex="0"
-						class="w-6 h-6 rounded-full border-2 border-white/20 cursor-pointer hover:scale-110 transition-transform shadow-sm"
-						style:background-color={app.globalColorBuffer}
-						onclick={() => {
-							navigator.clipboard.writeText(app.globalColorBuffer!);
-							toast.success(`Copied ${app.globalColorBuffer}!`);
-						}}
-						title="Click to copy: {app.globalColorBuffer}"
-					></div>
-					<span class="text-xs font-mono font-bold text-base-content/80">
-						{app.globalColorBuffer}
-					</span>
-					<button
-						class="btn btn-xs btn-circle btn-ghost hover:bg-error/20 hover:text-error"
-						onclick={() => app.clearGlobalColor()}
-						title="Clear global color"
-						aria-label="Clear global color buffer"
-					>
-						<Icon icon="material-symbols:close" class="w-3 h-3" />
-					</button>
-				</div>
-			{/if}
-
-			<!-- Settings -->
-			<div class="tooltip tooltip-left" data-tip="Settings">
+					class="w-4 h-4 rounded-full border border-white/20 cursor-pointer shadow-sm"
+					style:background-color={app.globalColorBuffer}
+					onclick={() => {
+						navigator.clipboard.writeText(app.globalColorBuffer!);
+						toast.success(`Copied ${app.globalColorBuffer}!`);
+					}}
+					role="button"
+					tabindex="0"
+					onkeydown={(e) =>
+						e.key === "Enter" && navigator.clipboard.writeText(app.globalColorBuffer!)}
+				></div>
+				<span class="text-xs font-mono text-text-muted">{app.globalColorBuffer}</span>
 				<button
-					class="btn btn-circle btn-ghost hover:bg-white/10 transition-all duration-500 group"
-					onclick={() => navigateTo("/settings")}
-					aria-label="Settings"
+					class="text-text-muted hover:text-white transition-colors ml-1"
+					onclick={() => app.clearGlobalColor()}
 				>
-					<Icon
-						icon="material-symbols:settings-outline"
-						class="text-2xl text-base-content/70 group-hover:text-primary transition-all duration-700 group-hover:rotate-180"
-					/>
+					<Icon icon="material-symbols:close" class="w-3 h-3" />
 				</button>
 			</div>
+		{/if}
+
+		<!-- System Status Mockup -->
+		<div
+			class="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-black/20 rounded-lg border border-white/5"
+		>
+			<div class="w-2 h-2 rounded-full bg-success animate-pulse"></div>
+			<span class="text-xs font-medium text-text-muted">System Healthy</span>
+		</div>
+
+		<!-- Settings / Profile -->
+		<div class="flex items-center gap-2">
+			<button
+				class="btn btn-circle btn-sm btn-ghost hover:bg-white/10 text-text-muted hover:text-white"
+				onclick={() => navigateTo("/settings")}
+				aria-label="Settings"
+			>
+				<Icon icon="material-symbols:settings-outline" class="text-xl" />
+			</button>
+
+			<div
+				class="w-8 h-8 rounded-full bg-linear-to-tr from-phoenix-primary to-phoenix-violet border border-white/20 shadow-lg cursor-pointer hover:scale-105 transition-transform"
+			></div>
 		</div>
 	</div>
 </nav>
