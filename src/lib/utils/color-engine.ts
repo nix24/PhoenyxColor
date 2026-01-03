@@ -1,4 +1,5 @@
 import { converter, formatHex, type Oklab, parse } from "culori";
+import { wasm } from "$lib/services/wasm";
 
 // --- Types ---
 
@@ -43,32 +44,18 @@ export async function extractPalette(
 	// 1. Load Image and Downsample
 	const pixelData = await getDownsampledPixelData(imageSrc, DOWNSAMPLE_SIZES[options.quality]);
 
-	// 2. Convert to Oklab vectors
-	// We store them as simple arrays [L, a, b] for faster math
-	const pixels: [number, number, number][] = [];
-	for (let i = 0; i < pixelData.length; i += 4) {
-		// Skip transparent pixels
-		const alpha = pixelData[i + 3];
-		if (alpha === undefined || alpha < 128) continue;
-
-		const r = pixelData[i] ?? 0;
-		const g = pixelData[i + 1] ?? 0;
-		const b = pixelData[i + 2] ?? 0;
-
-		const oklab = toOklab({ mode: "rgb" as const, r: r / 255, g: g / 255, b: b / 255 });
-		if (oklab) {
-			pixels.push([oklab.l, oklab.a, oklab.b]);
-		}
+	// 2. K-Means Clustering (WASM)
+	let centroids: { l: number, a: number, b: number }[] = [];
+	try {
+		centroids = wasm.runKMeans(pixelData, options.colorCount, KMEANS_ITERATIONS[options.quality]);
+	} catch (e) {
+		console.error("WASM K-Means failed", e);
+		return ["#000000"];
 	}
 
-	if (pixels.length === 0) return ["#000000"];
-
-	// 3. K-Means Clustering
-	const centroids = kMeans(pixels, options.colorCount, KMEANS_ITERATIONS[options.quality]);
-
-	// 4. Convert centroids back to CSS strings
+	// 3. Convert centroids back to CSS strings
 	return centroids.map((c) => {
-		const color = { mode: "oklab", l: c[0], a: c[1], b: c[2] } as Oklab;
+		const color = { mode: "oklab", l: c.l, a: c.a, b: c.b } as Oklab;
 		const rgb = toRgb(color);
 		// Validate RGB values to prevent NaN in CSS output
 		if (!rgb || isNaN(rgb.r) || isNaN(rgb.g) || isNaN(rgb.b)) {
@@ -179,7 +166,7 @@ async function getDownsampledPixelData(src: string, maxSize: number): Promise<Ui
 
 			canvas.width = width;
 			canvas.height = height;
-			const ctx = canvas.getContext("2d");
+			const ctx = canvas.getContext("2d", { willReadFrequently: true });
 			if (!ctx) {
 				reject(new Error("Could not get canvas context"));
 				return;
@@ -191,99 +178,4 @@ async function getDownsampledPixelData(src: string, maxSize: number): Promise<Ui
 		img.onerror = reject;
 		img.src = src;
 	});
-}
-
-function kMeans(
-	points: [number, number, number][],
-	k: number,
-	iterations: number,
-): [number, number, number][] {
-	// Initialize centroids randomly from points
-	const centroids: [number, number, number][] = [];
-	const usedIndices = new Set<number>();
-	while (centroids.length < k && centroids.length < points.length) {
-		const idx = Math.floor(Math.random() * points.length);
-		if (!usedIndices.has(idx)) {
-			const point = points[idx];
-			if (point) {
-				centroids.push([...point] as [number, number, number]);
-				usedIndices.add(idx);
-			}
-		}
-	}
-
-	const assignments = new Int32Array(points.length);
-	const clusterSizes = new Int32Array(k);
-	const clusterSums = new Float32Array(k * 3);
-
-	for (let iter = 0; iter < iterations; iter++) {
-		// Assignment Step
-		for (let i = 0; i < points.length; i++) {
-			const p = points[i];
-			if (!p) continue;
-
-			let minDist = Infinity;
-			let bestCluster = 0;
-
-			for (let c = 0; c < k; c++) {
-				const cent = centroids[c];
-				if (!cent) continue;
-
-				const d = (p[0] - cent[0]) ** 2 + (p[1] - cent[1]) ** 2 + (p[2] - cent[2]) ** 2;
-				if (d < minDist) {
-					minDist = d;
-					bestCluster = c;
-				}
-			}
-			assignments[i] = bestCluster;
-		}
-
-		// Update Step
-		clusterSizes.fill(0);
-		clusterSums.fill(0);
-
-		for (let i = 0; i < points.length; i++) {
-			const cluster = assignments[i];
-			const p = points[i];
-			if (p === undefined || cluster === undefined || cluster < 0 || cluster >= k) continue;
-
-			const p0 = p[0];
-			const p1 = p[1];
-			const p2 = p[2];
-			if (p0 === undefined || p1 === undefined || p2 === undefined) continue;
-
-			clusterSizes[cluster] = (clusterSizes[cluster] ?? 0) + 1;
-			const baseIdx = cluster * 3;
-			clusterSums[baseIdx] = (clusterSums[baseIdx] ?? 0) + p0;
-			clusterSums[baseIdx + 1] = (clusterSums[baseIdx + 1] ?? 0) + p1;
-			clusterSums[baseIdx + 2] = (clusterSums[baseIdx + 2] ?? 0) + p2;
-		}
-
-		let changed = false;
-		for (let c = 0; c < k && c < centroids.length; c++) {
-			const clusterSize = clusterSizes[c];
-			if (clusterSize !== undefined && clusterSize > 0) {
-				const baseIdx = c * 3;
-				const sumL = clusterSums[baseIdx];
-				const sumA = clusterSums[baseIdx + 1];
-				const sumB = clusterSums[baseIdx + 2];
-
-				if (sumL !== undefined && sumA !== undefined && sumB !== undefined) {
-					const newL = sumL / clusterSize;
-					const newA = sumA / clusterSize;
-					const newB = sumB / clusterSize;
-
-					// Check for convergence (optional optimization, skipping for fixed iterations)
-					const centroid = centroids[c];
-					if (centroid) {
-						centroid[0] = newL;
-						centroid[1] = newA;
-						centroid[2] = newB;
-					}
-				}
-			}
-		}
-	}
-
-	return centroids;
 }

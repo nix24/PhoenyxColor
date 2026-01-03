@@ -1,3 +1,5 @@
+import { wasm } from "$lib/services/wasm";
+
 /**
  * Effects Processing Utilities
  * Real implementations of image effects like posterize, pixelate, solarize, emboss, etc.
@@ -25,16 +27,11 @@ export function applyPosterize(
 	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
-	const data = imageData.data;
 
-	// Intensity controls number of levels: 100% = 2 levels, 0% = 10 levels
-	const levels = Math.max(2, Math.round(10 - (intensity / 100) * 8));
-	const step = 256 / levels;
-
-	for (let i = 0; i < data.length; i += 4) {
-		data[i] = Math.round(Math.floor((data[i] ?? 0) / step) * step);
-		data[i + 1] = Math.round(Math.floor((data[i + 1] ?? 0) / step) * step);
-		data[i + 2] = Math.round(Math.floor((data[i + 2] ?? 0) / step) * step);
+	try {
+		wasm.applyPosterize(imageData.data, width, height, intensity);
+	} catch (e) {
+		console.error("WASM applyPosterize failed", e);
 	}
 
 	ctx.putImageData(imageData, 0, 0);
@@ -50,43 +47,11 @@ export function applyPixelate(
 	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
-	const data = imageData.data;
 
-	// Intensity controls pixel size: higher intensity = larger pixels
-	const pixelSize = Math.max(1, Math.round((intensity / 100) * 20));
-
-	for (let y = 0; y < height; y += pixelSize) {
-		for (let x = 0; x < width; x += pixelSize) {
-			// Calculate average color in block
-			let r = 0,
-				g = 0,
-				b = 0,
-				count = 0;
-
-			for (let py = 0; py < pixelSize && y + py < height; py++) {
-				for (let px = 0; px < pixelSize && x + px < width; px++) {
-					const i = ((y + py) * width + (x + px)) * 4;
-					r += data[i] ?? 0;
-					g += data[i + 1] ?? 0;
-					b += data[i + 2] ?? 0;
-					count++;
-				}
-			}
-
-			r = Math.round(r / count);
-			g = Math.round(g / count);
-			b = Math.round(b / count);
-
-			// Apply average to all pixels in block
-			for (let py = 0; py < pixelSize && y + py < height; py++) {
-				for (let px = 0; px < pixelSize && x + px < width; px++) {
-					const i = ((y + py) * width + (x + px)) * 4;
-					data[i] = r;
-					data[i + 1] = g;
-					data[i + 2] = b;
-				}
-			}
-		}
+	try {
+		wasm.applyPixelate(imageData.data, width, height, intensity);
+	} catch (e) {
+		console.error("WASM applyPixelate failed", e);
 	}
 
 	ctx.putImageData(imageData, 0, 0);
@@ -102,19 +67,11 @@ export function applySolarize(
 	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
-	const data = imageData.data;
 
-	// Threshold based on intensity - lower intensity = higher threshold
-	const threshold = Math.round(255 * (1 - intensity / 100));
-
-	for (let i = 0; i < data.length; i += 4) {
-		const r = data[i] ?? 0;
-		const g = data[i + 1] ?? 0;
-		const b = data[i + 2] ?? 0;
-
-		data[i] = r > threshold ? 255 - r : r;
-		data[i + 1] = g > threshold ? 255 - g : g;
-		data[i + 2] = b > threshold ? 255 - b : b;
+	try {
+		wasm.applySolarize(imageData.data, width, height, intensity);
+	} catch (e) {
+		console.error("WASM applySolarize failed", e);
 	}
 
 	ctx.putImageData(imageData, 0, 0);
@@ -132,30 +89,14 @@ export function applyDuotone(
 	lightColor: string
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
-	const data = imageData.data;
-	const factor = intensity / 100;
 
-	// Parse colors
 	const dark = hexToRgb(darkColor);
 	const light = hexToRgb(lightColor);
 
-	for (let i = 0; i < data.length; i += 4) {
-		const r = data[i] ?? 0;
-		const g = data[i + 1] ?? 0;
-		const b = data[i + 2] ?? 0;
-
-		// Calculate luminance
-		const lum = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
-
-		// Interpolate between dark and light based on luminance
-		const newR = dark.r + (light.r - dark.r) * lum;
-		const newG = dark.g + (light.g - dark.g) * lum;
-		const newB = dark.b + (light.b - dark.b) * lum;
-
-		// Blend with original based on intensity
-		data[i] = Math.round(r * (1 - factor) + newR * factor);
-		data[i + 1] = Math.round(g * (1 - factor) + newG * factor);
-		data[i + 2] = Math.round(b * (1 - factor) + newB * factor);
+	try {
+		wasm.applyDuotone(imageData.data, width, height, intensity, dark, light);
+	} catch (e) {
+		console.error("WASM applyDuotone failed", e);
 	}
 
 	ctx.putImageData(imageData, 0, 0);
@@ -463,7 +404,7 @@ export function applyEffect(
 			break;
 		case "duotone":
 			if (duotoneColors) {
-				applyDuotone(ctx, width, height, intensity, duotoneColors[0], duotoneColors[1]);
+				applyDuotone(ctx, width, height, intensity, duotoneColors[0] ?? "#000000", duotoneColors[1] ?? "#ffffff");
 			}
 			break;
 		case "halftone":
@@ -489,12 +430,13 @@ export function applyEffect(
 // Helper function to convert hex to RGB
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
 	const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-	return result
-		? {
-			r: parseInt(result[1], 16),
-			g: parseInt(result[2], 16),
-			b: parseInt(result[3], 16),
-		}
-		: { r: 0, g: 0, b: 0 };
+	if (!result || !result[1] || !result[2] || !result[3]) {
+		return { r: 0, g: 0, b: 0 };
+	}
+	return {
+		r: parseInt(result[1], 16),
+		g: parseInt(result[2], 16),
+		b: parseInt(result[3], 16),
+	};
 }
 

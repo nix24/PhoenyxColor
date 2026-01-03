@@ -6,7 +6,7 @@
 	import Icon from "@iconify/svelte";
 	import { cn } from "$lib/utils/cn";
 	import { toast } from "svelte-sonner";
-	import { onMount } from "svelte";
+	import { onMount, untrack } from "svelte";
 
 	// Import editor components
 	import EditorPanel from "$lib/components/editor/EditorPanel.svelte";
@@ -130,43 +130,49 @@
 	let image = $derived(app.references.references.find((r) => r.id === imageId));
 
 	// Initialize history with image properties
+	// Initialize history with image properties
 	$effect(() => {
-		if (image) {
-			history.initialize({
-				// Basic adjustments
-				brightness: image.brightness ?? 100,
-				contrast: image.contrast ?? 100,
-				saturation: image.saturation ?? 100,
-				hueRotate: image.hueRotate ?? 0,
-				blur: image.blur ?? 0,
-				opacity: image.opacity ?? 1,
-				sepia: image.sepia ?? 0,
-				invert: image.invert ?? 0,
-				isGrayscale: image.isGrayscale ?? false,
-				// Transform
-				scale: image.scale ?? 1,
-				rotation: image.rotation ?? 0,
-				flipX: image.flipX ?? false,
-				flipY: image.flipY ?? false,
-				// Gradient map
-				gradientMapOpacity: image.gradientMapOpacity ?? 0,
-				gradientMapBlendMode: image.gradientMapBlendMode ?? "normal",
-				// Enhanced adjustments
-				shadows: (image as any).shadows ?? 0,
-				highlights: (image as any).highlights ?? 0,
-				vibrance: (image as any).vibrance ?? 0,
-				temperature: (image as any).temperature ?? 0,
-				tint: (image as any).tint ?? 0,
-				clarity: (image as any).clarity ?? 0,
-				vignette: (image as any).vignette ?? 0,
-				// Curves
-				curves: (image as any).curves ?? DEFAULT_EDITOR_STATE.curves,
-				// Crop
-				cropRect: (image as any).cropRect ?? null,
-				// Effects
-				appliedEffects: (image as any).appliedEffects ?? [],
-			});
-		}
+		// Only re-initialize when the image ID changes
+		const currentId = imageId;
+
+		untrack(() => {
+			if (image && image.id === currentId) {
+				history.initialize({
+					// Basic adjustments
+					brightness: image.brightness ?? 100,
+					contrast: image.contrast ?? 100,
+					saturation: image.saturation ?? 100,
+					hueRotate: image.hueRotate ?? 0,
+					blur: image.blur ?? 0,
+					opacity: image.opacity ?? 1,
+					sepia: image.sepia ?? 0,
+					invert: image.invert ?? 0,
+					isGrayscale: image.isGrayscale ?? false,
+					// Transform
+					scale: image.scale ?? 1,
+					rotation: image.rotation ?? 0,
+					flipX: image.flipX ?? false,
+					flipY: image.flipY ?? false,
+					// Gradient map
+					gradientMapOpacity: image.gradientMapOpacity ?? 0,
+					gradientMapBlendMode: image.gradientMapBlendMode ?? "normal",
+					// Enhanced adjustments
+					shadows: (image as any).shadows ?? 0,
+					highlights: (image as any).highlights ?? 0,
+					vibrance: (image as any).vibrance ?? 0,
+					temperature: (image as any).temperature ?? 0,
+					tint: (image as any).tint ?? 0,
+					clarity: (image as any).clarity ?? 0,
+					vignette: (image as any).vignette ?? 0,
+					// Curves
+					curves: (image as any).curves ?? DEFAULT_EDITOR_STATE.curves,
+					// Crop
+					cropRect: (image as any).cropRect ?? null,
+					// Effects
+					appliedEffects: (image as any).appliedEffects ?? [],
+				});
+			}
+		});
 	});
 
 	// Sync state changes to the store
@@ -640,7 +646,7 @@
 		try {
 			// Create a canvas with just the cropped region
 			const canvas = document.createElement("canvas");
-			const ctx = canvas.getContext("2d");
+			const ctx = canvas.getContext("2d", { willReadFrequently: true });
 			if (!ctx) return;
 
 			const img = new Image();

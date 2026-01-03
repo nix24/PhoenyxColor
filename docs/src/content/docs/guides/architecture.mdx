@@ -11,19 +11,58 @@ PhoenyxColor uses a modular state management approach built on top of Svelte 5's
 
 ### RootStore
 
-The `RootStore` serves as the single source of truth for the application's global state. It initializes and holds references to all feature-specific stores.
+The `RootStore` serves as the single source of truth for the application's global state. It initializes and holds references to all feature-specific stores, plus services like spatial navigation.
 
 ```typescript
 // src/lib/stores/root.svelte.ts
+import { SettingsStore } from "./settings.svelte";
+import { PaletteStore } from "./palettes.svelte";
+import { ReferenceStore } from "./references.svelte";
+import { GradientStore } from "./gradients.svelte";
+import { ThemeStore } from "./theme.svelte";
+import { spatialNav } from "$lib/services/spatial-nav";
+
 export class RootStore {
     settings = new SettingsStore();
     palettes = new PaletteStore();
     references = new ReferenceStore();
     gradients = new GradientStore();
+    theme = new ThemeStore();
+
+    // Services
+    spatial = spatialNav;
 
     // Global UI state
     isEyedropperActive = $state(false);
     globalColorBuffer = $state<string | null>(null);
+    mobileMenuOpen = $state(false);
+
+    // Derived ready state
+    get isReady(): boolean {
+        return (
+            this.settings.isReady &&
+            this.palettes.isReady &&
+            this.references.isReady &&
+            this.gradients.isReady
+        );
+    }
+
+    async whenReady(): Promise<void> {
+        await Promise.all([
+            this.settings.whenReady(),
+            this.palettes.whenReady(),
+            this.references.whenReady(),
+            this.gradients.whenReady(),
+        ]);
+    }
+
+    // Actions
+    toggleEyedropper() { ... }
+    setGlobalColor(color: string) { ... }
+    clearGlobalColor() { ... }
+    toggleMobileMenu() { ... }
+    closeMobileMenu() { ... }
+    openMobileMenu() { ... }
 }
 ```
 
@@ -35,20 +74,86 @@ import { app } from "$lib/stores/root.svelte";
 
 ### Modular Stores
 
-Each major feature has its own dedicated store class. These stores handle their own logic, data persistence, and state mutations.
+Each major feature has its own dedicated store class. These stores handle their own logic, data persistence, and state mutations. All stores follow a consistent pattern with non-blocking initialization.
 
-- **PaletteStore**: Manages color palettes, including creation, updates, and deletion. It handles history (undo/redo) for palette operations.
-- **SettingsStore**: Manages application preferences and configuration.
-- **ReferenceStore**: Handles reference images and associated data.
-- **GradientStore**: Manages gradient definitions and manipulations.
+#### Common Store Pattern
+
+```typescript
+export class ExampleStore {
+    items = $state<Item[]>([]);
+    isReady = $state(false);
+    history = new HistoryStore<Item[]>();
+    
+    private STORAGE_KEY = "phoenyx_items";
+    private loadPromise: Promise<void>;
+
+    constructor() {
+        // Non-blocking initialization
+        this.loadPromise = this.load();
+    }
+
+    async whenReady(): Promise<void> {
+        return this.loadPromise;
+    }
+
+    async load() {
+        try {
+            const saved = await storage.db.get<Item[]>(this.STORAGE_KEY);
+            if (saved) this.items = saved;
+        } finally {
+            this.isReady = true;
+        }
+    }
+
+    async save() {
+        await storage.db.set(this.STORAGE_KEY, $state.snapshot(this.items));
+    }
+}
+```
+
+#### Available Stores
+
+| Store | Purpose | Key Features |
+|-------|---------|--------------|
+| **PaletteStore** | Color palette management | CRUD, undo/redo, color operations |
+| **GradientStore** | Gradient definitions | CRUD, undo/redo, stop management |
+| **ReferenceStore** | Reference image management | CRUD, undo/redo, transformation state |
+| **SettingsStore** | App preferences | Theme, export prefs, workspace settings |
+| **ThemeStore** | Dynamic theming | Image-based theme extraction, CSS variable updates |
+
+### HistoryStore
+
+A generic undo/redo implementation used by all feature stores:
+
+```typescript
+export class HistoryStore<T> {
+    undoStack: HistoryAction<T>[] = $state([]);
+    redoStack: HistoryAction<T>[] = $state([]);
+    maxSize: number;
+
+    get canUndo() { return this.undoStack.length > 0; }
+    get canRedo() { return this.redoStack.length > 0; }
+
+    push(action: HistoryAction<T>) { ... }
+    undo(state: T) { ... }
+    redo(state: T) { ... }
+    clear() { ... }
+}
+```
 
 ### Persistence
 
-Data persistence is handled via a `storage` service (likely wrapping IndexedDB or LocalStorage), which the individual stores use to save and load their state.
+Data persistence is handled via a `storage` service that abstracts IndexedDB (for large data like images) and LocalStorage (for settings). Individual stores use this service to save and load their state automatically.
+
+```typescript
+// Storage service provides two adapters:
+storage.db    // IndexedDB - for palettes, gradients, references
+storage.local // LocalStorage - for settings
+```
 
 ## Usage Pattern
 
-Components should import the `app` singleton to access state.
+Components should import the `app` singleton to access state:
 
 ```svelte
 <script>
@@ -64,7 +169,121 @@ Components should import the `app` singleton to access state.
 </button>
 ```
 
+### Waiting for Data
+
+When a component needs data to be loaded before rendering:
+
+```svelte
+<script>
+  import { app } from "$lib/stores/root.svelte";
+  import { onMount } from "svelte";
+
+  onMount(async () => {
+    await app.whenReady();
+    // Safe to access app.palettes.palettes, etc.
+  });
+</script>
+
+{#if app.isReady}
+  <PaletteList palettes={app.palettes.palettes} />
+{:else}
+  <LoadingSpinner />
+{/if}
+```
+
+## Services
+
+### WASM Service
+
+High-performance image processing via WebAssembly:
+
+```typescript
+import { wasm } from "$lib/services/wasm";
+
+// Initialize once
+await wasm.init();
+
+// Image adjustments
+wasm.applyTemperature(data, width, height, temp);
+wasm.applyTint(data, width, height, tint);
+wasm.applyShadowsHighlights(data, width, height, shadows, highlights);
+wasm.applyVibrance(data, width, height, vibrance);
+
+// Effects
+wasm.applyPosterize(data, width, height, intensity);
+wasm.applySolarize(data, width, height, intensity);
+wasm.applyDuotone(data, width, height, intensity, darkColor, lightColor);
+wasm.applyPixelate(data, width, height, intensity);
+
+// Clustering
+const centroids = wasm.runKMeans(data, k, iterations);
+```
+
+### Color Engine
+
+Theme extraction and color manipulation using OkLCH:
+
+```typescript
+import { ColorEngine } from "$lib/services/color-engine";
+
+// Extract theme from image
+const theme = await ColorEngine.extractTheme(imageUrl);
+// Returns: { primary, secondary, background, text, accent }
+
+// Sort colors using Hilbert curve for visual coherence
+const sorted = ColorEngine.sortColorsHilbert(hexColors);
+```
+
+### Color Utilities
+
+Palette extraction and gradient generation:
+
+```typescript
+import { extractPalette, sortPalette, generateGradient } from "$lib/utils/color-engine";
+
+// Extract palette from image using WASM K-Means
+const colors = await extractPalette(imageSrc, { colorCount: 5, quality: "balanced" });
+
+// Sort for smooth gradient
+const sorted = sortPalette(colors);
+
+// Generate CSS gradient with oklch interpolation
+const css = generateGradient(sorted, "to right");
+// "linear-gradient(to right in oklch, #color1, #color2, ...)"
+```
+
+## File Structure
+
+```
+src/lib/
+├── components/          # UI Components
+│   ├── modules/         # Main feature modules (References, Palettes, Gradients)
+│   ├── editor/          # Editor panels and toolbars
+│   ├── ui/              # Reusable UI primitives
+│   └── layout/          # Layout components
+├── services/            # Business logic
+│   ├── wasm.ts          # WebAssembly interface
+│   ├── color-engine.ts  # Theme extraction
+│   ├── storage/         # Persistence adapters
+│   ├── persistence.ts   # Import/export
+│   └── spatial-nav.ts   # Keyboard navigation
+├── stores/              # State management
+│   ├── root.svelte.ts   # Main store singleton
+│   ├── palettes.svelte.ts
+│   ├── gradients.svelte.ts
+│   ├── references.svelte.ts
+│   ├── settings.svelte.ts
+│   ├── theme.svelte.ts
+│   └── history.svelte.ts
+├── utils/               # Pure utility functions
+│   ├── color-engine.ts  # Palette extraction & sorting
+│   ├── effects-processing.ts # Canvas effects
+│   └── image-processing.ts
+├── schemas/             # Validation schemas
+└── types/               # TypeScript types & branded IDs
+```
+
 ## Deprecation Notice
 
 > [!WARNING]
-> The file `src/lib/stores/app.svelte.ts` is deprecated and contains the legacy architecture. Please use `src/lib/stores/root.svelte.ts` and the modular stores instead.
+> The file `src/lib/stores/app.svelte.ts` contains the legacy monolithic store architecture. It is preserved for reference but should NOT be used. All new code should use `src/lib/stores/root.svelte.ts` and the modular stores instead.

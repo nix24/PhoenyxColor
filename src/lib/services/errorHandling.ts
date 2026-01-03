@@ -57,7 +57,7 @@ export class ErrorHandlingService {
 				message: error.message,
 				details: error,
 				timestamp: new Date(),
-				stack: error.stack,
+				stack: error.stack ?? "",
 			};
 		} else {
 			appError = {

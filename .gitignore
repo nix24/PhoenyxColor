@@ -30,4 +30,4 @@ repomix*
 
 #zig files
 zig-out/
-zig-cache/
+.zig-cache/

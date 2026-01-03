@@ -31,7 +31,7 @@ export async function renderCanvasImage(
         maxSize?: number;
     } = {}
 ): Promise<void> {
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) throw new Error("Could not get canvas context");
 
     let width = image.naturalWidth;

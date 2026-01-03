@@ -118,7 +118,7 @@ const MAX_HISTORY_SIZE = 50;
  * Deep clone an ImageEditorState to prevent mutation of history entries
  */
 function deepCloneState(state: ImageEditorState): ImageEditorState {
-    return structuredClone(state);
+    return JSON.parse(JSON.stringify(state));
 }
 
 export class EditorHistoryService {
