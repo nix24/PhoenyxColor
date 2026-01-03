@@ -86,7 +86,7 @@
 					min="0"
 					max="360"
 					bind:value={hsl.h}
-					onchange={updateFromHsl}
+					oninput={updateFromHsl}
 					class="range range-xs w-full"
 					style="background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);"
 				/>
@@ -103,7 +103,7 @@
 					min="0"
 					max="100"
 					bind:value={hsl.s}
-					onchange={updateFromHsl}
+					oninput={updateFromHsl}
 					class="range range-xs w-full"
 					style="background: linear-gradient(to right, hsl({hsl.h}, 0%, {hsl.l}%), hsl({hsl.h}, 100%, {hsl.l}%));"
 				/>
@@ -120,7 +120,7 @@
 					min="0"
 					max="100"
 					bind:value={hsl.l}
-					onchange={updateFromHsl}
+					oninput={updateFromHsl}
 					class="range range-xs w-full"
 					style="background: linear-gradient(to right, hsl({hsl.h}, {hsl.s}%, 0%), hsl({hsl.h}, {hsl.s}%, 50%), hsl({hsl.h}, {hsl.s}%, 100%));"
 				/>
@@ -147,7 +147,10 @@
 			<button
 				onclick={() => {
 					if (activeColor) {
-						navigator.clipboard.writeText(activeColor).then(() => toast.success("Copied!"));
+						navigator.clipboard
+							.writeText(activeColor)
+							.then(() => toast.success("Copied!"))
+							.catch(() => toast.error("Failed to copy"));
 					}
 				}}
 				class="absolute inset-y-0 right-0 pr-2 flex items-center text-text-muted hover:text-white"

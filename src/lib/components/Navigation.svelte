@@ -40,7 +40,6 @@
 		},
 	];
 
-	let hoveredItem: string | null = $state(null);
 	let isMobileMenuOpen = $state(false);
 
 	// Get current active path
@@ -219,24 +218,6 @@
 {/if}
 
 <style>
-	.tooltip-container {
-		position: absolute;
-		top: 120%;
-		left: 50%;
-		transform: translateX(-50%);
-		z-index: 100;
-		pointer-events: none;
-		width: max-content;
-	}
-
-	.tooltip-content {
-		padding: 8px 16px;
-		font-size: 0.8rem;
-		font-weight: 500;
-		color: white;
-		animation: pop-in 0.3s var(--ease-spring) forwards;
-	}
-
 	/* Active state for desktop tabs */
 	.btn-active {
 		background-color: rgba(255, 255, 255, 0.1);

@@ -35,7 +35,7 @@
 	<div class="grid grid-cols-2 gap-3 h-24">
 		<button
 			class="glass-panel p-0 flex flex-col items-center justify-center gap-2 bg-black/30 hover:bg-white/5 transition-all group border-white/5 hover:border-phoenix-primary/30 shadow-lg"
-			onclick={onFromImage}
+			onclick={() => onFromImage?.()}
 		>
 			<Icon
 				icon="material-symbols:image-outline"

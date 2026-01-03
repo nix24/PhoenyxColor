@@ -180,6 +180,7 @@
 		} catch (error) {
 			console.error("Failed to save custom presets:", error);
 			toast.error("Failed to save preset");
+			throw error;
 		}
 	}
 
@@ -230,10 +231,15 @@
 		};
 
 		customPresets = [...customPresets, newPreset];
-		await saveCustomPresets();
-		newPresetName = "";
-		showSaveDialog = false;
-		toast.success("Preset saved!");
+		try {
+			await saveCustomPresets();
+			newPresetName = "";
+			showSaveDialog = false;
+			toast.success("Preset saved!");
+		} catch (error) {
+			// Revert the optimistic update on failure
+			customPresets = customPresets.filter((p) => p.id !== newPreset.id);
+		}
 	}
 
 	async function deleteCustomPreset(id: string) {

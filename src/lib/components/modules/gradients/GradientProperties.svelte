@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { app } from "$lib/stores/root.svelte";
 	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
 	import type { InterpolationMode } from "./gradient-utils";
 	import { generateCSSGradient } from "./gradient-utils";
 	import { toast } from "svelte-sonner";
@@ -65,8 +64,10 @@
 				<button
 					class="text-phoenix-primary hover:text-white transition-colors"
 					onclick={() => {
-						navigator.clipboard.writeText(`background: ${cssOutput};`);
-						toast.success("CSS copied!");
+						navigator.clipboard
+							.writeText(`background: ${cssOutput};`)
+							.then(() => toast.success("CSS copied!"))
+							.catch(() => toast.error("Failed to copy"));
 					}}
 				>
 					<Icon icon="material-symbols:content-copy" class="text-sm" />

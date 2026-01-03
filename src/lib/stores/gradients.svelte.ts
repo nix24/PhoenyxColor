@@ -120,6 +120,10 @@ export class GradientStore {
 		const item = this.gradients[index];
 		if (item) {
 			const prevState = $state.snapshot(this.gradients);
+			// Create next state before applying updates
+			const nextState = prevState.map((g, i) =>
+				i === index ? { ...g, ...updates } : g
+			);
 			Object.assign(item, updates);
 			this.save();
 
@@ -130,7 +134,6 @@ export class GradientStore {
 					this.save();
 				},
 				redo: () => {
-					const nextState = $state.snapshot(this.gradients);
 					this.gradients = nextState;
 					this.save();
 				},

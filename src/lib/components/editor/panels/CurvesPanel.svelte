@@ -98,7 +98,8 @@
 		ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
 		for (let i = 0; i < histogramData.length; i++) {
 			const height = (histogramData[i] ?? 0) * size * 0.8;
-			ctx.fillRect(i, size - height, 1, height);
+			const scaledX = i * SCALE_FACTOR;
+			ctx.fillRect(scaledX, size - height, SCALE_FACTOR, height);
 		}
 
 		// Draw grid
@@ -202,7 +203,10 @@
 						(2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
 						(-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
 
-				result.push({ x: Math.max(0, Math.min(255, x)), y: Math.max(0, Math.min(255, y)) });
+				result.push({
+					x: Math.max(0, Math.min(DATA_RANGE, x)),
+					y: Math.max(0, Math.min(DATA_RANGE, y)),
+				});
 			}
 		}
 
@@ -302,7 +306,7 @@
 			...curves,
 			[activeChannel]: [
 				{ x: 0, y: 0 },
-				{ x: 255, y: 255 },
+				{ x: DATA_RANGE, y: DATA_RANGE },
 			],
 		});
 	}
@@ -311,19 +315,19 @@
 		onCurvesChange({
 			rgb: [
 				{ x: 0, y: 0 },
-				{ x: 255, y: 255 },
+				{ x: DATA_RANGE, y: DATA_RANGE },
 			],
 			red: [
 				{ x: 0, y: 0 },
-				{ x: 255, y: 255 },
+				{ x: DATA_RANGE, y: DATA_RANGE },
 			],
 			green: [
 				{ x: 0, y: 0 },
-				{ x: 255, y: 255 },
+				{ x: DATA_RANGE, y: DATA_RANGE },
 			],
 			blue: [
 				{ x: 0, y: 0 },
-				{ x: 255, y: 255 },
+				{ x: DATA_RANGE, y: DATA_RANGE },
 			],
 		});
 	}

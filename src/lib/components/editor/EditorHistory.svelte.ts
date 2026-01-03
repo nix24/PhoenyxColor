@@ -118,7 +118,7 @@ const MAX_HISTORY_SIZE = 50;
  * Deep clone an ImageEditorState to prevent mutation of history entries
  */
 function deepCloneState(state: ImageEditorState): ImageEditorState {
-    return JSON.parse(JSON.stringify(state));
+    return structuredClone(state);
 }
 
 export class EditorHistoryService {
@@ -144,7 +144,7 @@ export class EditorHistoryService {
      */
     pushState(newState: Partial<ImageEditorState>) {
         // Save current state to undo stack
-        this.undoStack = [...this.undoStack, { ...this.currentState }];
+        this.undoStack = [...this.undoStack, deepCloneState(this.currentState)];
 
         // Limit history size
         if (this.undoStack.length > MAX_HISTORY_SIZE) {
@@ -154,8 +154,15 @@ export class EditorHistoryService {
         // Clear redo stack on new action
         this.redoStack = [];
 
-        // Apply new state
-        this.currentState = { ...this.currentState, ...newState };
+        // Apply new state with deep cloning for nested objects
+        const mergedState = { ...this.currentState, ...newState };
+        if (newState.curves) {
+            mergedState.curves = structuredClone(newState.curves);
+        }
+        if (newState.appliedEffects) {
+            mergedState.appliedEffects = structuredClone(newState.appliedEffects);
+        }
+        this.currentState = mergedState;
     }
 
     /**
@@ -165,7 +172,7 @@ export class EditorHistoryService {
         const mergedState = { ...this.currentState, ...newState };
         // Deep clone nested objects if they're being updated
         if (newState.curves) {
-            mergedState.curves = deepCloneState({ ...DEFAULT_EDITOR_STATE, curves: newState.curves }).curves;
+            mergedState.curves = structuredClone(newState.curves);
         }
         if (newState.appliedEffects) {
             mergedState.appliedEffects = structuredClone(newState.appliedEffects);
