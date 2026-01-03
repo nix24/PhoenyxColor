@@ -10,8 +10,13 @@
 	async function handleGenerate() {
 		if (!imageUrl) return;
 		isLoading = true;
-		await app.theme.generateFromImage(imageUrl);
-		isLoading = false;
+		try {
+			await app.theme.generateFromImage(imageUrl);
+		} catch (error) {
+			console.error("Failed to generate theme from image:", error);
+		} finally {
+			isLoading = false;
+		}
 	}
 
 	function handleReset() {

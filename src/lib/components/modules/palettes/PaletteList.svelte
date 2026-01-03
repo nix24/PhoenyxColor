@@ -3,24 +3,22 @@
 	import { elasticOut } from "svelte/easing";
 	import { onMount } from "svelte";
 	import { app } from "$lib/stores/root.svelte";
-	import type { ValidatedColorPalette } from "$lib/schemas/validation";
 	import Icon from "@iconify/svelte";
-	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
-	import SkeletonCard from "$lib/components/ui/SkeletonCard.svelte";
 	import { cn } from "$lib/utils/cn";
 
 	interface Props {
 		searchTerm?: string;
 		onCreateNew?: () => void;
+		onExtract?: () => void;
+		onDelete?: () => void;
 	}
 
-	let { searchTerm = "", onCreateNew }: Props = $props();
+	let { searchTerm = "", onCreateNew, onExtract, onDelete }: Props = $props();
 
 	// Initial loading state for skeleton display
 	let isLoading = $state(true);
 
 	onMount(() => {
-		// Brief delay to show skeleton, then reveal content
 		const timer = setTimeout(() => {
 			isLoading = false;
 		}, 300);
@@ -34,121 +32,108 @@
 				palette.colors.some((color) => color.toLowerCase().includes(searchTerm.toLowerCase()))
 		)
 	);
+
+	function timeAgo(date: Date) {
+		if (!date) return "";
+		const now = new Date();
+		const diffInSeconds = Math.floor((now.getTime() - new Date(date).getTime()) / 1000);
+
+		const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
+		if (diffInSeconds < 60) return "just now";
+		if (diffInSeconds < 3600) return rtf.format(-Math.floor(diffInSeconds / 60), "minute");
+		if (diffInSeconds < 86400) return rtf.format(-Math.floor(diffInSeconds / 3600), "hour");
+		return rtf.format(-Math.floor(diffInSeconds / 86400), "day");
+	}
 </script>
 
-<!-- On mobile: horizontal scrollable strip; On desktop: vertical sidebar -->
-<GlassPanel class="w-full lg:w-80 overflow-hidden shrink-0" intensity="low">
-	<div class="flex flex-col h-full max-h-48 lg:max-h-full">
-		<div class="p-3 lg:p-4 border-b border-white/5 bg-black/20 flex items-center justify-between">
-			<h3 class="font-semibold text-white text-sm lg:text-base">
-				Palettes ({filteredPalettes.length})
-			</h3>
-			{#if onCreateNew}
-				<button
-					class="btn btn-xs btn-ghost text-phoenix-primary lg:hidden"
-					onclick={onCreateNew}
-					aria-label="Create new palette"
-				>
-					<Icon icon="material-symbols:add" class="w-4 h-4" />
-				</button>
-			{/if}
-		</div>
+<div class="w-80 h-full flex flex-col gap-4 p-4">
+	<!-- Actions -->
+	<div class="space-y-2">
+		<button
+			class="btn btn-outline border-white/20 hover:border-white/40 hover:bg-white/5 w-full normal-case gap-2 text-white h-11"
+			onclick={onCreateNew}
+		>
+			<Icon icon="material-symbols:add" class="w-5 h-5 text-phoenix-primary" />
+			New Palette
+		</button>
 
-		<!-- Mobile: horizontal scroll; Desktop: vertical scroll -->
-		<div class="flex-1 overflow-x-auto lg:overflow-x-hidden overflow-y-auto p-2 custom-scrollbar">
-			<div class="flex lg:flex-col gap-2 lg:space-y-0 min-w-max lg:min-w-0">
-				{#if isLoading}
-					<!-- Skeleton Loading State -->
-					{#each Array(4) as _, i}
-						<div style:animation-delay="{i * 100}ms" class="stagger-item">
-							<SkeletonCard type="palette" />
-						</div>
-					{/each}
-				{:else}
-					{#each filteredPalettes as palette, i (palette.id)}
-						<button
-							in:fly={{ y: 20, duration: 400, delay: i * 50, easing: elasticOut }}
-							class={cn(
-								"text-left p-2 lg:p-3 rounded-xl cursor-pointer transition-all duration-300 border group relative overflow-hidden shrink-0",
-								"w-40 lg:w-full", // Fixed width on mobile for horizontal scroll
-								app.palettes.activePaletteId === palette.id
-									? "bg-phoenix-primary/20 border-phoenix-primary/50 shadow-[0_0_20px_rgba(255,0,127,0.3)] scale-[1.02]"
-									: "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 hover:scale-[1.02] hover:shadow-lg"
-							)}
-							onclick={() => app.palettes.setActive(palette.id)}
-							tabindex="0"
-							onkeydown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									app.palettes.setActive(palette.id);
-								}
-							}}
-						>
-							<!-- Shine Effect -->
-							<div
-								class="absolute inset-0 bg-linear-to-tr from-white/0 via-white/5 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-							></div>
-
-							<!-- Palette Header -->
-							<div class="flex items-center justify-between mb-1 lg:mb-2">
-								<div class="flex-1 min-w-0">
-									<h4
-										class={cn(
-											"font-medium truncate text-xs lg:text-sm",
-											app.palettes.activePaletteId === palette.id ? "text-white" : "text-text-muted"
-										)}
-										title={palette.name}
-									>
-										{palette.name}
-									</h4>
-									<p class="text-[9px] lg:text-[10px] text-text-muted/60 uppercase tracking-wider">
-										{palette.colors.length}/{palette.maxSlots} colors
-									</p>
-								</div>
-							</div>
-
-							<!-- Mini Color Swatches -->
-							<div class="flex gap-0.5 lg:gap-1 h-2 lg:h-3 mt-1 lg:mt-2">
-								{#each palette.colors.slice(0, 8) as color}
-									<div
-										class="flex-1 h-full rounded-full shadow-sm border border-black/10"
-										style:background-color={color}
-									></div>
-								{/each}
-								{#if palette.colors.length === 0}
-									<div class="w-full h-full bg-white/5 rounded-full"></div>
-								{/if}
-							</div>
-						</button>
-					{/each}
-
-					{#if app.palettes.palettes.length === 0}
-						<div class="text-center py-4 lg:py-8 text-text-muted/50 w-full">
-							<Icon
-								icon="material-symbols:palette-outline"
-								class="h-8 w-8 lg:h-12 lg:w-12 mx-auto mb-2 opacity-30"
-							/>
-							<p class="text-sm">No palettes yet</p>
-							{#if onCreateNew}
-								<button
-									class="btn btn-sm btn-ghost text-phoenix-primary mt-2"
-									onclick={onCreateNew}
-								>
-									Create one
-								</button>
-							{/if}
-						</div>
-					{:else if filteredPalettes.length === 0}
-						<div class="text-center py-4 lg:py-8 text-text-muted/50 w-full">
-							<Icon
-								icon="material-symbols:search-off"
-								class="h-8 w-8 lg:h-12 lg:w-12 mx-auto mb-2 opacity-30"
-							/>
-							<p class="text-sm">No matches found</p>
-						</div>
-					{/if}
-				{/if}
-			</div>
+		<div class="grid grid-cols-2 gap-2">
+			<button
+				class="h-10 flex items-center justify-center rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all text-text-muted hover:text-white text-xs"
+				onclick={onExtract}
+			>
+				<Icon icon="material-symbols:colorize" class="w-4 h-4 mr-1.5" />
+				Extract
+			</button>
+			<button
+				class="h-10 flex items-center justify-center rounded-lg bg-white/5 border border-white/10 hover:bg-red-500/20 hover:border-red-500/50 transition-all text-text-muted hover:text-red-400 text-xs"
+				onclick={onDelete}
+				disabled={!app.palettes.activePaletteId}
+			>
+				<Icon icon="material-symbols:delete-outline" class="w-4 h-4 mr-1.5" />
+				Delete
+			</button>
 		</div>
 	</div>
-</GlassPanel>
+
+	<!-- Workspace List -->
+	<div class="flex-1 flex flex-col min-h-0">
+		<h3 class="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">Workspace</h3>
+
+		<div class="flex-1 overflow-y-auto custom-scrollbar -mr-2 pr-2 space-y-2">
+			{#if isLoading}
+				{#each Array(4) as _}
+					<div class="h-16 rounded-lg bg-white/5 animate-pulse"></div>
+				{/each}
+			{:else}
+				{#each filteredPalettes as palette, i (palette.id)}
+					<button
+						in:fly={{ y: 20, duration: 300, delay: i * 30 }}
+						class={cn(
+							"w-full text-left p-3 rounded-lg transition-all duration-200 group relative border",
+							app.palettes.activePaletteId === palette.id
+								? "bg-white/10 border-phoenix-primary/50 shadow-[inset_4px_0_0_0_#ff0080]"
+								: "bg-transparent border-transparent hover:bg-white/5 hover:border-white/10"
+						)}
+						onclick={() => app.palettes.setActive(palette.id)}
+					>
+						{#if app.palettes.activePaletteId === palette.id}
+							<div
+								class="absolute right-2 top-2 p-1 rounded-full shadow-[0_0_8px_#a3e635] bg-[#a3e635]"
+							></div>
+						{/if}
+
+						<h4 class="text-sm font-medium text-white mb-2 truncate pr-6">{palette.name}</h4>
+
+						<!-- Color Bar -->
+						<div class="h-2 w-full rounded-full flex overflow-hidden bg-black/50 mb-2">
+							{#if palette.colors.length > 0}
+								{#each palette.colors.slice(0, 5) as color}
+									<div class="flex-1 h-full" style:background-color={color}></div>
+								{/each}
+							{:else}
+								<div class="w-full h-full bg-white/10"></div>
+							{/if}
+							<!-- Empty slot indicator if less than max -->
+							{#if palette.colors.length < 5}
+								<div class="flex-1 bg-transparent"></div>
+							{/if}
+						</div>
+
+						<div class="flex justify-between items-center text-[10px] text-text-muted">
+							<span>{palette.colors.length} Swatches</span>
+							<span>{timeAgo(palette.createdAt)}</span>
+						</div>
+					</button>
+				{/each}
+
+				{#if filteredPalettes.length === 0}
+					<div class="text-center py-8 text-text-muted/50">
+						<p class="text-sm">No palettes found</p>
+					</div>
+				{/if}
+			{/if}
+		</div>
+	</div>
+</div>

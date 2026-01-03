@@ -1,821 +1,299 @@
 <script lang="ts">
 	import { app } from "$lib/stores/root.svelte";
-	import type { ValidatedColorPalette } from "$lib/schemas/validation";
 	import Icon from "@iconify/svelte";
-	import { toast } from "svelte-sonner";
-	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
+	import { dndzone } from "svelte-dnd-action";
 	import { cn } from "$lib/utils/cn";
-	import { dndzone, type DndEvent } from "svelte-dnd-action";
-	import { flip } from "svelte/animate";
 	import {
-		formatColor,
-		hexToHsl,
-		hslToHex,
-		validateAndNormalizeColor,
-		adjustPaletteHue,
-		adjustPaletteSaturation,
-		adjustPaletteLightness,
-		interpolateColors,
+		getContrastRatio,
+		getWcagLevel,
+		generateAnalogousColors,
+		generateTriadicColors,
+		generateComplementaryColor,
+		generateSplitComplementaryColors,
+		generateMonochromaticColors,
 	} from "./palette-utils";
-	import { orderColorsByHueLightness, getColorLightness } from "$lib/utils/colorUtils";
+	import { toast } from "svelte-sonner";
 
 	interface Props {
-		selectedColor: string;
-		colorHistory: string[];
-		onColorHistoryAdd: (color: string) => void;
-		onShowColorPicker: () => void;
-		onImport: () => void;
-		onExport: (format: "json" | "css" | "png") => void;
-		onCreateNew: () => void;
+		activeColorIndex: number | null;
+		onColorIndexSelect: (index: number) => void;
 	}
 
-	let {
-		selectedColor,
-		colorHistory,
-		onColorHistoryAdd,
-		onShowColorPicker,
-		onImport,
-		onExport,
-		onCreateNew,
-	}: Props = $props();
+	let { activeColorIndex, onColorIndexSelect }: Props = $props();
 
-	// Locked colors state (indices that won't be affected by global adjustments)
-	let lockedColors = $state<Set<number>>(new Set());
+	// Local state for dnd - this is key! We manage items locally, not derived.
+	let localItems = $state<Array<{ id: string; color: string; index: number }>>([]);
 
-	// Global adjustment values
-	let hueShift = $state(0);
-	let saturationDelta = $state(0);
-	let lightnessDelta = $state(0);
+	// Sync local items when palette changes (but not during drag)
+	let isDragging = $state(false);
 
-	// Tween mode state
-	let tweenMode = $state(false);
-	let tweenStartIndex = $state<number | null>(null);
+	$effect(() => {
+		if (!isDragging && app.palettes.activePalette) {
+			localItems = app.palettes.activePalette.colors.map((color, index) => ({
+				id: `color-${index}-${color}`,
+				color,
+				index,
+			}));
+		}
+	});
 
-	// Context menu state
-	let contextMenu = $state<{
-		show: boolean;
-		x: number;
-		y: number;
-		colorIndex: number;
-		color: string;
-	} | null>(null);
+	function handleDndConsider(e: CustomEvent<any>) {
+		isDragging = true;
+		localItems = e.detail.items;
+	}
 
-	// DnD items derived from palette colors
-	let dndItems = $derived(
-		app.palettes.activePalette?.colors.map((color, index) => ({
-			id: `${color}-${index}`,
-			color,
-			originalIndex: index,
-		})) ?? []
-	);
+	function handleDndFinalize(e: CustomEvent<any>) {
+		isDragging = false;
+		localItems = e.detail.items;
 
-	function handleDndConsider(
-		e: CustomEvent<DndEvent<{ id: string; color: string; originalIndex: number }>>
-	) {
 		if (!app.palettes.activePalette) return;
-		const newColors = e.detail.items.map((item) => item.color);
+
+		// Extract colors from reordered items
+		const newColors = localItems.map((item) => item.color);
 		app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
 	}
 
-	function handleDndFinalize(
-		e: CustomEvent<DndEvent<{ id: string; color: string; originalIndex: number }>>
-	) {
-		if (!app.palettes.activePalette) return;
-		const newColors = e.detail.items.map((item) => item.color);
-		app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
-		// Reset locked indices since order changed
-		lockedColors = new Set();
-		toast.success("Colors reordered");
-	}
+	// Accessibility Checks derived from active palette
+	let activePaletteColors = $derived(app.palettes.activePalette?.colors ?? []);
 
-	function toggleLock(index: number) {
-		const newLocked = new Set(lockedColors);
-		if (newLocked.has(index)) {
-			newLocked.delete(index);
-		} else {
-			newLocked.add(index);
-		}
-		lockedColors = newLocked;
-	}
+	let accessibilityStats = $derived.by(() => {
+		if (activePaletteColors.length < 2) return { aaa: 0, aa: 0, fail: 0, bestRatio: 0 };
 
-	function applyGlobalHueShift() {
-		if (!app.palettes.activePalette || hueShift === 0) return;
-		const newColors = adjustPaletteHue(app.palettes.activePalette.colors, hueShift, lockedColors);
-		app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
-		hueShift = 0;
-		toast.success("Hue adjusted");
-	}
+		let aaa = 0;
+		let aa = 0;
+		let fail = 0;
+		let bestRatio = 0;
 
-	function applyGlobalSaturation() {
-		if (!app.palettes.activePalette || saturationDelta === 0) return;
-		const newColors = adjustPaletteSaturation(
-			app.palettes.activePalette.colors,
-			saturationDelta,
-			lockedColors
-		);
-		app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
-		saturationDelta = 0;
-		toast.success("Saturation adjusted");
-	}
-
-	function applyGlobalLightness() {
-		if (!app.palettes.activePalette || lightnessDelta === 0) return;
-		const newColors = adjustPaletteLightness(
-			app.palettes.activePalette.colors,
-			lightnessDelta,
-			lockedColors
-		);
-		app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
-		lightnessDelta = 0;
-		toast.success("Lightness adjusted");
-	}
-
-	function handleTweenClick(index: number) {
-		if (!tweenMode) return;
-
-		if (tweenStartIndex === null) {
-			tweenStartIndex = index;
-			toast.info("Now select the end color for interpolation");
-		} else {
-			if (tweenStartIndex === index) {
-				tweenStartIndex = null;
-				toast.info("Selection cancelled");
-				return;
+		for (let i = 0; i < activePaletteColors.length; i++) {
+			for (let j = i + 1; j < activePaletteColors.length; j++) {
+				const ratio = getContrastRatio(activePaletteColors[i]!, activePaletteColors[j]!);
+				if (ratio > bestRatio) bestRatio = ratio;
+				const level = getWcagLevel(ratio);
+				if (level.aaa) aaa++;
+				else if (level.aa) aa++;
+				else fail++;
 			}
+		}
+		return { aaa, aa, fail, bestRatio };
+	});
 
-			const palette = app.palettes.activePalette;
-			if (!palette) return;
+	function setActiveIndex(index: number) {
+		onColorIndexSelect(index);
+	}
 
-			const startIdx = Math.min(tweenStartIndex, index);
-			const endIdx = Math.max(tweenStartIndex, index);
-			const startColor = palette.colors[startIdx];
-			const endColor = palette.colors[endIdx];
-			const stepsNeeded = endIdx - startIdx - 1;
-
-			if (stepsNeeded > 0 && startColor && endColor) {
-				const interpolated = interpolateColors(startColor, endColor, stepsNeeded);
-				const newColors = [...palette.colors];
-				for (let i = 0; i < interpolated.length; i++) {
-					const interpColor = interpolated[i];
-					if (interpColor) newColors[startIdx + i] = interpColor;
-				}
-				app.palettes.update(palette.id, { colors: newColors });
-				toast.success(`Generated ${stepsNeeded} intermediate colors`);
-			}
-
-			tweenMode = false;
-			tweenStartIndex = null;
+	function addColor() {
+		if (app.palettes.activePaletteId) {
+			app.palettes.addColor(app.palettes.activePaletteId, "#808080");
 		}
 	}
 
-	function isDuplicateColor(color: string): boolean {
-		const palette = app.palettes.activePalette;
-		return palette ? palette.colors.includes(color) : false;
-	}
-
-	function addColorToPalette(color: string) {
-		const palette = app.palettes.activePalette;
-		if (!palette) return;
-
-		const validation = validateAndNormalizeColor(color);
-		if (!validation.valid) {
-			toast.error(validation.error || "Invalid color");
-			return;
-		}
-
-		const normalizedColor = validation.color;
-		if (!normalizedColor) return;
-
-		if (isDuplicateColor(normalizedColor)) {
-			toast.warning("This color is already in the palette");
-			return;
-		}
-
-		if (palette.colors.length >= palette.maxSlots) {
-			toast.error("Palette is full");
-			return;
-		}
-
-		app.palettes.addColor(palette.id, normalizedColor);
-		onColorHistoryAdd(normalizedColor);
-		toast.success(`Color ${normalizedColor} added`);
-	}
-
-	async function copyColor(color: string) {
-		try {
-			await navigator.clipboard.writeText(color);
-			onColorHistoryAdd(color);
-			toast.success(`${color} copied!`);
-		} catch {
-			toast.error("Failed to copy");
+	function removeColor(idx: number, e: Event) {
+		e.stopPropagation();
+		if (app.palettes.activePaletteId) {
+			app.palettes.removeColor(app.palettes.activePaletteId, idx);
 		}
 	}
 
-	function showContextMenu(event: MouseEvent, colorIndex: number, color: string) {
-		event.preventDefault();
-		event.stopPropagation();
-		contextMenu = {
-			show: true,
-			x: event.clientX,
-			y: event.clientY,
-			colorIndex,
-			color,
-		};
-	}
+	// Harmony generation
+	let selectedHarmony = $state<string>("none");
+	const harmonyOptions = [
+		{ value: "none", label: "Select Harmony..." },
+		{ value: "complementary", label: "Complementary" },
+		{ value: "analogous", label: "Analogous" },
+		{ value: "triadic", label: "Triadic" },
+		{ value: "split-complementary", label: "Split Complementary" },
+		{ value: "monochromatic", label: "Monochromatic" },
+	];
 
-	function hideContextMenu() {
-		contextMenu = null;
-	}
+	function applyHarmony() {
+		if (!app.palettes.activePalette || selectedHarmony === "none") return;
 
-	function deleteColor() {
-		if (!contextMenu || !app.palettes.activePalette) return;
-		app.palettes.removeColor(app.palettes.activePalette.id, contextMenu.colorIndex);
-		toast.info(`Color removed`);
-		hideContextMenu();
-	}
+		const baseColor =
+			(activeColorIndex !== null && activePaletteColors[activeColorIndex]) ||
+			activePaletteColors[0] ||
+			"#FF0080";
+		let newColors: string[] = [baseColor];
 
-	function fillPaletteWithHarmony(
-		harmonyType: "complementary" | "analogous" | "triadic" | "monochromatic" | "split-complementary"
-	) {
-		const palette = app.palettes.activePalette;
-		if (!palette) return;
-
-		const baseColor = selectedColor;
-		const remainingSlots = palette.maxSlots - palette.colors.length;
-
-		if (remainingSlots <= 0) {
-			toast.warning("Palette is already full");
-			return;
-		}
-
-		const hsl = hexToHsl(baseColor);
-		if (!hsl) return;
-
-		const harmoniousColors: string[] = [];
-
-		switch (harmonyType) {
+		switch (selectedHarmony) {
 			case "complementary":
-				for (let i = 0; i < remainingSlots; i++) {
-					const hueShift = i === 0 ? 180 : 180 + i * 15;
-					const lightShift = i * 10;
-					harmoniousColors.push(
-						hslToHex(
-							(hsl.h + hueShift) % 360,
-							Math.max(20, hsl.s - lightShift),
-							Math.max(10, Math.min(90, hsl.l + (i % 2 === 0 ? lightShift : -lightShift)))
-						)
-					);
-				}
+				newColors.push(generateComplementaryColor(baseColor));
 				break;
 			case "analogous":
-				for (let i = 0; i < remainingSlots; i++) {
-					const hueShift = (i % 2 === 0 ? 30 : -30) + Math.floor(i / 2) * 15;
-					harmoniousColors.push(
-						hslToHex(
-							(hsl.h + hueShift + 360) % 360,
-							Math.max(20, hsl.s - i * 5),
-							Math.max(10, Math.min(90, hsl.l + (i % 3 === 0 ? 10 : i % 3 === 1 ? 0 : -10)))
-						)
-					);
-				}
+				newColors.push(...generateAnalogousColors(baseColor));
 				break;
 			case "triadic":
-				for (let i = 0; i < remainingSlots; i++) {
-					const baseHue = i < 2 ? 120 + 120 * i : 120 + (i - 2) * 30;
-					harmoniousColors.push(
-						hslToHex(
-							(hsl.h + baseHue) % 360,
-							Math.max(20, hsl.s - i * 8),
-							Math.max(10, Math.min(90, hsl.l + (i % 2 === 0 ? 15 : -15)))
-						)
-					);
-				}
-				break;
-			case "monochromatic":
-				for (let i = 0; i < remainingSlots; i++) {
-					const lightStep = 70 / (remainingSlots + 1);
-					const newL = 15 + (i + 1) * lightStep;
-					const saturationVariation = i % 2 === 0 ? 10 : -5;
-					harmoniousColors.push(
-						hslToHex(
-							hsl.h,
-							Math.max(10, Math.min(100, hsl.s + saturationVariation)),
-							Math.max(10, Math.min(90, newL))
-						)
-					);
-				}
+				newColors.push(...generateTriadicColors(baseColor));
 				break;
 			case "split-complementary":
-				for (let i = 0; i < remainingSlots; i++) {
-					const baseHue = i % 2 === 0 ? 150 : 210;
-					const variation = Math.floor(i / 2) * 15;
-					harmoniousColors.push(
-						hslToHex(
-							(hsl.h + baseHue + variation) % 360,
-							Math.max(20, hsl.s - i * 6),
-							Math.max(10, Math.min(90, hsl.l + (i % 3 === 0 ? 10 : i % 3 === 1 ? 0 : -10)))
-						)
-					);
-				}
+				newColors.push(...generateSplitComplementaryColors(baseColor));
+				break;
+			case "monochromatic":
+				newColors.push(...generateMonochromaticColors(baseColor, 4));
 				break;
 		}
 
-		const uniqueColors = harmoniousColors.filter(
-			(color, idx) => !isDuplicateColor(color) && !harmoniousColors.slice(0, idx).includes(color)
-		);
-
-		uniqueColors.slice(0, remainingSlots).forEach((color) => {
-			app.palettes.addColor(palette.id, color);
-		});
-
-		toast.success(`Added ${Math.min(uniqueColors.length, remainingSlots)} ${harmonyType} colors!`);
+		const harmonyName = selectedHarmony;
+		app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
+		selectedHarmony = "none";
+		toast.success(`Applied ${harmonyName} harmony!`);
 	}
 
-	// Click outside to close context menu
-	function handleDocumentClick(event: MouseEvent) {
-		if (contextMenu && !(event.target as Element).closest(".context-menu")) {
-			hideContextMenu();
-		}
+	function handleUndo() {
+		toast.info("Undo not yet implemented");
+	}
+
+	function handleRedo() {
+		toast.info("Redo not yet implemented");
+	}
+
+	// Calculate minimum width needed for hex code display
+	function getMinWidth(colorCount: number): string {
+		// Each color needs at least 80px to show hex code fully
+		const minPerColor = 80;
+		const total = colorCount * minPerColor;
+		return `${Math.max(total, 400)}px`;
 	}
 </script>
 
-<svelte:document onclick={handleDocumentClick} />
+<div
+	class="flex-1 flex flex-col h-full overflow-hidden bg-black/20 rounded-xl border border-white/5 relative"
+>
+	{#if app.palettes.activePalette}
+		<!-- Header -->
+		<div
+			class="h-14 border-b border-white/5 flex items-center justify-between px-6 shrink-0 bg-black/40"
+		>
+			<div class="flex items-center gap-3">
+				<h2 class="text-white font-bold text-lg">{app.palettes.activePalette.name}</h2>
+				<button class="text-text-muted hover:text-white" aria-label="Edit palette name">
+					<Icon icon="material-symbols:edit" class="w-4 h-4" />
+				</button>
+			</div>
 
-<GlassPanel class="flex-1 overflow-hidden relative" intensity="medium">
-	<div class="flex flex-col h-full">
-		{#if app.palettes.activePaletteId && app.palettes.activePalette}
-			<div class="p-4 md:p-6 flex-1 overflow-y-auto custom-scrollbar">
-				<!-- Header -->
-				<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-					<div>
-						<h3 class="text-2xl font-bold text-white tracking-wide">
-							{app.palettes.activePalette.name}
-						</h3>
-						<div class="flex items-center gap-2 mt-1">
-							<span class="badge badge-sm bg-phoenix-primary/20 text-phoenix-primary border-none">
-								{app.palettes.activePalette.colors.length} Colors
-							</span>
-							{#each app.palettes.activePalette.tags as tag}
-								<span class="badge badge-sm badge-ghost text-text-muted">{tag}</span>
-							{/each}
-						</div>
-					</div>
+			<div class="flex items-center gap-4">
+				<button class="text-text-muted hover:text-white" title="Undo" onclick={handleUndo}>
+					<Icon icon="material-symbols:undo" class="w-5 h-5" />
+				</button>
+				<button class="text-text-muted hover:text-white" title="Redo" onclick={handleRedo}>
+					<Icon icon="material-symbols:redo" class="w-5 h-5" />
+				</button>
+				<div class="w-px h-4 bg-white/10 mx-2"></div>
+				<select
+					bind:value={selectedHarmony}
+					onchange={applyHarmony}
+					class="select select-sm bg-white/5 border-white/10 text-white text-xs"
+				>
+					{#each harmonyOptions as opt}
+						<option value={opt.value}>{opt.label}</option>
+					{/each}
+				</select>
+			</div>
+		</div>
 
-					<!-- Actions Toolbar -->
-					<div class="flex flex-wrap items-center gap-2">
-						<button
-							class="btn btn-sm btn-ghost text-text-muted hover:text-white"
-							onclick={onImport}
-							title="Import"
-						>
-							<Icon icon="material-symbols:file-upload" class="h-4 w-4" />
-						</button>
-
-						<div class="dropdown dropdown-end">
-							<button
-								class="btn btn-sm btn-ghost text-text-muted hover:text-white"
-								tabindex="0"
-								title="Export"
-							>
-								<Icon icon="material-symbols:download" class="h-4 w-4" />
-							</button>
-							<ul
-								class="dropdown-content menu bg-void-deep border border-white/10 rounded-xl z-10 w-52 p-2 shadow-xl backdrop-blur-xl"
-							>
-								<li>
-									<button
-										onclick={() => onExport("json")}
-										class="text-text-muted hover:text-white hover:bg-white/5">JSON</button
-									>
-								</li>
-								<li>
-									<button
-										onclick={() => onExport("css")}
-										class="text-text-muted hover:text-white hover:bg-white/5">CSS</button
-									>
-								</li>
-								<li>
-									<button
-										onclick={() => onExport("png")}
-										class="text-text-muted hover:text-white hover:bg-white/5">PNG Image</button
-									>
-								</li>
-							</ul>
-						</div>
-
-						<div class="h-4 w-px bg-white/10 mx-1"></div>
-
-						<button
-							class="btn btn-sm btn-ghost text-error hover:bg-error/10"
-							onclick={() => {
-								if (confirm("Delete this palette?")) {
-									app.palettes.remove(app.palettes.activePalette!.id);
-								}
-							}}
-							title="Delete Palette"
-						>
-							<Icon icon="material-symbols:delete-outline" class="h-4 w-4" />
-						</button>
-					</div>
-				</div>
-
-				<!-- Global Adjustments Panel -->
-				<div class="mb-6 p-4 rounded-xl bg-black/20 border border-white/5">
-					<div class="flex items-center justify-between mb-3">
-						<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider">
-							Global Adjustments
-						</h4>
-						<span class="text-xs text-text-muted/60">
-							{lockedColors.size} color{lockedColors.size !== 1 ? "s" : ""} locked
-						</span>
-					</div>
-
-					<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-						<!-- Hue Shift -->
-						<div class="space-y-2">
-							<div class="flex items-center justify-between">
-								<label for="hue-shift-range" class="text-xs text-text-muted">Hue Shift</label>
-								<span class="text-xs font-mono text-phoenix-primary">{hueShift}°</span>
-							</div>
-							<div class="flex gap-2">
-								<input
-									type="range"
-									min="-180"
-									max="180"
-									bind:value={hueShift}
-									class="range range-xs range-primary flex-1"
-								/>
-								<button
-									class="btn btn-xs btn-ghost"
-									onclick={applyGlobalHueShift}
-									disabled={hueShift === 0}
-								>
-									Apply
-								</button>
-							</div>
-						</div>
-
-						<!-- Saturation -->
-						<div class="space-y-2">
-							<div class="flex items-center justify-between">
-								<label for="saturation-range" class="text-xs text-text-muted">Saturation</label>
-								<span class="text-xs font-mono text-phoenix-primary"
-									>{saturationDelta > 0 ? "+" : ""}{saturationDelta}%</span
-								>
-							</div>
-							<div class="flex gap-2">
-								<input
-									type="range"
-									min="-50"
-									max="50"
-									bind:value={saturationDelta}
-									class="range range-xs range-secondary flex-1"
-								/>
-								<button
-									class="btn btn-xs btn-ghost"
-									onclick={applyGlobalSaturation}
-									disabled={saturationDelta === 0}
-								>
-									Apply
-								</button>
-							</div>
-						</div>
-
-						<!-- Lightness -->
-						<div class="space-y-2">
-							<div class="flex items-center justify-between">
-								<label for="lightness-range" class="text-xs text-text-muted">Lightness</label>
-								<span class="text-xs font-mono text-phoenix-primary"
-									>{lightnessDelta > 0 ? "+" : ""}{lightnessDelta}%</span
-								>
-							</div>
-							<div class="flex gap-2">
-								<input
-									type="range"
-									min="-50"
-									max="50"
-									bind:value={lightnessDelta}
-									class="range range-xs range-accent flex-1"
-								/>
-								<button
-									class="btn btn-xs btn-ghost"
-									onclick={applyGlobalLightness}
-									disabled={lightnessDelta === 0}
-								>
-									Apply
-								</button>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<!-- Harmony Generator -->
-				<div class="mb-6 p-4 rounded-xl bg-black/20 border border-white/5">
-					<h4 class="text-sm font-medium text-text-muted mb-3 uppercase tracking-wider">
-						Generate Harmony
-					</h4>
-					<div class="flex flex-wrap gap-2">
-						{#each ["complementary", "analogous", "triadic", "monochromatic", "split-complementary"] as harmony}
-							<button
-								class="btn btn-xs btn-outline border-white/10 text-text-muted hover:text-white hover:border-phoenix-primary hover:bg-phoenix-primary/10 capitalize"
-								onclick={() => fillPaletteWithHarmony(harmony as any)}
-							>
-								{harmony.replace("-", " ")}
-							</button>
-						{/each}
-					</div>
-				</div>
-
-				<!-- Tools Row -->
-				<div class="flex flex-wrap justify-between items-center gap-2 mb-4">
-					<div class="flex gap-2">
-						<button
-							class={cn(
-								"btn btn-xs",
-								tweenMode ? "btn-primary" : "btn-ghost text-text-muted hover:text-white"
-							)}
-							onclick={() => {
-								tweenMode = !tweenMode;
-								tweenStartIndex = null;
-								if (tweenMode) {
-									toast.info("Select two colors to interpolate between them");
-								}
-							}}
-							title="Interpolate between two colors"
-						>
-							<Icon icon="material-symbols:gradient" class="w-4 h-4" />
-							Tween
-						</button>
-					</div>
-
-					<div class="flex gap-2">
-						<button
-							class="btn btn-xs btn-ghost text-text-muted hover:text-white"
-							onclick={() => {
-								if (app.palettes.activePalette) {
-									const sorted = orderColorsByHueLightness(app.palettes.activePalette.colors);
-									app.palettes.update(app.palettes.activePalette.id, { colors: sorted });
-									lockedColors = new Set();
-									toast.success("Sorted by Hue");
-								}
-							}}
-							title="Sort by Hue"
-						>
-							<Icon icon="material-symbols:sort" class="w-4 h-4" />
-							Sort Hue
-						</button>
-						<button
-							class="btn btn-xs btn-ghost text-text-muted hover:text-white"
-							onclick={() => {
-								if (app.palettes.activePalette) {
-									const sorted = [...app.palettes.activePalette.colors].sort((a, b) => {
-										return getColorLightness(a) - getColorLightness(b);
-									});
-									app.palettes.update(app.palettes.activePalette.id, { colors: sorted });
-									lockedColors = new Set();
-									toast.success("Sorted by Lightness");
-								}
-							}}
-							title="Sort by Lightness"
-						>
-							<Icon icon="material-symbols:format-list-bulleted" class="w-4 h-4" />
-							Sort Light
-						</button>
-					</div>
-				</div>
-
-				<!-- Color Grid with DnD -->
+		<!-- Main Color Area -->
+		<div class="flex-1 min-h-0 relative flex flex-col items-stretch overflow-hidden">
+			<div class="flex-1 overflow-x-auto overflow-y-hidden p-6">
 				<div
-					class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-8 p-1"
-					use:dndzone={{ items: dndItems, flipDurationMs: 200, dropTargetStyle: {} }}
+					class="h-full flex rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10"
+					style:min-width="fit-content"
+					use:dndzone={{
+						items: localItems,
+						flipDurationMs: 200,
+						type: "palette-colors",
+					}}
 					onconsider={handleDndConsider}
 					onfinalize={handleDndFinalize}
 				>
-					{#each dndItems as item, index (item.id)}
-						<div class="group relative" animate:flip={{ duration: 200 }}>
-							<!-- Lock indicator -->
-							{#if lockedColors.has(index)}
-								<div class="absolute -top-1 -right-1 z-20">
-									<div class="bg-phoenix-primary text-white rounded-full p-0.5">
-										<Icon icon="material-symbols:lock" class="w-3 h-3" />
-									</div>
-								</div>
-							{/if}
-
-							<!-- Tween selection indicator -->
-							{#if tweenMode && tweenStartIndex === index}
-								<div
-									class="absolute inset-0 ring-2 ring-phoenix-primary ring-offset-2 ring-offset-void-deep rounded-2xl z-10 pointer-events-none"
-								></div>
-							{/if}
-
+					{#each localItems as item, idx (item.id)}
+						<div
+							class={cn(
+								"h-full w-20 min-w-20 shrink-0 relative group transition-colors duration-200 ease-out cursor-pointer",
+								activeColorIndex === idx && "ring-4 ring-white/40 ring-inset"
+							)}
+							style:background-color={item.color}
+							onclick={() => setActiveIndex(idx)}
+							tabindex="0"
+							onkeydown={(e) => e.key === "Enter" && setActiveIndex(idx)}
+							role="button"
+							aria-label={`Select color ${item.color}`}
+						>
+							<!-- Delete button -->
 							<button
-								class={cn(
-									"aspect-square rounded-2xl shadow-lg cursor-pointer w-full transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-phoenix-primary/30 hover:z-10 relative overflow-hidden border-2 border-white/10 group-active:scale-95",
-									tweenMode && "cursor-crosshair"
-								)}
-								style:background-color={item.color}
-								onclick={() => {
-									if (tweenMode) {
-										handleTweenClick(index);
-									} else {
-										copyColor(item.color);
-									}
-								}}
-								oncontextmenu={(e) => showContextMenu(e, index, item.color)}
-								type="button"
+								class="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/50 text-white/70 hover:bg-red-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+								onclick={(e) => removeColor(idx, e)}
+								aria-label="Remove color"
 							>
-								<!-- Glass Shine -->
-								<div
-									class="absolute inset-0 bg-linear-to-br from-white/40 to-transparent opacity-50 pointer-events-none"
-								></div>
-
-								<!-- Lock/Unlock on hover -->
-								<div
-									class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-sm p-1 rounded-full text-white hover:bg-black/60 cursor-pointer"
-									role="button"
-									tabindex="0"
-									onclick={(e) => {
-										e.stopPropagation();
-										toggleLock(index);
-									}}
-									onkeydown={(e) => {
-										if (e.key === "Enter" || e.key === " ") {
-											e.stopPropagation();
-											e.preventDefault();
-											toggleLock(index);
-										}
-									}}
-									title={lockedColors.has(index) ? "Unlock" : "Lock"}
-								>
-									<Icon
-										icon={lockedColors.has(index)
-											? "material-symbols:lock-open"
-											: "material-symbols:lock"}
-										class="w-3 h-3"
-									/>
-								</div>
-
-								<!-- Copy Icon Overlay -->
-								{#if !tweenMode}
-									<div
-										class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 scale-50 group-hover:scale-100"
-									>
-										<div
-											class="bg-black/40 backdrop-blur-md p-2 rounded-full text-white shadow-lg border border-white/20"
-										>
-											<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
-										</div>
-									</div>
-								{/if}
+								<Icon icon="material-symbols:close" class="w-4 h-4" />
 							</button>
 
-							<div class="mt-2 text-center">
-								<p
-									class="text-xs font-mono text-text-muted group-hover:text-white transition-colors select-all"
-								>
-									{formatColor(item.color, "hex")}
-								</p>
-							</div>
-						</div>
-					{/each}
-
-					<!-- Add Slots -->
-					{#each Array(Math.max(0, app.palettes.activePalette.maxSlots - app.palettes.activePalette.colors.length)) as _}
-						<button
-							class="aspect-square rounded-2xl border-2 border-dashed border-white/20 hover:border-phoenix-primary hover:bg-phoenix-primary/10 transition-all duration-300 flex items-center justify-center group hover:scale-105 active:scale-95"
-							onclick={() => addColorToPalette(selectedColor)}
-							type="button"
-						>
+							<!-- Drag Handle -->
 							<div
-								class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-phoenix-primary/20 transition-colors"
+								class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-1 rounded hover:bg-black/20 text-white/80"
+								aria-hidden="true"
 							>
-								<Icon
-									icon="material-symbols:add"
-									class="w-6 h-6 text-white/50 group-hover:text-phoenix-primary transition-colors"
-								/>
+								<Icon icon="material-symbols:drag-indicator" class="w-4 h-4" />
 							</div>
-						</button>
-					{/each}
-				</div>
 
-				<!-- Recent Colors (History) -->
-				{#if colorHistory.length > 0}
-					<div class="border-t border-white/5 pt-6">
-						<h4 class="text-sm font-medium text-text-muted mb-4 uppercase tracking-wider">
-							Recent Colors
-						</h4>
-						<div class="flex flex-wrap gap-2">
-							{#each colorHistory.slice(0, 12) as color}
-								<button
-									class="w-8 h-8 rounded-full border border-white/10 cursor-pointer hover:scale-110 transition-transform shadow-sm"
-									style:background-color={color}
-									onclick={() => addColorToPalette(color)}
-									title={color}
-									type="button"
-								></button>
-							{/each}
+							<!-- Color hex code - smaller text -->
+							<div
+								class="absolute inset-x-0 bottom-0 p-3 flex flex-col items-center justify-end text-center mix-blend-difference"
+							>
+								<span class="text-sm font-bold font-mono tracking-wide text-white drop-shadow-lg"
+									>{item.color.toUpperCase()}</span
+								>
+								<span class="text-[10px] opacity-70 uppercase tracking-wider font-medium text-white"
+									>Color {idx + 1}</span
+								>
+							</div>
 						</div>
-					</div>
-				{/if}
-			</div>
-		{:else}
-			<!-- Empty State -->
-			<div class="flex items-center justify-center h-full">
-				<div class="text-center text-text-muted/50">
-					<div
-						class="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 animate-float"
-					>
-						<Icon icon="material-symbols:palette-outline" class="h-12 w-12 opacity-50" />
-					</div>
-					<h3 class="text-xl font-bold text-white mb-2">No Palette Selected</h3>
-					<p class="mb-6 max-w-xs mx-auto">
-						Select a palette from the list or create a new one to start designing.
-					</p>
-					<button
-						class="btn btn-primary bg-linear-to-r from-phoenix-primary to-phoenix-violet border-none text-white shadow-lg hover:shadow-phoenix-primary/50"
-						onclick={onCreateNew}
-						type="button"
-					>
-						Create Palette
-					</button>
+					{/each}
+					<!-- Add Color Button -->
+					{#if localItems.length < (app.palettes.activePalette?.maxSlots ?? 10)}
+						<button
+							class="h-full min-w-[80px] w-20 shrink-0 flex flex-col items-center justify-center bg-white/5 hover:bg-white/10 border-l border-white/10 transition-colors group"
+							onclick={addColor}
+							aria-label="Add new color"
+						>
+							<Icon
+								icon="material-symbols:add-circle-outline"
+								class="w-8 h-8 text-white/30 group-hover:text-white/60 transition-colors"
+							/>
+							<span class="text-[10px] text-white/30 group-hover:text-white/60 mt-1">Add</span>
+						</button>
+					{/if}
 				</div>
 			</div>
-		{/if}
-	</div>
-</GlassPanel>
+			{#if localItems.length === 0}
+				<div class="absolute inset-0 flex items-center justify-center text-text-muted/50">
+					<p>Click + to add colors</p>
+				</div>
+			{/if}
+		</div>
 
-<!-- Context Menu -->
-{#if contextMenu?.show}
-	<div
-		class="fixed bg-base-100 rounded-lg shadow-xl border border-base-300 py-2 z-50 context-menu"
-		style:left="{contextMenu.x}px"
-		style:top="{contextMenu.y}px"
-	>
-		<button
-			class="flex items-center space-x-3 px-4 py-2 hover:bg-base-200 w-full text-left"
-			onclick={() => {
-				onShowColorPicker();
-				hideContextMenu();
-			}}
-			type="button"
-		>
-			<Icon icon="material-symbols:edit" class="h-4 w-4" />
-			<span>Change Color</span>
-		</button>
-		<button
-			class="flex items-center space-x-3 px-4 py-2 hover:bg-base-200 w-full text-left"
-			onclick={() => {
-				toggleLock(contextMenu!.colorIndex);
-				hideContextMenu();
-			}}
-			type="button"
-		>
-			<Icon
-				icon={lockedColors.has(contextMenu.colorIndex)
-					? "material-symbols:lock-open"
-					: "material-symbols:lock"}
-				class="h-4 w-4"
-			/>
-			<span>{lockedColors.has(contextMenu.colorIndex) ? "Unlock" : "Lock"} Color</span>
-		</button>
-		<button
-			class="flex items-center space-x-3 px-4 py-2 hover:bg-base-200 w-full text-left text-error"
-			onclick={deleteColor}
-			type="button"
-		>
-			<Icon icon="material-symbols:delete-outline" class="h-4 w-4" />
-			<span>Delete Color</span>
-		</button>
-		<hr class="my-1 border-base-300" />
-		<button
-			class="flex items-center space-x-3 px-4 py-2 hover:bg-base-200 w-full text-left"
-			onclick={() => {
-				if (contextMenu) {
-					copyColor(contextMenu.color);
-					hideContextMenu();
-				}
-			}}
-			type="button"
-		>
-			<Icon icon="material-symbols:content-copy" class="h-4 w-4" />
-			<span>Copy Color</span>
-		</button>
-	</div>
-{/if}
-
-<style>
-	.animate-float {
-		animation: float 3s ease-in-out infinite;
-	}
-
-	@keyframes float {
-		0%,
-		100% {
-			transform: translateY(0);
-		}
-		50% {
-			transform: translateY(-10px);
-		}
-	}
-</style>
+		<!-- Footer / Stats -->
+		<div class="h-20 bg-black/40 border-t border-white/5 flex items-center px-6 gap-6">
+			<div class="flex items-center gap-2">
+				<div class="w-4 h-4 rounded bg-green-500"></div>
+				<span class="text-sm text-white font-medium">{accessibilityStats.aaa} AAA</span>
+			</div>
+			<div class="flex items-center gap-2">
+				<div class="w-4 h-4 rounded bg-blue-500"></div>
+				<span class="text-sm text-white font-medium">{accessibilityStats.aa} AA</span>
+			</div>
+			<div class="flex items-center gap-2">
+				<div class="w-4 h-4 rounded bg-red-500"></div>
+				<span class="text-sm text-white font-medium">{accessibilityStats.fail} Fail</span>
+			</div>
+			<div class="ml-auto text-xs text-text-muted">
+				Best contrast: {accessibilityStats.bestRatio.toFixed(1)}:1
+			</div>
+		</div>
+	{:else}
+		<div class="w-full h-full flex items-center justify-center text-text-muted">
+			<div class="text-center">
+				<Icon icon="material-symbols:palette-outline" class="w-12 h-12 mx-auto mb-4 opacity-20" />
+				<p>Select a palette to edit</p>
+			</div>
+		</div>
+	{/if}
+</div>

@@ -4,12 +4,12 @@ import { browser } from "$app/environment";
 import { toast } from "svelte-sonner";
 import { safeSet, safeGet } from "$lib/utils/storageUtils";
 import type {
-	ReferenceImage,
-	ColorPalette,
-	Gradient,
-	AppSettings,
-	TutorialState,
-} from "$lib/stores/app.svelte";
+	ValidatedReferenceImage as ReferenceImage,
+	ValidatedColorPalette as ColorPalette,
+	ValidatedGradient as Gradient,
+	ValidatedAppSettings as AppSettings,
+	ValidatedTutorialState as TutorialState,
+} from "$lib/schemas/validation";
 
 const STORAGE_KEY = "phoenyxcolor-simple-storage";
 const VERSION = "1.0";
@@ -99,11 +99,11 @@ export class SimpleStorageService {
 				settings,
 				tutorialState: state.tutorialState
 					? {
-							...state.tutorialState,
-							isActive: false, // Don't persist active tutorial state
-							currentStep: 0,
-							currentModule: null,
-						}
+						...state.tutorialState,
+						isActive: false, // Don't persist active tutorial state
+						currentStep: 0,
+						currentModule: null,
+					}
 					: undefined,
 			};
 

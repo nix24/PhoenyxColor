@@ -70,7 +70,12 @@
 		};
 	});
 
-	function handleMouseDown(e: MouseEvent, target: "angle" | "center" | "stop" | "mesh", index = -1, meshId?: string) {
+	function handleMouseDown(
+		e: MouseEvent,
+		target: "angle" | "center" | "stop" | "mesh",
+		index = -1,
+		meshId?: string
+	) {
 		if (!showInteractiveHandles) return;
 		e.preventDefault();
 		e.stopPropagation();
@@ -123,9 +128,7 @@
 
 <div
 	bind:this={previewContainer}
-	class="relative rounded-xl overflow-hidden shadow-2xl border border-white/10"
-	style:width="{previewSize.width}px"
-	style:height="{previewSize.height}px"
+	class="relative rounded-xl overflow-hidden shadow-2xl border border-white/10 w-full h-full"
 >
 	<!-- Checkerboard Background (for transparency) -->
 	<div
@@ -202,13 +205,16 @@
 		{/if}
 
 		<!-- Color Stop Handles (for linear gradients) -->
-		{#if gradient.type === "linear"}
+		{#if gradient.type === "linear" && gradient.stops}
 			<div class="absolute bottom-0 left-0 right-0 h-8 bg-black/30 backdrop-blur-sm">
 				{#each gradient.stops as stop, index}
 					<button
 						class={cn(
 							"absolute w-4 h-6 rounded-t-full cursor-grab transition-transform hover:scale-110 border-2 border-white shadow-lg",
-							isDragging && dragTarget === "stop" && dragIndex === index && "cursor-grabbing scale-110"
+							isDragging &&
+								dragTarget === "stop" &&
+								dragIndex === index &&
+								"cursor-grabbing scale-110"
 						)}
 						style:left="{getStopHandleX(stop.position) - 8}px"
 						style:bottom="0"
@@ -254,4 +260,3 @@
 		</div>
 	{/if}
 </div>
-

@@ -32,15 +32,15 @@ export default defineConfig({
 				{
 					label: 'Guides',
 					items: [
-						// Each item here is one entry in the navigation menu.
-						{ label: 'Example Guide', slug: 'guides/example' },
+						{ label: 'Getting Started', slug: 'guides/example' },
 						{ label: 'Architecture', slug: 'guides/architecture' },
+						{ label: 'WASM & Effects', slug: 'guides/wasm-effects' },
 					],
 				},
 				{
 					label: 'Reference',
 					items: [
-						{ label: 'Manual Reference', slug: 'reference/example' },
+						{ label: 'Type Definitions', slug: 'reference/example' },
 						// Add the auto-generated TypeDoc sidebar group
 						typeDocSidebarGroup,
 					],

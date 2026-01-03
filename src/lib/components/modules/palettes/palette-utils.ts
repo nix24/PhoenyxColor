@@ -4,6 +4,12 @@
 
 import { rgbToHex } from "$lib/utils/colorUtils";
 
+export interface HSL {
+    h: number;
+    s: number;
+    l: number;
+}
+
 // --- Color Validation ---
 
 export function isValidHexColor(color: string): boolean {

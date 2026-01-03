@@ -8,13 +8,12 @@
  */
 export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 	const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-	return result
-		? {
-				r: parseInt(result[1], 16),
-				g: parseInt(result[2], 16),
-				b: parseInt(result[3], 16),
-			}
-		: null;
+	if (!result || !result[1] || !result[2] || !result[3]) return null;
+	return {
+		r: parseInt(result[1], 16),
+		g: parseInt(result[2], 16),
+		b: parseInt(result[3], 16),
+	};
 }
 
 /**
@@ -208,9 +207,9 @@ function deltaE2000(
 
 	const deltaE = Math.sqrt(
 		(deltaLPrime / (kL * sl)) ** 2 +
-			(deltaCPrime / (kC * sc)) ** 2 +
-			(deltaHPrimeValue / (kH * sh)) ** 2 +
-			rt * (deltaCPrime / (kC * sc)) * (deltaHPrimeValue / (kH * sh)),
+		(deltaCPrime / (kC * sc)) ** 2 +
+		(deltaHPrimeValue / (kH * sh)) ** 2 +
+		rt * (deltaCPrime / (kC * sc)) * (deltaHPrimeValue / (kH * sh)),
 	);
 
 	return deltaE;
@@ -235,10 +234,13 @@ export function orderColorsForGradient(colors: string[]): string[] {
 
 	// Find the starting color (darkest L* value for consistency)
 	let startIndex = 0;
-	let minLightness = labColors[0].lab.l;
+	const firstColor = labColors[0];
+	if (!firstColor) return colors;
+	let minLightness = firstColor.lab.l;
 	for (let i = 1; i < labColors.length; i++) {
-		if (labColors[i].lab.l < minLightness) {
-			minLightness = labColors[i].lab.l;
+		const currentColor = labColors[i];
+		if (currentColor && currentColor.lab.l < minLightness) {
+			minLightness = currentColor.lab.l;
 			startIndex = i;
 		}
 	}
@@ -248,26 +250,37 @@ export function orderColorsForGradient(colors: string[]): string[] {
 	const remaining = [...labColors];
 
 	// Start with the darkest color
-	orderedColors.push(remaining[startIndex].hex);
+	const startColor = remaining[startIndex];
+	if (!startColor) return colors;
+	orderedColors.push(startColor.hex);
 	remaining.splice(startIndex, 1);
 
 	// Iteratively find the nearest color to the last added color
 	while (remaining.length > 0) {
-		const lastColor = hexToLab(orderedColors[orderedColors.length - 1]);
-		if (!lastColor) continue;
+		const lastColorHex = orderedColors[orderedColors.length - 1];
+		if (!lastColorHex) break;
+		const lastColor = hexToLab(lastColorHex);
+		if (!lastColor) break;
+
+		const firstRemaining = remaining[0];
+		if (!firstRemaining) break;
 
 		let nearestIndex = 0;
-		let smallestDistance = deltaE2000(lastColor, remaining[0].lab);
+		let smallestDistance = deltaE2000(lastColor, firstRemaining.lab);
 
 		for (let i = 1; i < remaining.length; i++) {
-			const distance = deltaE2000(lastColor, remaining[i].lab);
+			const currentRemaining = remaining[i];
+			if (!currentRemaining) continue;
+			const distance = deltaE2000(lastColor, currentRemaining.lab);
 			if (distance < smallestDistance) {
 				smallestDistance = distance;
 				nearestIndex = i;
 			}
 		}
 
-		orderedColors.push(remaining[nearestIndex].hex);
+		const nearestColor = remaining[nearestIndex];
+		if (!nearestColor) break;
+		orderedColors.push(nearestColor.hex);
 		remaining.splice(nearestIndex, 1);
 	}
 

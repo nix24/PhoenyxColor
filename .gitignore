@@ -27,3 +27,7 @@ vite.config.ts.timestamp-*
 
 #repomix files (any file with repomix in the name)
 repomix*
+
+#zig files
+zig-out/
+.zig-cache/

@@ -1,6 +1,6 @@
 import { storage } from "$lib/services/storage";
 import { HistoryStore } from "./history.svelte";
-import type { ValidatedGradient } from "$lib/schemas/validation";
+import type { ValidatedGradient, ValidatedGradientStop } from "$lib/schemas/validation";
 import type { GradientId } from "$lib/types/brands";
 
 export class GradientStore {
@@ -34,9 +34,18 @@ export class GradientStore {
 		try {
 			const saved = await storage.db.get<ValidatedGradient[]>(this.STORAGE_KEY);
 			if (saved) {
+				// Sanitize loaded data to ensure robustness
+				const defaultStops: ValidatedGradientStop[] = [
+					{ color: "#3b82f6", position: 0 },
+					{ color: "#8b5cf6", position: 100 },
+				];
+
 				this.gradients = saved.map((g) => ({
 					...g,
 					createdAt: new Date(g.createdAt),
+					stops: (g.stops && Array.isArray(g.stops) && g.stops.length >= 2)
+						? g.stops
+						: defaultStops
 				}));
 			}
 		} catch (error) {
@@ -111,6 +120,10 @@ export class GradientStore {
 		const item = this.gradients[index];
 		if (item) {
 			const prevState = $state.snapshot(this.gradients);
+			// Create next state before applying updates
+			const nextState = prevState.map((g, i) =>
+				i === index ? { ...g, ...updates } : g
+			);
 			Object.assign(item, updates);
 			this.save();
 
@@ -121,7 +134,6 @@ export class GradientStore {
 					this.save();
 				},
 				redo: () => {
-					const nextState = $state.snapshot(this.gradients);
 					this.gradients = nextState;
 					this.save();
 				},

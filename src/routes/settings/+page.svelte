@@ -2,7 +2,12 @@
 	import SettingsModule from "$lib/components/modules/SettingsModule.svelte";
 	import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
 
-	const meta = PAGE_METADATA.settings!;
+	const meta = PAGE_METADATA.settings ?? {
+		title: "Settings - PhoenyxColor",
+		description: "Configure your PhoenyxColor preferences, export settings, and workspace options.",
+		path: "/settings",
+		noIndex: true,
+	};
 	const canonicalUrl = getFullUrl(meta.path);
 	const ogImage = getOgImageUrl();
 </script>

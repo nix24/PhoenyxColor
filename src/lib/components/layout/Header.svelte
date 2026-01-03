@@ -1,80 +1,109 @@
 <script lang="ts">
 	import { app } from "$lib/stores/root.svelte";
+	import { goto } from "$app/navigation";
+	import { page } from "$app/state";
 	import Icon from "@iconify/svelte";
-	import { toast } from "svelte-sonner";
-	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
+	import { cn } from "$lib/utils/cn";
 
 	let { title = "PhoenyxColor" } = $props();
 
-	function copyGlobalColor() {
-		if (app.globalColorBuffer) {
-			navigator.clipboard.writeText(app.globalColorBuffer);
-			toast.success(`Copied ${app.globalColorBuffer}!`);
-		}
+	const navItems = [
+		{ id: "references", path: "/references", label: "References" },
+		{ id: "palettes", path: "/palettes", label: "Palettes" },
+		{ id: "gradients", path: "/gradients", label: "Gradients" },
+	];
+
+	function navigateTo(path: string) {
+		goto(path);
 	}
 
-	function clearGlobalColor() {
-		app.clearGlobalColor();
-	}
+	let currentPath = $derived(page.url.pathname);
 </script>
 
-<header class="h-16 flex items-center justify-between px-4 md:px-6 py-2 z-30">
-	<!-- Page Title / Breadcrumbs -->
+<header
+	class="h-14 flex items-center justify-between px-4 md:px-6 z-30 bg-void/80 backdrop-blur-sm border-b border-white/5"
+>
+	<!-- Left: Logo -->
 	<div class="flex items-center gap-3">
-		<!-- Mobile Menu Toggle (Hidden on Desktop) -->
+		<!-- Mobile Menu Toggle -->
 		<button
 			class="md:hidden btn btn-circle btn-ghost btn-sm text-white"
 			onclick={() => app.toggleMobileMenu()}
 			aria-label={app.mobileMenuOpen ? "Close menu" : "Open menu"}
-			aria-expanded={app.mobileMenuOpen}
 		>
 			<Icon
 				icon={app.mobileMenuOpen ? "material-symbols:close" : "material-symbols:menu"}
-				class="text-xl transition-transform duration-200"
+				class="text-xl"
 			/>
 		</button>
 
-		<!-- Page Title - visible on all screen sizes -->
-		<h2 class="text-lg md:text-xl font-bold text-white tracking-wider">
-			{title}
-		</h2>
+		<!-- Logo -->
+		<div class="flex items-center gap-2">
+			<div class="w-6 h-6 rounded-lg bg-phoenix-primary flex items-center justify-center">
+				<Icon icon="material-symbols:local-fire-department" class="text-white text-sm" />
+			</div>
+			<span class="font-bold text-white tracking-wide hidden sm:inline">
+				<span class="text-phoenix-primary">PHOENYX</span><span class="text-cyan-400">COLOR</span>
+			</span>
+		</div>
 	</div>
 
-	<!-- Global Tools -->
-	<div class="flex items-center gap-2 md:gap-4">
-		<!-- Global Color Buffer - compact on mobile -->
-		{#if app.globalColorBuffer}
-			<GlassPanel
-				class="flex items-center gap-2 md:gap-3 px-2 md:px-3 py-1.5 animate-bounce-in"
-				intensity="low"
-				hoverEffect={true}
-			>
-				<button
-					class="w-6 h-6 rounded-md border border-white/20 shadow-sm cursor-pointer hover:scale-110 transition-transform"
-					style:background-color={app.globalColorBuffer}
-					onclick={copyGlobalColor}
-					title="Copy Color"
-					aria-label="Copy global color"
-				></button>
-
-				<span class="font-mono text-xs text-white/80 hidden sm:inline">{app.globalColorBuffer}</span
-				>
-
-				<button
-					class="text-white/50 hover:text-white transition-colors"
-					onclick={clearGlobalColor}
-					aria-label="Clear"
-				>
-					<Icon icon="material-symbols:close" class="text-sm" />
-				</button>
-			</GlassPanel>
-		{/if}
-
-		<!-- User / Profile (Placeholder) -->
-		<button
-			class="btn btn-circle btn-ghost btn-sm text-white/70 hover:text-white hover:bg-white/10"
+	<!-- Center: Pill Navigation (Desktop only) -->
+	<nav class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex">
+		<div
+			class="flex items-center bg-black/40 backdrop-blur-xl rounded-full p-1 border border-white/10"
 		>
-			<Icon icon="material-symbols:notifications-outline" class="text-xl" />
-		</button>
+			{#each navItems as item (item.id)}
+				<button
+					class={cn(
+						"px-5 py-1.5 rounded-full text-sm font-medium transition-all",
+						currentPath.includes(item.path)
+							? "bg-white/10 text-white"
+							: "text-text-muted hover:text-white"
+					)}
+					onclick={() => navigateTo(item.path)}
+				>
+					{item.label}
+				</button>
+			{/each}
+		</div>
+	</nav>
+
+	<!-- Right: Status + Profile -->
+	<div class="flex items-center gap-3">
+		<!-- System Status -->
+		<div class="hidden sm:flex items-center gap-2 text-xs text-text-muted">
+			<div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+			<span>System Healthy</span>
+		</div>
+
+		<!-- Profile Avatar -->
+		<div
+			class="w-8 h-8 rounded-full bg-linear-to-tr from-phoenix-primary to-phoenix-violet border border-white/20 cursor-pointer hover:scale-105 transition-transform"
+		></div>
 	</div>
 </header>
+
+<!-- Mobile Navigation Menu -->
+{#if app.mobileMenuOpen}
+	<div
+		class="md:hidden mx-4 mb-2 bg-black/60 backdrop-blur-xl rounded-xl p-2 border border-white/10 z-40"
+	>
+		{#each navItems as item (item.id)}
+			<button
+				class={cn(
+					"w-full px-4 py-3 rounded-lg text-left text-sm font-medium transition-all",
+					currentPath.includes(item.path)
+						? "bg-white/10 text-white"
+						: "text-text-muted hover:text-white hover:bg-white/5"
+				)}
+				onclick={() => {
+					navigateTo(item.path);
+					app.closeMobileMenu();
+				}}
+			>
+				{item.label}
+			</button>
+		{/each}
+	</div>
+{/if}
