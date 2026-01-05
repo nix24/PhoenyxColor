@@ -119,7 +119,7 @@
 <ProceduralBackground />
 
 <div
-	class="flex h-screen w-full bg-void text-text-main font-sans relative z-10 selection:bg-phoenix-primary selection:text-white leading-relaxed"
+	class="flex h-dvh w-full bg-void text-text-main font-sans relative z-10 selection:bg-phoenix-primary selection:text-white leading-relaxed"
 >
 	{#if app.mobileMenuOpen}
 		<button
@@ -130,7 +130,7 @@
 		></button>
 	{/if}
 
-	<div class="flex-1 flex flex-col min-w-0 bg-void/50 relative">
+	<div class="flex-1 flex flex-col min-w-0 bg-void/50 relative @container">
 		<Header title={pageTitle} />
 
 		<!-- Scrollable Content -->
