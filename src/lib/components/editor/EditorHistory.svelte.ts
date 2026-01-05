@@ -115,10 +115,22 @@ export const DEFAULT_EDITOR_STATE: ImageEditorState = {
 const MAX_HISTORY_SIZE = 50;
 
 /**
+ * Deep clone helper to handle Svelte 5 proxies which may fail structuredClone
+ */
+function deepClone<T>(obj: T): T {
+    try {
+        return JSON.parse(JSON.stringify(obj));
+    } catch (e) {
+        console.warn("Deep clone failed, returning original object:", e);
+        return obj;
+    }
+}
+
+/**
  * Deep clone an ImageEditorState to prevent mutation of history entries
  */
 function deepCloneState(state: ImageEditorState): ImageEditorState {
-    return structuredClone(state);
+    return deepClone(state);
 }
 
 export class EditorHistoryService {
@@ -157,10 +169,13 @@ export class EditorHistoryService {
         // Apply new state with deep cloning for nested objects
         const mergedState = { ...this.currentState, ...newState };
         if (newState.curves) {
-            mergedState.curves = structuredClone(newState.curves);
+            mergedState.curves = deepClone(newState.curves);
         }
         if (newState.appliedEffects) {
-            mergedState.appliedEffects = structuredClone(newState.appliedEffects);
+            mergedState.appliedEffects = deepClone(newState.appliedEffects);
+        }
+        if (newState.cropRect) {
+            mergedState.cropRect = deepClone(newState.cropRect);
         }
         this.currentState = mergedState;
     }
@@ -172,10 +187,13 @@ export class EditorHistoryService {
         const mergedState = { ...this.currentState, ...newState };
         // Deep clone nested objects if they're being updated
         if (newState.curves) {
-            mergedState.curves = structuredClone(newState.curves);
+            mergedState.curves = deepClone(newState.curves);
         }
         if (newState.appliedEffects) {
-            mergedState.appliedEffects = structuredClone(newState.appliedEffects);
+            mergedState.appliedEffects = deepClone(newState.appliedEffects);
+        }
+        if (newState.cropRect) {
+            mergedState.cropRect = deepClone(newState.cropRect);
         }
         this.currentState = mergedState;
     }
