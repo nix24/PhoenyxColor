@@ -1029,7 +1029,7 @@
 </script>
 
 {#if image}
-	<div class="fixed inset-0 z-50 flex flex-col bg-void-deep" transition:fade={{ duration: 200 }}>
+	<div class="absolute inset-0 z-50 flex flex-col bg-void-deep" transition:fade={{ duration: 200 }}>
 		<!-- Top Bar -->
 		<div
 			class="h-14 flex items-center justify-between px-4 bg-black/40 border-b border-white/10 z-20"

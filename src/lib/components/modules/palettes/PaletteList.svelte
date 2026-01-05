@@ -11,9 +11,10 @@
 		onCreateNew?: () => void;
 		onExtract?: () => void;
 		onDelete?: () => void;
+		onSelect?: () => void;
 	}
 
-	let { searchTerm = "", onCreateNew, onExtract, onDelete }: Props = $props();
+	let { searchTerm = "", onCreateNew, onExtract, onDelete, onSelect }: Props = $props();
 
 	// Initial loading state for skeleton display
 	let isLoading = $state(true);
@@ -47,7 +48,7 @@
 	}
 </script>
 
-<div class="w-80 h-full flex flex-col gap-4 p-4">
+<div class="w-full h-full flex flex-col gap-4 p-4">
 	<!-- Actions -->
 	<div class="space-y-2">
 		<button
@@ -96,7 +97,10 @@
 								? "bg-white/10 border-phoenix-primary/50 shadow-[inset_4px_0_0_0_#ff0080]"
 								: "bg-transparent border-transparent hover:bg-white/5 hover:border-white/10"
 						)}
-						onclick={() => app.palettes.setActive(palette.id)}
+						onclick={() => {
+							app.palettes.setActive(palette.id);
+							onSelect?.();
+						}}
 					>
 						{#if app.palettes.activePaletteId === palette.id}
 							<div

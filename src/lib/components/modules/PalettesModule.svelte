@@ -331,40 +331,132 @@
 		showImagePicker = false;
 		startColorExtraction(refId);
 	}
+	// View State for Mobile
+	type MobileView = "list" | "editor" | "inspector";
+	let mobileView = $state<MobileView>("list");
+	let containerWidth = $state(0);
+
+	function handlePaletteSelect() {
+		// Switch to editor view if container is small (mobile layout)
+		if (containerWidth < 768) {
+			mobileView = "editor";
+		}
+	}
+
+	function handleBackToList() {
+		mobileView = "list";
+		activeColorIndex = null;
+	}
+
+	function toggleInspector() {
+		if (mobileView === "inspector") {
+			mobileView = "editor";
+		} else {
+			mobileView = "inspector";
+		}
+	}
 </script>
 
-<div class="h-full flex gap-0 bg-void text-text-muted">
-	<!-- LEFT SIDEBAR -->
-	<div class="shrink-0 border-r border-white/5 bg-void-deep">
-		<PaletteList
-			{searchTerm}
-			onCreateNew={() => (showCreateDialog = true)}
-			onExtract={openImagePicker}
-			onDelete={deletePalette}
-		/>
+<div
+	class="h-full w-full bg-void text-text-muted relative overflow-hidden @container"
+	bind:clientWidth={containerWidth}
+>
+	<!-- DESKTOP LAYOUT (Container query based) -->
+	<div class="hidden @md:flex h-full w-full gap-0">
+		<!-- LEFT SIDEBAR -->
+		<div class="shrink-0 w-72 lg:w-80 border-r border-white/5 bg-void-deep">
+			<PaletteList
+				{searchTerm}
+				onCreateNew={() => (showCreateDialog = true)}
+				onExtract={openImagePicker}
+				onDelete={deletePalette}
+			/>
+		</div>
+
+		<!-- MAIN EDITOR AREA -->
+		<div class="flex-1 min-w-0 bg-void p-4 overflow-hidden relative">
+			<PaletteEditor
+				{activeColorIndex}
+				onColorIndexSelect={(idx: number) => (activeColorIndex = idx)}
+			/>
+		</div>
+
+		<!-- RIGHT INSPECTOR SIDEBAR -->
+		<div class="w-80 shrink-0 border-l border-white/5 bg-void-deep">
+			<PaletteInspector
+				{activeColorIndex}
+				{colorHistory}
+				onColorChange={handleColorChange}
+				onExport={exportPalette}
+				onColorHistorySelect={(color: string) => {
+					if (activeColorIndex !== null) {
+						handleColorChange(color);
+					}
+				}}
+			/>
+		</div>
 	</div>
 
-	<!-- MAIN EDITOR AREA -->
-	<div class="flex-1 min-w-0 bg-void p-4 overflow-hidden">
-		<PaletteEditor
-			{activeColorIndex}
-			onColorIndexSelect={(idx: number) => (activeColorIndex = idx)}
-		/>
-	</div>
+	<!-- MOBILE LAYOUT -->
+	<div class="@md:hidden h-full w-full relative">
+		<!-- HEADER / NAVIGATION FOR MOBILE -->
+		{#if mobileView !== "list"}
+			<div
+				class="absolute top-0 left-0 right-0 h-14 bg-void-deep border-b border-white/5 flex items-center justify-between px-4 z-20"
+			>
+				<button class="btn btn-ghost btn-sm btn-square" onclick={handleBackToList}>
+					<Icon icon="lucide:arrow-left" class="w-5 h-5" />
+				</button>
+				<span class="font-medium text-sm">
+					{app.palettes.activePalette?.name || "Editor"}
+				</span>
+				<button
+					class="btn btn-ghost btn-sm btn-square {mobileView === 'inspector'
+						? 'bg-white/10 text-white'
+						: ''}"
+					onclick={toggleInspector}
+				>
+					<Icon icon="lucide:settings-2" class="w-5 h-5" />
+				</button>
+			</div>
+		{/if}
 
-	<!-- RIGHT INSPECTOR SIDEBAR -->
-	<div class="w-80 shrink-0 border-l border-white/5 bg-void-deep">
-		<PaletteInspector
-			{activeColorIndex}
-			{colorHistory}
-			onColorChange={handleColorChange}
-			onExport={exportPalette}
-			onColorHistorySelect={(color: string) => {
-				if (activeColorIndex !== null) {
-					handleColorChange(color);
-				}
-			}}
-		/>
+		<!-- VIEWS -->
+		<div class="h-full w-full transition-all duration-300" class:pt-14={mobileView !== "list"}>
+			<!-- LIST VIEW -->
+			<div class="{mobileView === 'list' ? 'block' : 'hidden'} h-full">
+				<PaletteList
+					{searchTerm}
+					onCreateNew={() => (showCreateDialog = true)}
+					onExtract={openImagePicker}
+					onDelete={deletePalette}
+					onSelect={handlePaletteSelect}
+				/>
+			</div>
+
+			<!-- EDITOR VIEW -->
+			<div class="{mobileView === 'editor' ? 'block' : 'hidden'} h-full p-4 relative">
+				<PaletteEditor
+					{activeColorIndex}
+					onColorIndexSelect={(idx: number) => (activeColorIndex = idx)}
+				/>
+			</div>
+
+			<!-- INSPECTOR VIEW -->
+			<div class="{mobileView === 'inspector' ? 'block' : 'hidden'} h-full bg-void-deep p-4">
+				<PaletteInspector
+					{activeColorIndex}
+					{colorHistory}
+					onColorChange={handleColorChange}
+					onExport={exportPalette}
+					onColorHistorySelect={(color: string) => {
+						if (activeColorIndex !== null) {
+							handleColorChange(color);
+						}
+					}}
+				/>
+			</div>
+		</div>
 	</div>
 </div>
 
