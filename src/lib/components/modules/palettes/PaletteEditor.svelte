@@ -205,6 +205,11 @@
 					onfinalize={handleDndFinalize}
 				>
 					{#each localItems as item, idx (item.id)}
+						{@const hex = item.color.replace("#", "")}
+						{@const r = parseInt(hex.substring(0, 2), 16)}
+						{@const g = parseInt(hex.substring(2, 4), 16)}
+						{@const b = parseInt(hex.substring(4, 6), 16)}
+						{@const isDark = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5}
 						<div
 							class={cn(
 								"h-full w-20 min-w-20 shrink-0 relative group transition-colors duration-200 ease-out cursor-pointer",
@@ -234,16 +239,26 @@
 								<Icon icon="material-symbols:drag-indicator" class="w-4 h-4" />
 							</div>
 
-							<!-- Color hex code - smaller text -->
+							<!-- Color hex code with solid contrasting background -->
 							<div
-								class="absolute inset-x-0 bottom-0 p-3 flex flex-col items-center justify-end text-center mix-blend-difference"
+								class="absolute inset-x-0 bottom-0 p-2 flex flex-col items-center justify-end text-center"
 							>
-								<span class="text-sm font-bold font-mono tracking-wide text-white drop-shadow-lg"
-									>{item.color.toUpperCase()}</span
+								<div
+									class={cn(
+										"px-2 py-1.5 rounded-lg shadow-lg",
+										isDark ? "bg-white text-gray-900" : "bg-gray-900 text-white"
+									)}
 								>
-								<span class="text-[10px] opacity-70 uppercase tracking-wider font-medium text-white"
-									>Color {idx + 1}</span
-								>
+									<span class="text-xs font-bold font-mono tracking-wide block"
+										>{item.color.toUpperCase()}</span
+									>
+									<span
+										class={cn(
+											"text-[9px] uppercase tracking-wider font-medium block",
+											isDark ? "text-gray-600" : "text-gray-400"
+										)}>Color {idx + 1}</span
+									>
+								</div>
 							</div>
 						</div>
 					{/each}
