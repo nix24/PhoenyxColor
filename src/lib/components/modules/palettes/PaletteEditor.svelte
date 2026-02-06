@@ -21,8 +21,11 @@
 
 	let { activeColorIndex, onColorIndexSelect }: Props = $props();
 
-	// Local state for dnd - this is key! We manage items locally, not derived.
+	// Local state for dnd - we manage items locally, not derived.
 	let localItems = $state<Array<{ id: string; color: string; index: number }>>([]);
+
+	// Stable ID counter for DnD identity tracking
+	let idCounter = 0;
 
 	// Sync local items when palette changes (but not during drag)
 	let isDragging = $state(false);
@@ -30,7 +33,7 @@
 	$effect(() => {
 		if (!isDragging && app.palettes.activePalette) {
 			localItems = app.palettes.activePalette.colors.map((color, index) => ({
-				id: `color-${index}-${color}`,
+				id: `slot-${idCounter++}`,
 				color,
 				index,
 			}));

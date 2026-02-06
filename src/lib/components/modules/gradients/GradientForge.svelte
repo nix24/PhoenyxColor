@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { app } from "$lib/stores/root.svelte";
+	import { onDestroy } from "svelte";
 	import Icon from "@iconify/svelte";
 	import { cn } from "$lib/utils/cn";
 	import GradientPreview from "./GradientPreview.svelte";
@@ -51,6 +52,9 @@
 	let showInteractiveHandles = $state(true);
 	let draggingStopIndex = $state<number | null>(null);
 
+	// Track active drag listeners for cleanup on unmount
+	let activeDragCleanup: (() => void) | null = null;
+
 	// Handle stop drag
 	function startStopDrag(index: number, e: MouseEvent) {
 		e.stopPropagation();
@@ -72,11 +76,21 @@
 			draggingStopIndex = null;
 			window.removeEventListener("mousemove", handleMove);
 			window.removeEventListener("mouseup", handleUp);
+			activeDragCleanup = null;
 		};
 
 		window.addEventListener("mousemove", handleMove);
 		window.addEventListener("mouseup", handleUp);
+
+		activeDragCleanup = () => {
+			window.removeEventListener("mousemove", handleMove);
+			window.removeEventListener("mouseup", handleUp);
+		};
 	}
+
+	onDestroy(() => {
+		activeDragCleanup?.();
+	});
 
 	function handleSliderClick(e: MouseEvent) {
 		if (draggingStopIndex !== null) return;

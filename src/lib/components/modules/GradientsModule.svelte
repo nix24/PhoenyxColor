@@ -8,8 +8,6 @@
 	import { toast } from "svelte-sonner";
 
 	import { sortPalette } from "$lib/utils/color-engine";
-	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
-	import { cn } from "$lib/utils/cn";
 
 	// New Components
 	import GradientLibrary from "./gradients/GradientLibrary.svelte";
@@ -32,6 +30,7 @@
 		gradientToSVG,
 	} from "./gradients/gradient-utils";
 	import pkg from "file-saver";
+	import { cn } from "$lib/utils/cn";
 	const { saveAs } = pkg;
 
 	// Lazy load heavy dependencies only when needed
@@ -351,44 +350,120 @@
 	}
 </script>
 
-<div class="h-full w-full flex gap-4 p-4 overflow-hidden">
-	<!-- Left: Library & Generation -->
-	<div class="w-[240px] shrink-0">
-		<GradientLibrary
-			bind:searchTerm
-			onCreateNew={() => (showCreateDialog = true)}
-			onGenerate={() => (showSmartGeneratorDialog = true)}
-			onFromImage={() => (showImageExtractDialog = true)}
-			onFromPalette={() => (showPalettePickerDialog = true)}
+<div class="h-full w-full p-4 overflow-hidden @container">
+	<!-- DESKTOP LAYOUT -->
+	<div class="hidden @lg:flex h-full w-full gap-4">
+		<!-- Left: Library & Generation -->
+		<div class="w-[240px] shrink-0">
+			<GradientLibrary
+				bind:searchTerm
+				onCreateNew={() => (showCreateDialog = true)}
+				onGenerate={() => (showSmartGeneratorDialog = true)}
+				onFromImage={() => (showImageExtractDialog = true)}
+				onFromPalette={() => (showPalettePickerDialog = true)}
+			/>
+		</div>
+
+		<!-- Center: Forge Canvas -->
+		<GradientForge
+			{interpolationMode}
+			{isMeshMode}
+			{meshPoints}
+			onMeshModeToggle={(enabled: boolean) => (isMeshMode = enabled)}
+			onMeshPointMove={handleMeshPointMove}
+			onMeshPointAdd={handleMeshPointAdd}
+			onMeshPointRemove={handleMeshPointRemove}
+			onMeshPointColorChange={handleMeshPointColorChange}
+			onMeshPointRadiusChange={handleMeshPointRadiusChange}
+			onStopPositionChange={handleStopPositionChange}
+			onAngleChange={handleAngleChange}
+			onCenterChange={handleCenterChange}
+			onModeChange={handleModeChange}
+			onMeshPointsInit={(points: MeshPoint[]) => (meshPoints = points)}
 		/>
+
+		<!-- Right: Properties -->
+		<div class="w-[300px] shrink-0">
+			<GradientProperties
+				{interpolationMode}
+				onInterpolationModeChange={(mode: InterpolationMode) => (interpolationMode = mode)}
+				onExport={() => (showExportDialog = true)}
+				onDelete={handleDeleteGradient}
+			/>
+		</div>
 	</div>
 
-	<!-- Center: Forge Canvas -->
-	<GradientForge
-		{interpolationMode}
-		{isMeshMode}
-		{meshPoints}
-		onMeshModeToggle={(enabled: boolean) => (isMeshMode = enabled)}
-		onMeshPointMove={handleMeshPointMove}
-		onMeshPointAdd={handleMeshPointAdd}
-		onMeshPointRemove={handleMeshPointRemove}
-		onMeshPointColorChange={handleMeshPointColorChange}
-		onMeshPointRadiusChange={handleMeshPointRadiusChange}
-		onStopPositionChange={handleStopPositionChange}
-		onAngleChange={handleAngleChange}
-		onCenterChange={handleCenterChange}
-		onModeChange={handleModeChange}
-		onMeshPointsInit={(points: MeshPoint[]) => (meshPoints = points)}
-	/>
+	<!-- MOBILE LAYOUT -->
+	<div class="@lg:hidden h-full w-full flex flex-col gap-4 overflow-y-auto">
+		<!-- Quick Actions Row -->
+		<div class="flex gap-2 shrink-0">
+			<button
+				type="button"
+				class="btn btn-sm btn-outline border-white/20 hover:border-white/40 hover:bg-white/5 gap-1 flex-1"
+				onclick={() => (showCreateDialog = true)}
+			>
+				<Icon icon="material-symbols:add" class="w-4 h-4" />
+				New
+			</button>
+			<button
+				type="button"
+				class="btn btn-sm btn-outline border-white/20 hover:border-white/40 hover:bg-white/5 gap-1 flex-1"
+				onclick={() => (showSmartGeneratorDialog = true)}
+			>
+				<Icon icon="material-symbols:auto-awesome" class="w-4 h-4" />
+				Generate
+			</button>
+			<button
+				type="button"
+				class="btn btn-sm btn-outline border-white/20 hover:border-white/40 hover:bg-white/5 gap-1 flex-1"
+				onclick={() => (showExportDialog = true)}
+				disabled={!app.gradients.activeGradient}
+			>
+				<Icon icon="material-symbols:download" class="w-4 h-4" />
+				Export
+			</button>
+		</div>
 
-	<!-- Right: Properties -->
-	<div class="w-[300px] shrink-0">
-		<GradientProperties
-			{interpolationMode}
-			onInterpolationModeChange={(mode: InterpolationMode) => (interpolationMode = mode)}
-			onExport={() => (showExportDialog = true)}
-			onDelete={handleDeleteGradient}
-		/>
+		<!-- Forge Canvas (main area) -->
+		<div class="flex-1 min-h-[250px]">
+			<GradientForge
+				{interpolationMode}
+				{isMeshMode}
+				{meshPoints}
+				onMeshModeToggle={(enabled: boolean) => (isMeshMode = enabled)}
+				onMeshPointMove={handleMeshPointMove}
+				onMeshPointAdd={handleMeshPointAdd}
+				onMeshPointRemove={handleMeshPointRemove}
+				onMeshPointColorChange={handleMeshPointColorChange}
+				onMeshPointRadiusChange={handleMeshPointRadiusChange}
+				onStopPositionChange={handleStopPositionChange}
+				onAngleChange={handleAngleChange}
+				onCenterChange={handleCenterChange}
+				onModeChange={handleModeChange}
+				onMeshPointsInit={(points: MeshPoint[]) => (meshPoints = points)}
+			/>
+		</div>
+
+		<!-- Properties (collapsed below on mobile) -->
+		<div class="shrink-0">
+			<GradientProperties
+				{interpolationMode}
+				onInterpolationModeChange={(mode: InterpolationMode) => (interpolationMode = mode)}
+				onExport={() => (showExportDialog = true)}
+				onDelete={handleDeleteGradient}
+			/>
+		</div>
+
+		<!-- Library (scrollable list at bottom on mobile) -->
+		<div class="shrink-0 max-h-[200px] overflow-y-auto">
+			<GradientLibrary
+				bind:searchTerm
+				onCreateNew={() => (showCreateDialog = true)}
+				onGenerate={() => (showSmartGeneratorDialog = true)}
+				onFromImage={() => (showImageExtractDialog = true)}
+				onFromPalette={() => (showPalettePickerDialog = true)}
+			/>
+		</div>
 	</div>
 </div>
 
@@ -742,12 +817,14 @@
 								}));
 
 								const gradientData = {
-									id: crypto.randomUUID(), // Temp ID for validation
-									createdAt: new Date(), // Temp date for validation
+									id: crypto.randomUUID(),
+									createdAt: new Date(),
 									name: `From ${palette.name}`,
 									type: gradientType,
 									stops,
 									angle: 90,
+									centerX: 50,
+									centerY: 50,
 								};
 
 								const validation = validateGradient(gradientData);

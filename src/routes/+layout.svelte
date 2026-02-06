@@ -1,6 +1,5 @@
 <script lang="ts">
 	import "../app.css";
-	import Sidebar from "$lib/components/layout/Sidebar.svelte";
 	import Header from "$lib/components/layout/Header.svelte";
 	import ProceduralBackground from "$lib/components/visuals/ProceduralBackground.svelte";
 	import { Toaster } from "svelte-sonner";
@@ -108,6 +107,12 @@
 
 <!-- Base SEO metadata and structured data -->
 <svelte:head>
+	<!-- Preconnect for faster font loading -->
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+	<link rel="preconnect" href="https://api.fontshare.com" crossorigin="anonymous" />
+	<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin="anonymous" />
+
 	<!-- Base meta tags (can be overridden by pages) -->
 	<meta name="keywords" content={SITE_CONFIG.keywords.join(", ")} />
 

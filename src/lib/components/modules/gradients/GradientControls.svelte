@@ -64,9 +64,8 @@
 		}
 
 		const newStop: ValidatedGradientStop = { color, position: Math.round(position) };
-		gradient.stops.push(newStop);
-		gradient.stops.sort((a, b) => a.position - b.position);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+		const newStops = [...gradient.stops, newStop].sort((a, b) => a.position - b.position);
+		app.gradients.update(gradient.id, { stops: newStops });
 		toast.success("Color stop added!");
 	}
 
@@ -75,8 +74,8 @@
 			toast.warning("Gradient must have at least 2 color stops");
 			return;
 		}
-		gradient.stops.splice(index, 1);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+		const newStops = gradient.stops.filter((_, i) => i !== index);
+		app.gradients.update(gradient.id, { stops: newStops });
 		if (selectedStopIndex === index) selectedStopIndex = -1;
 		toast.info("Color stop removed");
 	}
@@ -84,51 +83,47 @@
 	function updateColorStop(index: number, updates: Partial<ValidatedGradientStop>) {
 		const stop = gradient.stops[index];
 		if (stop) {
-			Object.assign(stop, updates);
+			const newStops = gradient.stops.map((s, i) =>
+				i === index ? { ...s, ...updates } : s
+			);
 			if (updates.position !== undefined) {
-				gradient.stops.sort((a, b) => a.position - b.position);
+				newStops.sort((a, b) => a.position - b.position);
 			}
-			app.gradients.update(gradient.id, { stops: gradient.stops });
+			app.gradients.update(gradient.id, { stops: newStops });
 		}
 	}
 
 	function handleReverse() {
-		gradient.stops = reverseGradientStops(gradient.stops);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+		const newStops = reverseGradientStops([...gradient.stops]);
+		app.gradients.update(gradient.id, { stops: newStops });
 		toast.success("Gradient reversed!");
 	}
 
 	function handleSmoothen() {
-		gradient.stops = smoothenGradientStops(gradient.stops, interpolationMode);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+		const newStops = smoothenGradientStops([...gradient.stops], interpolationMode);
+		app.gradients.update(gradient.id, { stops: newStops });
 		toast.success("Gradient smoothened!");
 	}
 
 	function handleDistribute() {
-		gradient.stops = distributeStopsEvenly(gradient.stops);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+		const newStops = distributeStopsEvenly([...gradient.stops]);
+		app.gradients.update(gradient.id, { stops: newStops });
 		toast.success("Stops distributed evenly!");
 	}
 
 	function handleRandomize() {
-		// Generate truly random colors based on existing palette or completely random
 		const numStops = gradient.stops.length;
-		
-		// Extract existing hues to create variations, or generate completely random
-		const existingColors = gradient.stops.map(s => s.color);
-		const baseHue = Math.random() * 360; // Random starting hue
-		const hueSpread = 60 + Math.random() * 180; // Random spread between 60-240 degrees
-		
-		// Generate random colors with good variation
+		const baseHue = Math.random() * 360;
+		const hueSpread = 60 + Math.random() * 180;
+
 		const newColors: string[] = [];
 		for (let i = 0; i < numStops; i++) {
 			const hue = (baseHue + (i * hueSpread / numStops) + Math.random() * 30 - 15) % 360;
-			const saturation = 0.5 + Math.random() * 0.4; // 50-90%
-			const lightness = 0.35 + Math.random() * 0.35; // 35-70%
+			const saturation = 0.5 + Math.random() * 0.4;
+			const lightness = 0.35 + Math.random() * 0.35;
 			newColors.push(chroma.hsl(hue, saturation, lightness).hex());
 		}
-		
-		// Generate random positions (keeping first at 0 and last at 100)
+
 		const randomPositions: number[] = [];
 		for (let i = 0; i < numStops; i++) {
 			if (i === 0) {
@@ -136,22 +131,18 @@
 			} else if (i === numStops - 1) {
 				randomPositions.push(100);
 			} else {
-				// Random position between 5 and 95, with some spacing
 				randomPositions.push(Math.round(5 + Math.random() * 90));
 			}
 		}
-		// Sort positions to maintain gradient order
 		randomPositions.sort((a, b) => a - b);
-		
-		// Apply new colors and positions
-		gradient.stops.forEach((stop, index) => {
-			stop.color = newColors[index] || stop.color;
-			stop.position = randomPositions[index] ?? stop.position;
-		});
-		
-		// Re-sort stops by position
-		gradient.stops.sort((a, b) => a.position - b.position);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+
+		const newStops: ValidatedGradientStop[] = gradient.stops.map((stop, index) => ({
+			color: newColors[index] || stop.color,
+			position: randomPositions[index] ?? stop.position,
+		}));
+		newStops.sort((a, b) => a.position - b.position);
+
+		app.gradients.update(gradient.id, { stops: newStops });
 		toast.success("Gradient randomized!");
 	}
 

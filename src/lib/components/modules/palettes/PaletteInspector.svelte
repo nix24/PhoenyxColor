@@ -240,11 +240,12 @@
 		</button>
 
 		<button
-			onclick={() => onExport("json")}
+			type="button"
+			onclick={() => onExport("png")}
 			class="btn btn-primary w-full mt-4 text-black font-bold bg-phoenix-primary hover:bg-phoenix-primary/90 border-none"
 		>
 			<Icon icon="material-symbols:ios-share" class="w-4 h-4 mr-2" />
-			Export Palette
+			Export as PNG
 		</button>
 	</div>
 </div>
