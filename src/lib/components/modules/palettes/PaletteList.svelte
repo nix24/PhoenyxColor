@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { fly } from "svelte/transition";
-	import { elasticOut } from "svelte/easing";
 	import { onMount } from "svelte";
 	import { app } from "$lib/stores/root.svelte";
 	import Icon from "@iconify/svelte";
@@ -80,52 +79,55 @@
 
 	<!-- Workspace List -->
 	<div class="flex-1 flex flex-col min-h-0">
-		<h3 class="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">Workspace</h3>
+		<h3 class="text-[10px] font-semibold text-text-muted/60 uppercase tracking-widest mb-3">Workspace</h3>
 
-		<div class="flex-1 overflow-y-auto custom-scrollbar -mr-2 pr-2 space-y-2">
+		<div class="flex-1 overflow-y-auto custom-scrollbar -mr-2 pr-2 space-y-1.5">
 			{#if isLoading}
 				{#each Array(4) as _}
 					<div class="h-16 rounded-lg bg-white/5 animate-pulse"></div>
 				{/each}
 			{:else}
 				{#each filteredPalettes as palette, i (palette.id)}
+					{@const isActive = app.palettes.activePaletteId === palette.id}
 					<button
 						in:fly={{ y: 20, duration: 300, delay: i * 30 }}
 						class={cn(
 							"w-full text-left p-3 rounded-lg transition-all duration-200 group relative border",
-							app.palettes.activePaletteId === palette.id
-								? "bg-white/10 border-phoenix-primary/50 shadow-[inset_4px_0_0_0_#ff0080]"
-								: "bg-transparent border-transparent hover:bg-white/5 hover:border-white/10"
+							isActive
+								? "bg-white/8 border-white/12"
+								: "bg-transparent border-transparent hover:bg-white/4 hover:border-white/6"
 						)}
 						onclick={() => {
 							app.palettes.setActive(palette.id);
 							onSelect?.();
 						}}
 					>
-						{#if app.palettes.activePaletteId === palette.id}
+						<!-- Active indicator line -->
+						{#if isActive}
 							<div
-								class="absolute right-2 top-2 p-1 rounded-full shadow-[0_0_8px_#a3e635] bg-[#a3e635]"
+								class="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-phoenix-primary"
 							></div>
 						{/if}
 
-						<h4 class="text-sm font-medium text-white mb-2 truncate pr-6">{palette.name}</h4>
-
-						<!-- Color Bar -->
-						<div class="h-2 w-full rounded-full flex overflow-hidden bg-black/50 mb-2">
-							{#if palette.colors.length > 0}
-								{#each palette.colors.slice(0, 5) as color}
-									<div class="flex-1 h-full" style:background-color={color}></div>
-								{/each}
-							{:else}
-								<div class="w-full h-full bg-white/10"></div>
-							{/if}
-							<!-- Empty slot indicator if less than max -->
-							{#if palette.colors.length < 5}
-								<div class="flex-1 bg-transparent"></div>
+						<div class="flex items-center justify-between mb-2">
+							<h4 class="text-sm font-medium text-white truncate pr-4">{palette.name}</h4>
+							{#if isActive}
+								<div class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></div>
 							{/if}
 						</div>
 
-						<div class="flex justify-between items-center text-[10px] text-text-muted">
+						<!-- Full-spectrum Color Bar -->
+						<div class="h-2.5 w-full rounded-full flex overflow-hidden bg-black/40 mb-2">
+							{#if palette.colors.length > 0}
+								{#each palette.colors as color}
+									<div class="h-full transition-all duration-300" style:background-color={color} style:flex="1 1 0%"></div>
+								{/each}
+							{:else}
+								<div class="w-full h-full bg-white/8"></div>
+							{/if}
+						</div>
+
+						<div class="flex justify-between items-center text-[10px] text-text-muted/50">
 							<span>{palette.colors.length} Swatches</span>
 							<span>{timeAgo(palette.createdAt)}</span>
 						</div>
