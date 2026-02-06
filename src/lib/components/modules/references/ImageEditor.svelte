@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { fly, fade } from "svelte/transition";
-	import { cubicOut } from "svelte/easing";
+	import { fade } from "svelte/transition";
 	import { app } from "$lib/stores/root.svelte";
-	import type { ValidatedReferenceImage } from "$lib/schemas/validation";
 	import Icon from "@iconify/svelte";
 	import { cn } from "$lib/utils/cn";
 	import { toast } from "svelte-sonner";
@@ -87,7 +85,6 @@
 	let duotoneColors = $state<[string, string]>(["#000000", "#ffffff"]);
 
 	// Canvas-based preview for effects that need pixel manipulation
-	let previewCanvas: HTMLCanvasElement | null = $state(null);
 	let previewDataUrl = $state<string | null>(null);
 	let isRenderingPreview = $state(false);
 	let renderTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -726,11 +723,6 @@
 		history.currentState.temperature !== 0 || history.currentState.tint !== 0
 	);
 
-	// Function version for use in getEditedImageData
-	function buildFilterString(): string {
-		return filterString;
-	}
-
 	// Render preview with canvas-based effects (debounced)
 	async function renderCanvasPreview(): Promise<void> {
 		if (!image || !needsCanvasPreview) {
@@ -778,23 +770,21 @@
 	// Trigger preview re-render when relevant state changes
 	$effect(() => {
 		if (needsCanvasPreview && image) {
-			// Access dependencies to track them
-			const _ = [
-				quickEffect,
-				effectIntensity,
-				duotoneColors,
-				history.currentState.shadows,
-				history.currentState.highlights,
-				history.currentState.vibrance,
-				history.currentState.clarity,
-				history.currentState.temperature,
-				history.currentState.tint,
-				history.currentState.brightness,
-				history.currentState.contrast,
-				history.currentState.saturation,
-				history.currentState.appliedEffects,
-				history.currentState.appliedEffects?.length,
-			];
+			// Access reactive dependencies to track them
+			void quickEffect;
+			void effectIntensity;
+			void duotoneColors;
+			void history.currentState.shadows;
+			void history.currentState.highlights;
+			void history.currentState.vibrance;
+			void history.currentState.clarity;
+			void history.currentState.temperature;
+			void history.currentState.tint;
+			void history.currentState.brightness;
+			void history.currentState.contrast;
+			void history.currentState.saturation;
+			void history.currentState.appliedEffects;
+			void history.currentState.appliedEffects?.length;
 			schedulePreviewRender();
 		} else {
 			previewDataUrl = null;
@@ -864,11 +854,6 @@
 		if (state.flipY) transforms.push("scaleY(-1)");
 		return transforms.length > 0 ? transforms.join(" ") : "none";
 	});
-
-	// Function version for use in getEditedImageData
-	function buildTransformString(): string {
-		return transformString;
-	}
 
 	// Quick effect filter string
 	let quickEffectFilter = $derived.by(() => {
@@ -1032,90 +1017,99 @@
 	<div class="absolute inset-0 z-50 flex flex-col bg-void-deep" transition:fade={{ duration: 200 }}>
 		<!-- Top Bar -->
 		<div
-			class="h-14 flex items-center justify-between px-4 bg-black/40 border-b border-white/10 z-20"
+			class="h-12 sm:h-14 flex items-center justify-between px-2 sm:px-4 bg-black/60 backdrop-blur-xl border-b border-white/8 z-20 shrink-0"
 		>
 			<!-- Left: Back + Title -->
-			<div class="flex items-center gap-3">
+			<div class="flex items-center gap-2 min-w-0">
 				<button
-					class="btn btn-sm btn-circle btn-ghost text-white/70 hover:text-white hover:bg-white/10"
+					class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors shrink-0"
 					onclick={handleClose}
+					type="button"
+					title="Back to gallery"
 				>
 					<Icon icon="material-symbols:arrow-back" class="w-5 h-5" />
 				</button>
-				<div class="h-5 w-px bg-white/10"></div>
 				<h2
-					class="text-white font-semibold text-sm sm:text-base truncate max-w-[150px] sm:max-w-[250px]"
+					class="text-white font-semibold text-sm truncate min-w-0"
 				>
 					{image.name}
 				</h2>
 			</div>
 
 			<!-- Center: Undo/Redo + Compare -->
-			<div class="flex items-center gap-1">
+			<div class="flex items-center gap-0.5">
 				<button
-					class="btn btn-sm btn-ghost text-white/60 hover:text-white disabled:opacity-30"
+					class="w-9 h-9 rounded-lg flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
 					onclick={handleUndo}
 					disabled={!history.canUndo}
 					title="Undo (Ctrl+Z)"
+					type="button"
 				>
 					<Icon icon="material-symbols:undo" class="w-5 h-5" />
 				</button>
 				<button
-					class="btn btn-sm btn-ghost text-white/60 hover:text-white disabled:opacity-30"
+					class="w-9 h-9 rounded-lg flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
 					onclick={handleRedo}
 					disabled={!history.canRedo}
 					title="Redo (Ctrl+Shift+Z)"
+					type="button"
 				>
 					<Icon icon="material-symbols:redo" class="w-5 h-5" />
 				</button>
-				<div class="h-5 w-px bg-white/10 mx-1"></div>
+				<div class="h-5 w-px bg-white/8 mx-1 hidden sm:block"></div>
 				<button
 					class={cn(
-						"btn btn-sm btn-ghost",
-						isComparing ? "text-phoenix-primary" : "text-white/60 hover:text-white"
+						"w-9 h-9 rounded-lg items-center justify-center transition-colors hidden sm:flex",
+						isComparing ? "text-phoenix-primary bg-phoenix-primary/10" : "text-white/50 hover:text-white hover:bg-white/10"
 					)}
 					onmousedown={() => (isComparing = true)}
 					onmouseup={() => (isComparing = false)}
 					onmouseleave={() => (isComparing = false)}
-					title="Hold to compare original"
+					title="Hold to compare original (Space)"
+					type="button"
 				>
 					<Icon icon="material-symbols:compare" class="w-5 h-5" />
 				</button>
 			</div>
 
 			<!-- Right: Zoom Controls + Help -->
-			<div class="flex items-center gap-1">
+			<div class="flex items-center gap-0.5">
 				<button
-					class="btn btn-sm btn-ghost text-white/60 hover:text-white"
+					class="w-9 h-9 rounded-lg items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors hidden sm:flex"
 					onclick={fitToScreen}
 					title="Fit to screen (R)"
+					type="button"
 				>
-					<Icon icon="material-symbols:fit-screen" class="w-5 h-5" />
+					<Icon icon="material-symbols:fit-screen" class="w-4 h-4" />
 				</button>
+				<div class="hidden sm:flex items-center gap-0.5 bg-white/5 rounded-lg px-1 py-0.5">
+					<button
+						class="w-7 h-7 rounded-md flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+						onclick={() => (zoom = Math.max(0.1, zoom - 0.2))}
+						title="Zoom out (Ctrl+-)"
+						type="button"
+					>
+						<Icon icon="material-symbols:remove" class="w-3.5 h-3.5" />
+					</button>
+					<span class="text-[11px] font-mono text-white/50 min-w-[40px] text-center select-none">
+						{Math.round(zoom * 100)}%
+					</span>
+					<button
+						class="w-7 h-7 rounded-md flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+						onclick={() => (zoom = Math.min(5, zoom + 0.2))}
+						title="Zoom in (Ctrl++)"
+						type="button"
+					>
+						<Icon icon="material-symbols:add" class="w-3.5 h-3.5" />
+					</button>
+				</div>
 				<button
-					class="btn btn-sm btn-ghost text-white/60 hover:text-white"
-					onclick={() => (zoom = Math.max(0.1, zoom - 0.2))}
-					title="Zoom out (Ctrl+-)"
-				>
-					<Icon icon="material-symbols:remove" class="w-4 h-4" />
-				</button>
-				<span class="text-xs font-mono text-white/60 min-w-[45px] text-center">
-					{Math.round(zoom * 100)}%
-				</span>
-				<button
-					class="btn btn-sm btn-ghost text-white/60 hover:text-white"
-					onclick={() => (zoom = Math.min(5, zoom + 0.2))}
-					title="Zoom in (Ctrl++)"
-				>
-					<Icon icon="material-symbols:add" class="w-4 h-4" />
-				</button>
-				<div class="h-5 w-px bg-white/10 mx-1 hidden sm:block"></div>
-				<button
-					class="btn btn-sm btn-ghost text-white/60 hover:text-white hidden sm:flex"
+					class="w-9 h-9 rounded-lg items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors hidden md:flex"
 					onclick={() => (showShortcuts = true)}
 					title="Keyboard shortcuts"
+					type="button"
 				>
-					<Icon icon="material-symbols:keyboard" class="w-5 h-5" />
+					<Icon icon="material-symbols:keyboard" class="w-4 h-4" />
 				</button>
 			</div>
 		</div>

@@ -21,49 +21,17 @@
 	}
 
 	const lightSliders: SliderConfig[] = [
-		{
-			key: "brightness",
-			label: "Brightness",
-			min: 0,
-			max: 200,
-			step: 1,
-			unit: "%",
-			defaultValue: 100,
-		},
+		{ key: "brightness", label: "Brightness", min: 0, max: 200, step: 1, unit: "%", defaultValue: 100 },
 		{ key: "contrast", label: "Contrast", min: 0, max: 200, step: 1, unit: "%", defaultValue: 100 },
 		{ key: "shadows", label: "Shadows", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
-		{
-			key: "highlights",
-			label: "Highlights",
-			min: -100,
-			max: 100,
-			step: 1,
-			unit: "",
-			defaultValue: 0,
-		},
+		{ key: "highlights", label: "Highlights", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
 	];
 
 	const colorSliders: SliderConfig[] = [
-		{
-			key: "saturation",
-			label: "Saturation",
-			min: 0,
-			max: 200,
-			step: 1,
-			unit: "%",
-			defaultValue: 100,
-		},
+		{ key: "saturation", label: "Saturation", min: 0, max: 200, step: 1, unit: "%", defaultValue: 100 },
 		{ key: "vibrance", label: "Vibrance", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
-		{ key: "hueRotate", label: "Hue", min: 0, max: 360, step: 1, unit: "°", defaultValue: 0 },
-		{
-			key: "temperature",
-			label: "Temperature",
-			min: -100,
-			max: 100,
-			step: 1,
-			unit: "",
-			defaultValue: 0,
-		},
+		{ key: "hueRotate", label: "Hue", min: 0, max: 360, step: 1, unit: "\u00B0", defaultValue: 0 },
+		{ key: "temperature", label: "Temperature", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
 		{ key: "tint", label: "Tint", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
 	];
 
@@ -80,30 +48,10 @@
 	];
 
 	const sections = [
-		{
-			id: "light" as const,
-			label: "Light",
-			icon: "material-symbols:light-mode",
-			sliders: lightSliders,
-		},
-		{
-			id: "color" as const,
-			label: "Color",
-			icon: "material-symbols:palette",
-			sliders: colorSliders,
-		},
-		{
-			id: "effects" as const,
-			label: "Effects",
-			icon: "material-symbols:blur-on",
-			sliders: effectSliders,
-		},
-		{
-			id: "detail" as const,
-			label: "Detail",
-			icon: "material-symbols:details",
-			sliders: detailSliders,
-		},
+		{ id: "light" as const, label: "Light", icon: "material-symbols:light-mode", sliders: lightSliders },
+		{ id: "color" as const, label: "Color", icon: "material-symbols:palette", sliders: colorSliders },
+		{ id: "effects" as const, label: "Effects", icon: "material-symbols:blur-on", sliders: effectSliders },
+		{ id: "detail" as const, label: "Detail", icon: "material-symbols:details", sliders: detailSliders },
 	];
 
 	function handleSliderChange(key: keyof ImageEditorState, value: number) {
@@ -125,23 +73,35 @@
 		const val = editorState[key];
 		return typeof val === "number" ? val : 0;
 	}
+
+	// Check if any slider in a section has been modified
+	function sectionHasChanges(sliders: SliderConfig[]): boolean {
+		return sliders.some((s) => !isDefaultValue(getStateValue(s.key), s.defaultValue));
+	}
 </script>
 
 <div class="space-y-4">
-	<!-- Section Tabs -->
-	<div class="flex gap-2 p-1 bg-white/5 rounded-xl">
+	<!-- Section Tabs - always show labels, use compact pill style -->
+	<div class="flex gap-1.5 overflow-x-auto no-scrollbar">
 		{#each sections as section}
+			{@const hasChanges = sectionHasChanges(section.sliders)}
 			<button
 				class={cn(
-					"flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all duration-200",
+					"flex items-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 shrink-0",
 					activeSection === section.id
-						? "bg-phoenix-primary text-white shadow-lg"
-						: "text-white/60 hover:text-white hover:bg-white/10"
+						? "bg-phoenix-primary text-white shadow-md shadow-phoenix-primary/20"
+						: hasChanges
+							? "bg-white/8 text-white/80 hover:bg-white/12"
+							: "bg-white/5 text-white/50 hover:text-white/70 hover:bg-white/8"
 				)}
 				onclick={() => (activeSection = section.id)}
+				type="button"
 			>
-				<Icon icon={section.icon} class="w-4 h-4" />
-				<span class="hidden sm:inline">{section.label}</span>
+				<Icon icon={section.icon} class="w-3.5 h-3.5" />
+				{section.label}
+				{#if hasChanges && activeSection !== section.id}
+					<div class="w-1.5 h-1.5 rounded-full bg-phoenix-primary"></div>
+				{/if}
 			</button>
 		{/each}
 	</div>
@@ -149,31 +109,32 @@
 	<!-- Active Section Sliders -->
 	{#each sections as section}
 		{#if activeSection === section.id}
-			<div class="space-y-4">
+			<div class="space-y-3.5">
 				{#each section.sliders as slider}
 					{@const value = getStateValue(slider.key)}
 					{@const isDefault = isDefaultValue(value, slider.defaultValue)}
-					<div class="space-y-2">
+					<div class="space-y-1.5">
 						<div class="flex items-center justify-between">
-							<span class={cn("text-sm font-medium", isDefault ? "text-white/60" : "text-white")}>
+							<span class={cn("text-[13px] font-medium", isDefault ? "text-white/50" : "text-white")}>
 								{slider.label}
 							</span>
-							<div class="flex items-center gap-2">
+							<div class="flex items-center gap-1.5">
 								<span
 									class={cn(
-										"text-xs font-mono min-w-[50px] text-right",
-										isDefault ? "text-white/40" : "text-phoenix-primary"
+										"text-xs font-mono min-w-[44px] text-right tabular-nums",
+										isDefault ? "text-white/30" : "text-phoenix-primary"
 									)}
 								>
 									{formatValue(value, slider)}
 								</span>
 								{#if !isDefault}
 									<button
-										class="btn btn-xs btn-ghost btn-circle text-white/40 hover:text-white"
+										class="w-6 h-6 rounded-md flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-colors"
 										onclick={() => handleSliderChange(slider.key, slider.defaultValue)}
-										title="Reset"
+										title="Reset to default"
+										type="button"
 									>
-										<Icon icon="material-symbols:refresh" class="w-3 h-3" />
+										<Icon icon="material-symbols:refresh" class="w-3.5 h-3.5" />
 									</button>
 								{/if}
 							</div>
@@ -192,8 +153,8 @@
 
 				<!-- Grayscale Toggle (in Effects section) -->
 				{#if section.id === "effects"}
-					<div class="flex items-center justify-between py-2 border-t border-white/10 mt-4">
-						<span class="text-sm font-medium text-white">Grayscale</span>
+					<div class="flex items-center justify-between pt-3 mt-1 border-t border-white/5">
+						<span class="text-[13px] font-medium text-white/70">Grayscale</span>
 						<input
 							type="checkbox"
 							class="toggle toggle-sm toggle-primary"
@@ -206,3 +167,13 @@
 		{/if}
 	{/each}
 </div>
+
+<style>
+	.no-scrollbar::-webkit-scrollbar {
+		display: none;
+	}
+	.no-scrollbar {
+		-ms-overflow-style: none;
+		scrollbar-width: none;
+	}
+</style>

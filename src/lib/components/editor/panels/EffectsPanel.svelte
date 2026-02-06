@@ -122,21 +122,22 @@
 <div class="space-y-6">
 	<!-- Effect Selection Grid -->
 	<div class="space-y-3">
-		<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">Quick Effects</h4>
-		<div class="grid grid-cols-5 gap-2">
+		<h4 class="text-xs font-bold text-white/40 uppercase tracking-wider">Quick Effects</h4>
+		<div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
 			{#each effects as effect}
 				<button
 					class={cn(
-						"flex flex-col items-center gap-1 p-2 rounded-lg transition-all duration-200",
+						"flex flex-col items-center gap-1 p-2.5 sm:p-2 rounded-lg transition-all duration-200",
 						activeEffect === effect.id
-							? "bg-phoenix-primary text-white ring-2 ring-phoenix-primary/50 scale-105"
-							: "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+							? "bg-phoenix-primary text-white shadow-md shadow-phoenix-primary/20"
+							: "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
 					)}
 					onclick={() => onEffectChange(effect.id)}
 					title={effect.description}
+					type="button"
 				>
 					<Icon icon={effect.icon} class="w-5 h-5" />
-					<span class="text-[9px] font-medium">{effect.name}</span>
+					<span class="text-[10px] font-medium">{effect.name}</span>
 				</button>
 			{/each}
 		</div>
@@ -144,18 +145,18 @@
 
 	<!-- Effect Intensity -->
 	{#if activeEffect !== "none"}
-		<div class="space-y-2">
+		<div class="space-y-1.5">
 			<div class="flex items-center justify-between">
-				<span class="text-sm text-white">Effect Intensity</span>
-				<span class="text-xs font-mono text-white/60">{effectIntensity}%</span>
+				<span class="text-[13px] font-medium text-white">Intensity</span>
+				<span class="text-xs font-mono text-phoenix-primary tabular-nums">{effectIntensity}%</span>
 			</div>
 			<input
 				type="range"
 				min="0"
 				max="100"
 				value={effectIntensity}
-				class="range range-xs range-primary"
-				oninput={(e) => onIntensityChange(parseInt(e.currentTarget.value))}
+				class="range range-xs range-primary w-full"
+				oninput={(e) => onIntensityChange(parseInt(e.currentTarget.value, 10))}
 			/>
 		</div>
 	{/if}
@@ -237,6 +238,7 @@
 		<button
 			class="btn btn-primary w-full gap-2"
 			onclick={onApplyEffect}
+			type="button"
 		>
 			<Icon icon="material-symbols:add-circle" class="w-4 h-4" />
 			Apply Effect to Stack
