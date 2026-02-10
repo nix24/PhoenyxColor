@@ -115,7 +115,7 @@
 
 		// Determine saturation descriptor
 		let saturation = "";
-		if (hsl.s < 0.1) return lightness + "Gray";
+		if (hsl.s < 0.1) return `${lightness}Gray`;
 		if (hsl.s < 0.3) saturation = "Muted ";
 		else if (hsl.s > 0.7) saturation = "Vivid ";
 
@@ -146,7 +146,7 @@
 
 		const colorNames = extractedPalette.map((c, i) => {
 			const name = paletteNames[i];
-			return name && name.trim() ? name : generateColorName(c);
+			return name?.trim() ? name : generateColorName(c);
 		});
 		const cssVarNames = colorNames.map((name) =>
 			name
@@ -164,7 +164,7 @@
 				mimeType = "text/css";
 				break;
 
-			case "tailwind":
+			case "tailwind": {
 				const tailwindColors = extractedPalette.reduce(
 					(acc, color, i) => {
 						const varName = cssVarNames[i] ?? `color-${i}`;
@@ -177,8 +177,9 @@
 				filename = "tailwind-colors.js";
 				mimeType = "text/javascript";
 				break;
+			}
 
-			case "json":
+			case "json": {
 				const jsonData = extractedPalette.map((color, i) => ({
 					name: colorNames[i],
 					hex: color,
@@ -189,6 +190,7 @@
 				filename = "palette.json";
 				mimeType = "application/json";
 				break;
+			}
 
 			case "scss":
 				content = extractedPalette
@@ -240,7 +242,7 @@
 		let content = "";
 		const cssVarNames = extractedPalette.map((c, i) => {
 			const name = paletteNames[i];
-			const finalName = name && name.trim() ? name : generateColorName(c);
+			const finalName = name?.trim() ? name : generateColorName(c);
 			return finalName
 				.toLowerCase()
 				.replace(/\s+/g, "-")

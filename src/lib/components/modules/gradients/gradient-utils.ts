@@ -709,6 +709,27 @@ export function normalizeHexColor(color: string): string {
 	return color.toLowerCase();
 }
 
+export function interpolateColorAtPosition(
+	stops: ValidatedGradientStop[],
+	position: number,
+	mode: InterpolationMode = "oklch"
+): string {
+	const sorted = [...stops].sort((a, b) => a.position - b.position);
+	if (sorted.length === 0) return "#808080";
+	if (sorted.length === 1 || position <= sorted[0]!.position) return sorted[0]!.color;
+	if (position >= sorted[sorted.length - 1]!.position) return sorted[sorted.length - 1]!.color;
+
+	for (let i = 0; i < sorted.length - 1; i++) {
+		const s1 = sorted[i]!;
+		const s2 = sorted[i + 1]!;
+		if (position >= s1.position && position <= s2.position) {
+			const t = (position - s1.position) / (s2.position - s1.position);
+			return chroma.mix(s1.color, s2.color, t, mode === "oklch" ? "oklch" : mode).hex();
+		}
+	}
+	return "#808080";
+}
+
 export function getContrastColor(bgColor: string): string {
 	try {
 		const luminance = chroma(bgColor).luminance();
