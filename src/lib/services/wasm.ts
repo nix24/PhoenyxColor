@@ -1,4 +1,5 @@
 import { browser } from "$app/environment";
+import { toast } from "svelte-sonner";
 
 // Define the shape of our WASM exports
 interface WasmExports {
@@ -18,6 +19,15 @@ interface WasmExports {
     applyDuotone: (ptr: number, len: number, intensity: number, dr: number, dg: number, db: number, lr: number, lg: number, lb: number) => void;
     applyPixelate: (ptr: number, width: number, height: number, intensity: number) => void;
 
+    // Convolution
+    applyConvolution3x3: (ptr: number, width: number, height: number, k0: number, k1: number, k2: number, k3: number, k4: number, k5: number, k6: number, k7: number, k8: number, intensity: number, bias: number) => void;
+    applyClarity: (ptr: number, width: number, height: number, clarity: number) => void;
+
+    // Stylize
+    applyHalftone: (ptr: number, width: number, height: number, intensity: number) => void;
+    applyVHS: (ptr: number, width: number, height: number, intensity: number, seed: number) => void;
+    applyGlitch: (ptr: number, width: number, height: number, intensity: number, seed: number) => void;
+
     // Clustering
     runKMeans: (imgPtr: number, len: number, k: number, iterations: number, seed: number) => number;
 }
@@ -26,6 +36,10 @@ class WasmService {
     private instance: WebAssembly.Instance | null = null;
     private memory: WebAssembly.Memory | null = null;
     private loadingPromise: Promise<void> | null = null;
+
+    get isAvailable(): boolean {
+        return this.instance !== null;
+    }
 
     async init() {
         if (this.instance) return;
@@ -83,7 +97,10 @@ class WasmService {
         height: number,
         operation: (ptr: number, len: number) => void
     ) {
-        if (!this.instance) throw new Error("WASM not loaded");
+        if (!this.instance) {
+            toast.error("WASM module not loaded. Image processing unavailable.");
+            throw new Error("WASM not loaded");
+        }
 
         const len = data.length;
         const ptr = this.alloc(len);
@@ -102,6 +119,9 @@ class WasmService {
             const resultSlice = newHeap.subarray(ptr, ptr + len);
             data.set(resultSlice);
 
+        } catch (err) {
+            toast.error("Image processing failed. Please try again.");
+            throw err;
         } finally {
             this.dealloc(ptr, len);
         }
@@ -170,10 +190,128 @@ class WasmService {
         }
     }
 
+    // --- Convolution ---
+
+    applyConvolution3x3(data: Uint8ClampedArray, width: number, height: number, kernel: number[], intensity: number, bias: number) {
+        if (!this.instance) throw new Error("WASM not loaded");
+        const len = data.length;
+        const ptr = this.alloc(len);
+
+        try {
+            const heap = new Uint8Array(this.memory!.buffer);
+            heap.set(data, ptr);
+
+            this.exports.applyConvolution3x3(
+                ptr, width, height,
+                kernel[0]!, kernel[1]!, kernel[2]!,
+                kernel[3]!, kernel[4]!, kernel[5]!,
+                kernel[6]!, kernel[7]!, kernel[8]!,
+                intensity, bias
+            );
+
+            const newHeap = new Uint8Array(this.memory!.buffer);
+            data.set(newHeap.subarray(ptr, ptr + len));
+        } catch (err) {
+            toast.error("Convolution effect failed.");
+            throw err;
+        } finally {
+            this.dealloc(ptr, len);
+        }
+    }
+
+    applyClarity(data: Uint8ClampedArray, width: number, height: number, clarity: number) {
+        if (!this.instance) throw new Error("WASM not loaded");
+        const len = data.length;
+        const ptr = this.alloc(len);
+
+        try {
+            const heap = new Uint8Array(this.memory!.buffer);
+            heap.set(data, ptr);
+
+            this.exports.applyClarity(ptr, width, height, clarity);
+
+            const newHeap = new Uint8Array(this.memory!.buffer);
+            data.set(newHeap.subarray(ptr, ptr + len));
+        } catch (err) {
+            toast.error("Clarity effect failed.");
+            throw err;
+        } finally {
+            this.dealloc(ptr, len);
+        }
+    }
+
+    // --- Stylize ---
+
+    applyHalftone(data: Uint8ClampedArray, width: number, height: number, intensity: number) {
+        if (!this.instance) throw new Error("WASM not loaded");
+        const len = data.length;
+        const ptr = this.alloc(len);
+
+        try {
+            const heap = new Uint8Array(this.memory!.buffer);
+            heap.set(data, ptr);
+
+            this.exports.applyHalftone(ptr, width, height, intensity);
+
+            const newHeap = new Uint8Array(this.memory!.buffer);
+            data.set(newHeap.subarray(ptr, ptr + len));
+        } catch (err) {
+            toast.error("Halftone effect failed.");
+            throw err;
+        } finally {
+            this.dealloc(ptr, len);
+        }
+    }
+
+    applyVHS(data: Uint8ClampedArray, width: number, height: number, intensity: number, seed?: number) {
+        if (!this.instance) throw new Error("WASM not loaded");
+        const len = data.length;
+        const ptr = this.alloc(len);
+
+        try {
+            const heap = new Uint8Array(this.memory!.buffer);
+            heap.set(data, ptr);
+
+            this.exports.applyVHS(ptr, width, height, intensity, seed ?? (Date.now() & 0xFFFFFFFF));
+
+            const newHeap = new Uint8Array(this.memory!.buffer);
+            data.set(newHeap.subarray(ptr, ptr + len));
+        } catch (err) {
+            toast.error("VHS effect failed.");
+            throw err;
+        } finally {
+            this.dealloc(ptr, len);
+        }
+    }
+
+    applyGlitch(data: Uint8ClampedArray, width: number, height: number, intensity: number, seed?: number) {
+        if (!this.instance) throw new Error("WASM not loaded");
+        const len = data.length;
+        const ptr = this.alloc(len);
+
+        try {
+            const heap = new Uint8Array(this.memory!.buffer);
+            heap.set(data, ptr);
+
+            this.exports.applyGlitch(ptr, width, height, intensity, seed ?? (Date.now() & 0xFFFFFFFF));
+
+            const newHeap = new Uint8Array(this.memory!.buffer);
+            data.set(newHeap.subarray(ptr, ptr + len));
+        } catch (err) {
+            toast.error("Glitch effect failed.");
+            throw err;
+        } finally {
+            this.dealloc(ptr, len);
+        }
+    }
+
     // --- K-Means ---
 
     runKMeans(data: Uint8ClampedArray, k: number, iterations: number = 10): { l: number, a: number, b: number }[] {
-        if (!this.instance) throw new Error("WASM not loaded");
+        if (!this.instance) {
+            toast.error("WASM module not loaded. Palette extraction unavailable.");
+            throw new Error("WASM not loaded");
+        }
 
         const len = data.length;
         const imgPtr = this.alloc(len);

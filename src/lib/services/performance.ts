@@ -18,12 +18,29 @@ export class PerformanceService {
 	private static instance: PerformanceService;
 	private imageCache = new Map<string, string>();
 	private thumbnailCache = new Map<string, string>();
+	private static readonly MAX_CACHE_SIZE = 50;
 
 	static getInstance(): PerformanceService {
 		if (!PerformanceService.instance) {
 			PerformanceService.instance = new PerformanceService();
 		}
 		return PerformanceService.instance;
+	}
+
+	private evictLRU(cache: Map<string, string>): void {
+		if (cache.size <= PerformanceService.MAX_CACHE_SIZE) return;
+		// Map iteration order is insertion order — delete oldest entries
+		const toRemove = cache.size - PerformanceService.MAX_CACHE_SIZE;
+		let removed = 0;
+		for (const [key, value] of cache) {
+			if (removed >= toRemove) break;
+			// Revoke blob URLs to free memory
+			if (value.startsWith("blob:")) {
+				URL.revokeObjectURL(value);
+			}
+			cache.delete(key);
+			removed++;
+		}
 	}
 
 	/**
@@ -94,7 +111,8 @@ export class PerformanceService {
 			};
 
 			img.onerror = () => reject(new Error("Failed to load image"));
-			img.src = URL.createObjectURL(file);
+			const objectUrl = URL.createObjectURL(file);
+			img.src = objectUrl;
 		});
 	}
 
@@ -186,8 +204,9 @@ export class PerformanceService {
 			const img = new Image();
 
 			img.onload = () => {
-				// Cache the loaded image
+				// Cache the loaded image with LRU eviction
 				this.imageCache.set(src, src);
+				this.evictLRU(this.imageCache);
 				resolve(src);
 			};
 
@@ -265,9 +284,15 @@ export class PerformanceService {
 	 * Clear image caches to free memory
 	 */
 	clearCaches(): void {
+		// Revoke any blob URLs to free memory
+		for (const value of this.imageCache.values()) {
+			if (value.startsWith("blob:")) URL.revokeObjectURL(value);
+		}
+		for (const value of this.thumbnailCache.values()) {
+			if (value.startsWith("blob:")) URL.revokeObjectURL(value);
+		}
 		this.imageCache.clear();
 		this.thumbnailCache.clear();
-		toast.info("Image caches cleared");
 	}
 
 	/**

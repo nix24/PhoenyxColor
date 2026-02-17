@@ -2,7 +2,7 @@
 	import Icon from "@iconify/svelte";
 	import { cn } from "$lib/utils/cn";
 
-	export type EditorTool = "adjust" | "filters" | "crop" | "palette" | "effects" | "export" | null;
+	export type EditorTool = "adjust" | "filters" | "crop" | "palette" | "effects" | "layers" | "export" | null;
 
 	let { activeTool = null, onToolSelect } = $props<{
 		activeTool: EditorTool;
@@ -15,6 +15,7 @@
 		{ id: "crop" as const, label: "Crop", icon: "material-symbols:crop", shortcut: "C" },
 		{ id: "palette" as const, label: "Palette", icon: "material-symbols:palette", shortcut: "P" },
 		{ id: "effects" as const, label: "Effects", icon: "material-symbols:auto-fix-high", shortcut: "E" },
+		{ id: "layers" as const, label: "Layers", icon: "material-symbols:layers", shortcut: "L" },
 		{ id: "export" as const, label: "Export", icon: "material-symbols:download", shortcut: "X" },
 	];
 

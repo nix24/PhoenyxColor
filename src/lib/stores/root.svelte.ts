@@ -2,6 +2,7 @@ import { SettingsStore } from "./settings.svelte";
 import { PaletteStore } from "./palettes.svelte";
 import { ReferenceStore } from "./references.svelte";
 import { GradientStore } from "./gradients.svelte";
+import { FilterPresetStore } from "./filter-presets.svelte";
 import { ThemeStore } from "./theme.svelte";
 import { spatialNav } from "$lib/services/spatial-nav";
 
@@ -10,6 +11,7 @@ export class RootStore {
 	palettes = new PaletteStore();
 	references = new ReferenceStore();
 	gradients = new GradientStore();
+	filterPresets = new FilterPresetStore();
 	theme = new ThemeStore();
 
 	// Services
@@ -30,7 +32,8 @@ export class RootStore {
 			this.settings.isReady &&
 			this.palettes.isReady &&
 			this.references.isReady &&
-			this.gradients.isReady
+			this.gradients.isReady &&
+			this.filterPresets.isReady
 		);
 	}
 
@@ -43,6 +46,7 @@ export class RootStore {
 			this.palettes.whenReady(),
 			this.references.whenReady(),
 			this.gradients.whenReady(),
+			this.filterPresets.whenReady(),
 		]);
 	}
 

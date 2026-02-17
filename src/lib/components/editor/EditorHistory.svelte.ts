@@ -3,6 +3,8 @@
  * Manages a stack of image adjustment states within the editor session
  */
 
+import type { ImageLayer } from "$lib/types/image-editor";
+
 export type QuickEffectType =
     | "none"
     | "posterize"
@@ -65,6 +67,10 @@ export interface ImageEditorState {
 
     // Effects (stackable)
     appliedEffects: AppliedEffect[];
+
+    // Layers
+    layers: ImageLayer[];
+    activeLayerId: string | null;
 }
 
 export const DEFAULT_EDITOR_STATE: ImageEditorState = {
@@ -110,6 +116,8 @@ export const DEFAULT_EDITOR_STATE: ImageEditorState = {
         ],
     },
     appliedEffects: [],
+    layers: [],
+    activeLayerId: null,
 };
 
 const MAX_HISTORY_SIZE = 50;
@@ -177,6 +185,9 @@ export class EditorHistoryService {
         if (newState.cropRect) {
             mergedState.cropRect = deepClone(newState.cropRect);
         }
+        if (newState.layers) {
+            mergedState.layers = deepClone(newState.layers);
+        }
         this.currentState = mergedState;
     }
 
@@ -194,6 +205,9 @@ export class EditorHistoryService {
         }
         if (newState.cropRect) {
             mergedState.cropRect = deepClone(newState.cropRect);
+        }
+        if (newState.layers) {
+            mergedState.layers = deepClone(newState.layers);
         }
         this.currentState = mergedState;
     }

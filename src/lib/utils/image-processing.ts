@@ -28,18 +28,7 @@ export function applyTemperature(
 
     const imageData = ctx.getImageData(0, 0, width, height);
 
-    try {
-        wasm.applyTemperature(imageData.data, width, height, temperature);
-    } catch (e) {
-        console.warn("WASM processing failed, falling back to JS", e);
-        // Fallback or just re-throw? 
-        // Given I'm erasing the JS implementation, I can't fallback easily unless I keep it.
-        // I will assume WASM works as requested.
-        // Actually, for safety, I should probably copy the JS code back if I wanted a fallback. 
-        // But the user demanded "replace the function calls".
-        return;
-    }
-
+    wasm.applyTemperature(imageData.data, width, height, temperature);
     ctx.putImageData(imageData, 0, 0);
 }
 
@@ -56,12 +45,7 @@ export function applyTint(
 
     const imageData = ctx.getImageData(0, 0, width, height);
 
-    try {
-        wasm.applyTint(imageData.data, width, height, tint);
-    } catch (e) {
-        console.error("WASM applyTint failed", e);
-    }
-
+    wasm.applyTint(imageData.data, width, height, tint);
     ctx.putImageData(imageData, 0, 0);
 }
 
@@ -80,12 +64,7 @@ export function applyShadowsHighlights(
 
     const imageData = ctx.getImageData(0, 0, width, height);
 
-    try {
-        wasm.applyShadowsHighlights(imageData.data, width, height, shadows, highlights);
-    } catch (e) {
-        console.error("WASM applyShadowsHighlights failed", e);
-    }
-
+    wasm.applyShadowsHighlights(imageData.data, width, height, shadows, highlights);
     ctx.putImageData(imageData, 0, 0);
 }
 
@@ -103,18 +82,12 @@ export function applyVibrance(
 
     const imageData = ctx.getImageData(0, 0, width, height);
 
-    try {
-        wasm.applyVibrance(imageData.data, width, height, vibrance);
-    } catch (e) {
-        console.error("WASM applyVibrance failed", e);
-    }
-
+    wasm.applyVibrance(imageData.data, width, height, vibrance);
     ctx.putImageData(imageData, 0, 0);
 }
 
 /**
- * Apply clarity adjustment - local contrast enhancement using unsharp mask technique
- * with a larger radius to affect mid-tones and edges
+ * Apply clarity adjustment using WASM unsharp mask
  */
 export function applyClarity(
     ctx: CanvasRenderingContext2D,
@@ -125,45 +98,7 @@ export function applyClarity(
     if (clarity === 0) return;
 
     const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-    const factor = clarity / 100;
-
-    // Create a blurred version for unsharp mask
-    const blurRadius = 3;
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = width;
-    tempCanvas.height = height;
-    const tempCtx = tempCanvas.getContext("2d");
-    if (!tempCtx) return;
-
-    tempCtx.putImageData(imageData, 0, 0);
-    tempCtx.filter = `blur(${blurRadius}px)`;
-    tempCtx.drawImage(tempCanvas, 0, 0);
-
-    const blurredData = tempCtx.getImageData(0, 0, width, height).data;
-
-    // Apply unsharp mask with mid-tone targeting
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i] ?? 0;
-        const g = data[i + 1] ?? 0;
-        const b = data[i + 2] ?? 0;
-        const br = blurredData[i] ?? 0;
-        const bg = blurredData[i + 1] ?? 0;
-        const bb = blurredData[i + 2] ?? 0;
-
-        // Calculate luminance to target mid-tones
-        const lum = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
-        // Mid-tone weight: peaks at 0.5, falls off toward 0 and 1
-        const midToneWeight = 1 - Math.abs(lum - 0.5) * 2;
-
-        // Apply clarity with mid-tone targeting
-        const amount = factor * midToneWeight * 1.5;
-
-        data[i] = Math.max(0, Math.min(255, r + (r - br) * amount));
-        data[i + 1] = Math.max(0, Math.min(255, g + (g - bg) * amount));
-        data[i + 2] = Math.max(0, Math.min(255, b + (b - bb) * amount));
-    }
-
+    wasm.applyClarity(imageData.data, width, height, clarity);
     ctx.putImageData(imageData, 0, 0);
 }
 
