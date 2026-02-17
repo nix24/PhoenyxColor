@@ -21,8 +21,11 @@
 
 	let { activeColorIndex, onColorIndexSelect }: Props = $props();
 
-	// Local state for dnd - this is key! We manage items locally, not derived.
+	// Local state for dnd - we manage items locally, not derived.
 	let localItems = $state<Array<{ id: string; color: string; index: number }>>([]);
+
+	// Stable ID counter for DnD identity tracking
+	let idCounter = 0;
 
 	// Sync local items when palette changes (but not during drag)
 	let isDragging = $state(false);
@@ -30,7 +33,7 @@
 	$effect(() => {
 		if (!isDragging && app.palettes.activePalette) {
 			localItems = app.palettes.activePalette.colors.map((color, index) => ({
-				id: `color-${index}-${color}`,
+				id: `slot-${idCounter++}`,
 				color,
 				index,
 			}));
@@ -209,12 +212,18 @@
 						{@const r = parseInt(hex.substring(0, 2), 16)}
 						{@const g = parseInt(hex.substring(2, 4), 16)}
 						{@const b = parseInt(hex.substring(4, 6), 16)}
-						{@const isDark = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5}
+						{@const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255}
+						{@const isDark = luminance < 0.5}
 						<div
 							class={cn(
-								"h-full w-20 min-w-20 shrink-0 relative group transition-colors duration-200 ease-out cursor-pointer",
-								activeColorIndex === idx && "ring-4 ring-white/40 ring-inset"
+								"h-full w-20 min-w-20 shrink-0 relative group transition-all duration-200 ease-out cursor-pointer",
+								activeColorIndex === idx
+									? "ring-2 ring-inset z-10"
+									: "hover:brightness-110"
 							)}
+							style:--tw-ring-color={activeColorIndex === idx
+								? (isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)")
+								: "transparent"}
 							style:background-color={item.color}
 							onclick={() => setActiveIndex(idx)}
 							tabindex="0"
@@ -239,41 +248,62 @@
 								<Icon icon="material-symbols:drag-indicator" class="w-4 h-4" />
 							</div>
 
-							<!-- Color hex code with solid contrasting background -->
+							<!-- Frosted glass hex label (reveals on hover) -->
 							<div
-								class="absolute inset-x-0 bottom-0 p-2 flex flex-col items-center justify-end text-center"
+								class="absolute inset-x-0 bottom-0 p-1.5 flex flex-col items-center justify-end text-center opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out translate-y-1 group-hover:translate-y-0"
 							>
 								<div
-									class={cn(
-										"px-2 py-1.5 rounded-lg shadow-lg",
-										isDark ? "bg-white text-gray-900" : "bg-gray-900 text-white"
-									)}
+									class="px-2 py-1.5 rounded-lg backdrop-blur-md border"
+									style:background-color={isDark
+										? "rgba(255,255,255,0.12)"
+										: "rgba(0,0,0,0.25)"}
+									style:border-color={isDark
+										? "rgba(255,255,255,0.2)"
+										: "rgba(0,0,0,0.15)"}
+									style:box-shadow={isDark
+										? "0 2px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)"
+										: "0 2px 12px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.1)"}
 								>
-									<span class="text-xs font-bold font-mono tracking-wide block"
-										>{item.color.toUpperCase()}</span
-									>
 									<span
-										class={cn(
-											"text-[9px] uppercase tracking-wider font-medium block",
-											isDark ? "text-gray-600" : "text-gray-400"
-										)}>Color {idx + 1}</span
+										class="text-[10px] font-mono font-semibold tracking-widest block leading-tight"
+										style:color={isDark ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.85)"}
+										style:text-shadow={isDark
+											? "0 1px 4px rgba(0,0,0,0.5)"
+											: "0 1px 2px rgba(255,255,255,0.3)"}
 									>
+										{item.color.toUpperCase()}
+									</span>
+									<span
+										class="text-[8px] uppercase tracking-[0.15em] font-medium block mt-0.5 leading-tight"
+										style:color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"}
+									>
+										{idx + 1}
+									</span>
 								</div>
+							</div>
+
+							<!-- Always-visible subtle index dot -->
+							<div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 group-hover:opacity-0 transition-opacity duration-200">
+								<div
+									class="w-1.5 h-1.5 rounded-full"
+									style:background-color={isDark
+										? "rgba(255,255,255,0.4)"
+										: "rgba(0,0,0,0.3)"}
+								></div>
 							</div>
 						</div>
 					{/each}
 					<!-- Add Color Button -->
 					{#if localItems.length < (app.palettes.activePalette?.maxSlots ?? 10)}
 						<button
-							class="h-full min-w-[80px] w-20 shrink-0 flex flex-col items-center justify-center bg-white/5 hover:bg-white/10 border-l border-white/10 transition-colors group"
+							class="h-full min-w-[60px] w-16 shrink-0 flex flex-col items-center justify-center bg-white/2 hover:bg-white/6 border-l border-white/5 border-dashed transition-all duration-300 group"
 							onclick={addColor}
 							aria-label="Add new color"
 						>
 							<Icon
-								icon="material-symbols:add-circle-outline"
-								class="w-8 h-8 text-white/30 group-hover:text-white/60 transition-colors"
+								icon="material-symbols:add"
+								class="w-5 h-5 text-white/20 group-hover:text-white/50 transition-colors duration-300"
 							/>
-							<span class="text-[10px] text-white/30 group-hover:text-white/60 mt-1">Add</span>
 						</button>
 					{/if}
 				</div>
@@ -286,21 +316,25 @@
 		</div>
 
 		<!-- Footer / Stats -->
-		<div class="h-20 bg-black/40 border-t border-white/5 flex items-center px-6 gap-6">
-			<div class="flex items-center gap-2">
-				<div class="w-4 h-4 rounded bg-green-500"></div>
-				<span class="text-sm text-white font-medium">{accessibilityStats.aaa} AAA</span>
+		<div class="h-14 bg-black/30 border-t border-white/5 flex items-center px-6 gap-5">
+			<div class="flex items-center gap-1.5">
+				<div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+				<span class="text-xs text-white/80 font-mono tabular-nums">{accessibilityStats.aaa}</span>
+				<span class="text-[10px] text-text-muted/60 font-medium">AAA</span>
 			</div>
-			<div class="flex items-center gap-2">
-				<div class="w-4 h-4 rounded bg-blue-500"></div>
-				<span class="text-sm text-white font-medium">{accessibilityStats.aa} AA</span>
+			<div class="flex items-center gap-1.5">
+				<div class="w-2 h-2 rounded-full bg-sky-400"></div>
+				<span class="text-xs text-white/80 font-mono tabular-nums">{accessibilityStats.aa}</span>
+				<span class="text-[10px] text-text-muted/60 font-medium">AA</span>
 			</div>
-			<div class="flex items-center gap-2">
-				<div class="w-4 h-4 rounded bg-red-500"></div>
-				<span class="text-sm text-white font-medium">{accessibilityStats.fail} Fail</span>
+			<div class="flex items-center gap-1.5">
+				<div class="w-2 h-2 rounded-full bg-red-400/80"></div>
+				<span class="text-xs text-white/80 font-mono tabular-nums">{accessibilityStats.fail}</span>
+				<span class="text-[10px] text-text-muted/60 font-medium">Fail</span>
 			</div>
-			<div class="ml-auto text-xs text-text-muted">
-				Best contrast: {accessibilityStats.bestRatio.toFixed(1)}:1
+			<div class="ml-auto flex items-center gap-1.5 text-[10px] text-text-muted/50">
+				<span>Best</span>
+				<span class="font-mono text-white/60 tabular-nums">{accessibilityStats.bestRatio.toFixed(1)}:1</span>
 			</div>
 		</div>
 	{:else}

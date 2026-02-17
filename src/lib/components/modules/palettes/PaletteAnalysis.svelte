@@ -10,7 +10,7 @@
 		hexToHsl,
 		type ColorBlindnessType,
 	} from "./palette-utils";
-	import { getContrastColor } from "$lib/utils/colorUtils";
+
 
 	type AnalysisTab = "vision" | "contrast" | "distribution";
 	let activeTab = $state<AnalysisTab>("vision");
@@ -153,10 +153,16 @@
 		return "text-error";
 	}
 
-	function getScoreEmoji(score: number): string {
-		if (score >= 80) return "🎉";
-		if (score >= 50) return "👍";
-		return "⚠️";
+	function getScoreIcon(score: number): string {
+		if (score >= 80) return "material-symbols:check-circle";
+		if (score >= 50) return "material-symbols:info";
+		return "material-symbols:warning";
+	}
+
+	function getScoreIconColor(score: number): string {
+		if (score >= 80) return "text-emerald-400";
+		if (score >= 50) return "text-amber-400";
+		return "text-red-400";
 	}
 
 	function getScoreMessage(score: number): string {
@@ -170,50 +176,32 @@
 	<div class="flex flex-col h-full">
 		<!-- Header with Subtabs -->
 		<div class="border-b border-white/5 bg-black/20">
-			<div class="p-4 pb-0">
+			<div class="p-4 pb-3">
 				<h3 class="font-semibold text-white flex items-center gap-2 mb-3">
 					<Icon icon="material-symbols:analytics" class="w-5 h-5" />
 					Palette Analysis
 				</h3>
 
-				<!-- Subtabs -->
-				<div class="flex gap-1">
-					<button
-						class={cn(
-							"px-4 py-2 text-sm font-medium rounded-t-lg transition-colors",
-							activeTab === "vision"
-								? "bg-white/10 text-white border-b-2 border-primary"
-								: "text-text-muted hover:text-white hover:bg-white/5"
-						)}
-						onclick={() => (activeTab = "vision")}
-					>
-						<Icon icon="material-symbols:visibility" class="w-4 h-4 inline mr-1.5" />
-						Vision
-					</button>
-					<button
-						class={cn(
-							"px-4 py-2 text-sm font-medium rounded-t-lg transition-colors",
-							activeTab === "contrast"
-								? "bg-white/10 text-white border-b-2 border-primary"
-								: "text-text-muted hover:text-white hover:bg-white/5"
-						)}
-						onclick={() => (activeTab = "contrast")}
-					>
-						<Icon icon="material-symbols:contrast" class="w-4 h-4 inline mr-1.5" />
-						Contrast
-					</button>
-					<button
-						class={cn(
-							"px-4 py-2 text-sm font-medium rounded-t-lg transition-colors",
-							activeTab === "distribution"
-								? "bg-white/10 text-white border-b-2 border-primary"
-								: "text-text-muted hover:text-white hover:bg-white/5"
-						)}
-						onclick={() => (activeTab = "distribution")}
-					>
-						<Icon icon="material-symbols:pie-chart" class="w-4 h-4 inline mr-1.5" />
-						Distribution
-					</button>
+				<!-- Pill Tabs -->
+				<div class="flex gap-1 p-0.5 bg-white/5 rounded-lg">
+					{#each [
+						{ id: "vision", label: "Vision", icon: "material-symbols:visibility" },
+						{ id: "contrast", label: "Contrast", icon: "material-symbols:contrast" },
+						{ id: "distribution", label: "Spread", icon: "material-symbols:pie-chart" },
+					] as tab}
+						<button
+							class={cn(
+								"flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200",
+								activeTab === tab.id
+									? "bg-white/12 text-white shadow-sm"
+									: "text-text-muted/70 hover:text-white/80"
+							)}
+							onclick={() => (activeTab = tab.id as AnalysisTab)}
+						>
+							<Icon icon={tab.icon} class="w-3.5 h-3.5" />
+							{tab.label}
+						</button>
+					{/each}
 				</div>
 			</div>
 		</div>
@@ -340,18 +328,20 @@
 					<div class="space-y-6">
 						<!-- Accessibility Score -->
 						<div
-							class="p-4 rounded-xl bg-linear-to-br from-white/5 to-white/10 border border-white/10"
+							class="p-4 rounded-xl bg-white/5 border border-white/8"
 						>
-							<div class="flex items-center gap-4">
-								<div class="text-4xl">{getScoreEmoji(accessibilityScore())}</div>
+							<div class="flex items-center gap-3">
+								<div class={cn("shrink-0", getScoreIconColor(accessibilityScore()))}>
+									<Icon icon={getScoreIcon(accessibilityScore())} class="w-8 h-8" />
+								</div>
 								<div class="flex-1">
-									<div class="flex items-baseline gap-2 mb-1">
-										<span class={cn("text-3xl font-bold", getScoreColor(accessibilityScore()))}>
+									<div class="flex items-baseline gap-2 mb-0.5">
+										<span class={cn("text-2xl font-bold font-mono tabular-nums", getScoreColor(accessibilityScore()))}>
 											{accessibilityScore()}%
 										</span>
-										<span class="text-sm text-text-muted">accessibility score</span>
+										<span class="text-[11px] text-text-muted/60">accessibility</span>
 									</div>
-									<p class="text-sm text-text-muted">{getScoreMessage(accessibilityScore())}</p>
+									<p class="text-xs text-text-muted/70 leading-relaxed">{getScoreMessage(accessibilityScore())}</p>
 								</div>
 							</div>
 						</div>
@@ -492,18 +482,18 @@
 				{:else if activeTab === "distribution"}
 					<div class="space-y-6">
 						<!-- Palette Overview -->
-						<div class="grid grid-cols-3 gap-3">
-							<div class="p-3 rounded-lg bg-white/5 border border-white/10 text-center">
-								<div class="text-2xl font-bold text-white">{colors.length}</div>
-								<div class="text-xs text-text-muted">Colors</div>
+						<div class="grid grid-cols-3 gap-2">
+							<div class="p-3 rounded-lg bg-white/5 border border-white/8 text-center">
+								<div class="text-lg font-bold font-mono text-white tabular-nums">{colors.length}</div>
+								<div class="text-[10px] text-text-muted/50 font-medium">Colors</div>
 							</div>
-							<div class="p-3 rounded-lg bg-white/5 border border-white/10 text-center">
-								<div class="text-2xl font-bold text-white">{lightnessStats().range}%</div>
-								<div class="text-xs text-text-muted">Lightness Range</div>
+							<div class="p-3 rounded-lg bg-white/5 border border-white/8 text-center">
+								<div class="text-lg font-bold font-mono text-white tabular-nums">{lightnessStats().range}%</div>
+								<div class="text-[10px] text-text-muted/50 font-medium">L Range</div>
 							</div>
-							<div class="p-3 rounded-lg bg-white/5 border border-white/10 text-center">
-								<div class="text-2xl font-bold text-white">{saturationStats().avg}%</div>
-								<div class="text-xs text-text-muted">Avg Saturation</div>
+							<div class="p-3 rounded-lg bg-white/5 border border-white/8 text-center">
+								<div class="text-lg font-bold font-mono text-white tabular-nums">{saturationStats().avg}%</div>
+								<div class="text-[10px] text-text-muted/50 font-medium">Avg Sat</div>
 							</div>
 						</div>
 

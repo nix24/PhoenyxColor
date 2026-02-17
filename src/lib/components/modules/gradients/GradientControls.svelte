@@ -12,8 +12,6 @@
 		smoothenGradientStops,
 		reverseGradientStops,
 		distributeStopsEvenly,
-		interpolateGradientColors,
-		getContrastColor,
 	} from "./gradient-utils";
 	import chroma from "chroma-js";
 	import { validateColor } from "$lib/schemas/validation";
@@ -22,22 +20,18 @@
 		gradient: ValidatedGradient;
 		interpolationMode?: InterpolationMode;
 		onInterpolationModeChange?: (mode: InterpolationMode) => void;
-		colorPickerValue?: string;
-		onColorPickerChange?: (color: string) => void;
 	}
 
 	let {
 		gradient,
 		interpolationMode = "oklch",
 		onInterpolationModeChange,
-		colorPickerValue = "#3b82f6",
-		onColorPickerChange,
 	}: Props = $props();
 
 	let selectedStopIndex = $state(-1);
-	let showColorPicker = $state(false);
+	let easingType = $state<EasingType>("linear");
 
-	function addColorStop(color: string = colorPickerValue, position?: number) {
+	function addColorStop(color: string = "#808080", position?: number) {
 		const colorValidation = validateColor(color);
 		if (!colorValidation.valid) {
 			toast.error(`Invalid color: ${colorValidation.error}`);
@@ -45,7 +39,6 @@
 		}
 
 		if (position === undefined) {
-			// Find best position between existing stops
 			const positions = gradient.stops.map((s) => s.position).sort((a, b) => a - b);
 			position = 50;
 			if (positions.length >= 2) {
@@ -64,9 +57,8 @@
 		}
 
 		const newStop: ValidatedGradientStop = { color, position: Math.round(position) };
-		gradient.stops.push(newStop);
-		gradient.stops.sort((a, b) => a.position - b.position);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+		const newStops = [...gradient.stops, newStop].sort((a, b) => a.position - b.position);
+		app.gradients.update(gradient.id, { stops: newStops });
 		toast.success("Color stop added!");
 	}
 
@@ -75,60 +67,55 @@
 			toast.warning("Gradient must have at least 2 color stops");
 			return;
 		}
-		gradient.stops.splice(index, 1);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+		const newStops = gradient.stops.filter((_, i) => i !== index);
+		app.gradients.update(gradient.id, { stops: newStops });
 		if (selectedStopIndex === index) selectedStopIndex = -1;
-		toast.info("Color stop removed");
 	}
 
 	function updateColorStop(index: number, updates: Partial<ValidatedGradientStop>) {
 		const stop = gradient.stops[index];
 		if (stop) {
-			Object.assign(stop, updates);
+			const newStops = gradient.stops.map((s, i) =>
+				i === index ? { ...s, ...updates } : s
+			);
 			if (updates.position !== undefined) {
-				gradient.stops.sort((a, b) => a.position - b.position);
+				newStops.sort((a, b) => a.position - b.position);
 			}
-			app.gradients.update(gradient.id, { stops: gradient.stops });
+			app.gradients.update(gradient.id, { stops: newStops });
 		}
 	}
 
 	function handleReverse() {
-		gradient.stops = reverseGradientStops(gradient.stops);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+		const newStops = reverseGradientStops([...gradient.stops]);
+		app.gradients.update(gradient.id, { stops: newStops });
 		toast.success("Gradient reversed!");
 	}
 
 	function handleSmoothen() {
-		gradient.stops = smoothenGradientStops(gradient.stops, interpolationMode);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+		const newStops = smoothenGradientStops([...gradient.stops], interpolationMode);
+		app.gradients.update(gradient.id, { stops: newStops });
 		toast.success("Gradient smoothened!");
 	}
 
 	function handleDistribute() {
-		gradient.stops = distributeStopsEvenly(gradient.stops);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+		const newStops = distributeStopsEvenly([...gradient.stops]);
+		app.gradients.update(gradient.id, { stops: newStops });
 		toast.success("Stops distributed evenly!");
 	}
 
 	function handleRandomize() {
-		// Generate truly random colors based on existing palette or completely random
 		const numStops = gradient.stops.length;
-		
-		// Extract existing hues to create variations, or generate completely random
-		const existingColors = gradient.stops.map(s => s.color);
-		const baseHue = Math.random() * 360; // Random starting hue
-		const hueSpread = 60 + Math.random() * 180; // Random spread between 60-240 degrees
-		
-		// Generate random colors with good variation
+		const baseHue = Math.random() * 360;
+		const hueSpread = 60 + Math.random() * 180;
+
 		const newColors: string[] = [];
 		for (let i = 0; i < numStops; i++) {
 			const hue = (baseHue + (i * hueSpread / numStops) + Math.random() * 30 - 15) % 360;
-			const saturation = 0.5 + Math.random() * 0.4; // 50-90%
-			const lightness = 0.35 + Math.random() * 0.35; // 35-70%
+			const saturation = 0.5 + Math.random() * 0.4;
+			const lightness = 0.35 + Math.random() * 0.35;
 			newColors.push(chroma.hsl(hue, saturation, lightness).hex());
 		}
-		
-		// Generate random positions (keeping first at 0 and last at 100)
+
 		const randomPositions: number[] = [];
 		for (let i = 0; i < numStops; i++) {
 			if (i === 0) {
@@ -136,48 +123,46 @@
 			} else if (i === numStops - 1) {
 				randomPositions.push(100);
 			} else {
-				// Random position between 5 and 95, with some spacing
 				randomPositions.push(Math.round(5 + Math.random() * 90));
 			}
 		}
-		// Sort positions to maintain gradient order
 		randomPositions.sort((a, b) => a - b);
-		
-		// Apply new colors and positions
-		gradient.stops.forEach((stop, index) => {
-			stop.color = newColors[index] || stop.color;
-			stop.position = randomPositions[index] ?? stop.position;
-		});
-		
-		// Re-sort stops by position
-		gradient.stops.sort((a, b) => a.position - b.position);
-		app.gradients.update(gradient.id, { stops: gradient.stops });
+
+		const newStops: ValidatedGradientStop[] = gradient.stops.map((stop, index) => ({
+			color: newColors[index] || stop.color,
+			position: randomPositions[index] ?? stop.position,
+		}));
+		newStops.sort((a, b) => a.position - b.position);
+
+		app.gradients.update(gradient.id, { stops: newStops });
 		toast.success("Gradient randomized!");
 	}
 
 	function duplicateStop(index: number) {
 		const stop = gradient.stops[index];
 		if (!stop) return;
-
 		const newPosition = Math.min(100, stop.position + 5);
 		addColorStop(stop.color, newPosition);
 	}
 
-	function selectStop(index: number) {
-		selectedStopIndex = selectedStopIndex === index ? -1 : index;
-		if (selectedStopIndex >= 0) {
-			const stop = gradient.stops[selectedStopIndex];
-			if (stop && onColorPickerChange) {
-				onColorPickerChange(stop.color);
-			}
+	function handleStopColorChange(index: number, color: string) {
+		if (validateColor(color).valid) {
+			updateColorStop(index, { color });
+		}
+	}
+
+	function handlePositionInput(index: number, value: string) {
+		const num = Number.parseInt(value, 10);
+		if (!Number.isNaN(num)) {
+			updateColorStop(index, { position: Math.max(0, Math.min(100, num)) });
 		}
 	}
 </script>
 
-<div class="space-y-8">
+<div class="space-y-6">
 	<!-- Gradient Type Selector -->
-	<div class="space-y-4">
-		<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider mb-3">Gradient Type</h4>
+	<div class="space-y-3">
+		<h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider">Gradient Type</h4>
 		<div class="join w-full border border-white/10 rounded-lg">
 			{#each ["linear", "radial", "conic"] as type}
 				<button
@@ -189,7 +174,6 @@
 					)}
 					onclick={() => {
 						app.gradients.update(gradient.id, { type: type as "linear" | "radial" | "conic" });
-						toast.success(`Changed to ${type} gradient`);
 					}}
 				>
 					<Icon
@@ -207,14 +191,14 @@
 	</div>
 
 	<!-- Type-Specific Controls -->
-	<div class="space-y-4">
-		<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider mb-3">Settings</h4>
+	<div class="space-y-3">
+		<h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider">Settings</h4>
 
 		{#if gradient.type === "linear"}
 			<div class="space-y-2">
 				<div class="flex items-center justify-between">
-					<label for="angle-range" class="text-sm text-text-muted">Angle</label>
-					<span class="text-sm font-mono text-phoenix-primary">{gradient.angle || 45}°</span>
+					<label for="angle-range" class="text-xs text-text-muted">Angle</label>
+					<span class="text-xs font-mono text-phoenix-primary">{gradient.angle || 45}°</span>
 				</div>
 				<input
 					id="angle-range"
@@ -248,8 +232,8 @@
 			<div class="grid grid-cols-2 gap-4">
 				<div class="space-y-2">
 					<div class="flex items-center justify-between">
-						<label for="centerx-range" class="text-sm text-text-muted">Center X</label>
-						<span class="text-sm font-mono text-phoenix-primary">{gradient.centerX || 50}%</span>
+						<label for="centerx-range" class="text-xs text-text-muted">Center X</label>
+						<span class="text-xs font-mono text-phoenix-primary">{gradient.centerX || 50}%</span>
 					</div>
 					<input
 						id="centerx-range"
@@ -266,8 +250,8 @@
 				</div>
 				<div class="space-y-2">
 					<div class="flex items-center justify-between">
-						<label for="centery-range" class="text-sm text-text-muted">Center Y</label>
-						<span class="text-sm font-mono text-phoenix-primary">{gradient.centerY || 50}%</span>
+						<label for="centery-range" class="text-xs text-text-muted">Center Y</label>
+						<span class="text-xs font-mono text-phoenix-primary">{gradient.centerY || 50}%</span>
 					</div>
 					<input
 						id="centery-range"
@@ -302,10 +286,10 @@
 		{/if}
 	</div>
 
-	<!-- Interpolation Mode -->
-	<div class="space-y-4">
-		<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider mb-3">Color Space</h4>
-		<div class="flex flex-wrap gap-2">
+	<!-- Color Space & Easing -->
+	<div class="space-y-3">
+		<h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider">Color Space</h4>
+		<div class="flex flex-wrap gap-1.5">
 			{#each INTERPOLATION_MODES as mode}
 				<button
 					class={cn(
@@ -319,12 +303,27 @@
 				</button>
 			{/each}
 		</div>
+
+		<h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider pt-2">Easing</h4>
+		<div class="flex flex-wrap gap-1.5">
+			{#each EASING_TYPES as easing}
+				<button
+					class={cn(
+						"btn btn-xs",
+						easingType === easing.id ? "btn-primary" : "btn-ghost text-text-muted"
+					)}
+					onclick={() => (easingType = easing.id)}
+				>
+					{easing.name}
+				</button>
+			{/each}
+		</div>
 	</div>
 
 	<!-- Color Stops -->
-	<div class="space-y-4">
-		<div class="flex items-center justify-between mb-2">
-			<h4 class="text-sm font-medium text-text-muted uppercase tracking-wider">Color Stops</h4>
+	<div class="space-y-3">
+		<div class="flex items-center justify-between">
+			<h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider">Color Stops</h4>
 			<button
 				class="btn btn-xs bg-phoenix-primary border-none text-white hover:bg-phoenix-primary/80"
 				onclick={() => addColorStop()}
@@ -334,14 +333,31 @@
 			</button>
 		</div>
 
-		<!-- Quick Actions -->
-		<div class="flex flex-wrap gap-2 mb-2">
+		<!-- Quick Actions with Undo/Redo -->
+		<div class="flex flex-wrap gap-1.5">
+			<button
+				class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+				onclick={() => app.gradients.history.undo(app.gradients.gradients)}
+				disabled={!app.gradients.history.canUndo}
+				title="Undo"
+			>
+				<Icon icon="material-symbols:undo" class="w-3.5 h-3.5" />
+			</button>
+			<button
+				class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+				onclick={() => app.gradients.history.redo(app.gradients.gradients)}
+				disabled={!app.gradients.history.canRedo}
+				title="Redo"
+			>
+				<Icon icon="material-symbols:redo" class="w-3.5 h-3.5" />
+			</button>
+			<div class="w-px h-5 bg-white/10 self-center"></div>
 			<button
 				class="btn btn-xs btn-ghost text-text-muted hover:text-white"
 				onclick={handleReverse}
 				title="Reverse gradient"
 			>
-				<Icon icon="material-symbols:swap-horiz" class="w-3 h-3" />
+				<Icon icon="material-symbols:swap-horiz" class="w-3.5 h-3.5" />
 				Reverse
 			</button>
 			<button
@@ -349,7 +365,7 @@
 				onclick={handleSmoothen}
 				title="Smoothen transitions"
 			>
-				<Icon icon="material-symbols:auto-fix-high" class="w-3 h-3" />
+				<Icon icon="material-symbols:auto-fix-high" class="w-3.5 h-3.5" />
 				Smooth
 			</button>
 			<button
@@ -357,7 +373,7 @@
 				onclick={handleDistribute}
 				title="Distribute evenly"
 			>
-				<Icon icon="material-symbols:distribute-horizontal" class="w-3 h-3" />
+				<Icon icon="material-symbols:distribute-horizontal" class="w-3.5 h-3.5" />
 				Distribute
 			</button>
 			<button
@@ -365,7 +381,7 @@
 				onclick={handleRandomize}
 				title="Randomize colors and positions"
 			>
-				<Icon icon="material-symbols:casino" class="w-3 h-3" />
+				<Icon icon="material-symbols:casino" class="w-3.5 h-3.5" />
 				Random
 			</button>
 		</div>
@@ -375,61 +391,69 @@
 			{#each gradient.stops as stop, index (stop.color + stop.position + index)}
 				<div
 					class={cn(
-						"flex items-center gap-3 p-2 rounded-lg border transition-all",
+						"flex items-center gap-2 p-2 rounded-lg border transition-all",
 						selectedStopIndex === index
 							? "bg-phoenix-primary/10 border-phoenix-primary/50"
 							: "bg-black/20 border-white/10 hover:border-white/20"
 					)}
 				>
-					<!-- Color Swatch -->
-					<button
-						class="w-8 h-8 rounded-lg border-2 border-white/20 cursor-pointer shadow-sm hover:scale-110 transition-transform"
-						style:background-color={stop.color}
-						onclick={() => selectStop(index)}
-						title="Click to select"
-					></button>
+					<!-- Color Swatch with native picker overlay -->
+					<div class="relative shrink-0">
+						<div
+							class="w-10 h-10 rounded-lg border-2 border-white/20 shadow-sm"
+							style:background-color={stop.color}
+						></div>
+						<input
+							type="color"
+							value={stop.color}
+							class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+							oninput={(e) => handleStopColorChange(index, (e.target as HTMLInputElement).value)}
+							title="Pick color"
+						/>
+					</div>
 
-					<!-- Color Input -->
+					<!-- Color Hex Input -->
 					<input
 						type="text"
 						value={stop.color}
-						class="input input-xs bg-black/30 border-white/10 text-white w-20 font-mono focus:border-phoenix-primary"
-						onchange={(e) => {
-							const color = (e.target as HTMLInputElement).value;
-							if (validateColor(color).valid) {
-								updateColorStop(index, { color });
-							}
-						}}
+						class="input input-xs bg-black/30 border-white/10 text-white w-[72px] font-mono text-[11px] focus:border-phoenix-primary"
+						onchange={(e) => handleStopColorChange(index, (e.target as HTMLInputElement).value)}
 					/>
 
-					<!-- Position -->
-					<div class="flex-1">
+					<!-- Position Slider + Numeric Input -->
+					<div class="flex-1 flex items-center gap-1.5">
 						<input
 							type="range"
 							min="0"
 							max="100"
 							value={stop.position}
-							class="range range-xs range-primary w-full"
+							class="range range-xs range-primary flex-1"
 							oninput={(e) => {
 								const position = parseInt((e.target as HTMLInputElement).value);
 								updateColorStop(index, { position });
 							}}
 						/>
+						<input
+							type="number"
+							min="0"
+							max="100"
+							value={stop.position}
+							class="input input-xs bg-black/30 border-white/10 text-white w-12 font-mono text-[11px] text-center focus:border-phoenix-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+							onchange={(e) => handlePositionInput(index, (e.target as HTMLInputElement).value)}
+						/>
 					</div>
 
-					<span class="text-xs font-mono text-text-muted w-10 text-right">{stop.position}%</span>
-
 					<!-- Actions -->
-					<div class="flex gap-1">
+					<div class="flex gap-0.5 shrink-0">
 						<button
-							class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+							class="btn btn-xs btn-ghost text-text-muted hover:text-white p-1"
 							onclick={() => duplicateStop(index)}
 							title="Duplicate"
 						>
 							<Icon icon="material-symbols:content-copy" class="w-3 h-3" />
 						</button>
 						<button
-							class="btn btn-xs btn-ghost text-error hover:bg-error/10"
+							class="btn btn-xs btn-ghost text-error hover:bg-error/10 p-1"
 							onclick={() => removeColorStop(index)}
 							disabled={gradient.stops.length <= 2}
 							title="Remove"
@@ -442,4 +466,3 @@
 		</div>
 	</div>
 </div>
-

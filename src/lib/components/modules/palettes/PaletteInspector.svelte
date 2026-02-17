@@ -25,6 +25,16 @@
 	let hsl = $state<HSL>({ h: 0, s: 0, l: 0 });
 	let hexInput = $state("");
 
+	// Derive text color for active swatch
+	let isDark = $derived(() => {
+		if (!activeColor) return true;
+		const hex = activeColor.replace("#", "");
+		const r = parseInt(hex.substring(0, 2), 16);
+		const g = parseInt(hex.substring(2, 4), 16);
+		const b = parseInt(hex.substring(4, 6), 16);
+		return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+	});
+
 	// Update HSL when active color changes
 	$effect(() => {
 		if (activeColor) {
@@ -60,26 +70,80 @@
 			hexInput = activeColor;
 		}
 	}
+
+	async function copyHex() {
+		if (!activeColor) return;
+		try {
+			await navigator.clipboard.writeText(activeColor);
+			toast.success("Copied!");
+		} catch {
+			toast.error("Failed to copy");
+		}
+	}
 </script>
 
-<div class="h-full flex flex-col gap-6 p-4 overflow-y-auto">
-	<!-- Active Color Indicator -->
-	<div class="flex items-center justify-between">
-		<h4 class="text-xs font-bold text-text-muted uppercase tracking-wider">Active Color</h4>
+<div class="h-full flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
+	<!-- Active Color Swatch — immersive preview -->
+	<div
+		class="relative rounded-xl overflow-hidden transition-all duration-500 ease-out"
+		style:background-color={activeColor || "#1a1a2e"}
+		style:min-height={activeColor ? "100px" : "60px"}
+	>
+		<!-- Subtle inner gradient for depth -->
 		<div
-			class="w-8 h-8 rounded-lg shadow-lg border border-white/20"
-			style:background-color={activeColor || "#333"}
+			class="absolute inset-0 pointer-events-none"
+			style:background="linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%)"
 		></div>
+
+		{#if activeColor}
+			<div class="relative p-3 flex flex-col justify-between h-full" style:min-height="100px">
+				<div class="flex items-start justify-between">
+					<span
+						class="text-[10px] font-medium uppercase tracking-widest"
+						style:color={isDark() ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)"}
+					>
+						Color {(activeColorIndex ?? 0) + 1}
+					</span>
+					<button
+						onclick={copyHex}
+						class="p-1 rounded-md transition-colors"
+						style:color={isDark() ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)"}
+						aria-label="Copy hex code"
+					>
+						<Icon icon="material-symbols:content-copy-outline" class="w-3.5 h-3.5" />
+					</button>
+				</div>
+
+				<div>
+					<span
+						class="text-xl font-mono font-bold tracking-wider block"
+						style:color={isDark() ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.82)"}
+					>
+						{activeColor.toUpperCase()}
+					</span>
+					<span
+						class="text-[10px] font-mono tracking-wide"
+						style:color={isDark() ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)"}
+					>
+						H:{Math.round(hsl.h)}  S:{Math.round(hsl.s)}  L:{Math.round(hsl.l)}
+					</span>
+				</div>
+			</div>
+		{:else}
+			<div class="flex items-center justify-center h-full p-4">
+				<span class="text-xs text-white/25 tracking-wide">No color selected</span>
+			</div>
+		{/if}
 	</div>
 
 	{#if activeColor}
 		<!-- HSL Sliders -->
-		<div class="space-y-4">
+		<div class="space-y-3">
 			<!-- Hue -->
-			<div class="space-y-1">
-				<div class="flex justify-between text-xs text-text-muted">
-					<span>Hue</span>
-					<span>{Math.round(hsl.h)}°</span>
+			<div class="space-y-1.5">
+				<div class="flex justify-between text-[11px]">
+					<span class="text-text-muted font-medium">Hue</span>
+					<span class="text-white/70 font-mono tabular-nums">{Math.round(hsl.h)}°</span>
 				</div>
 				<input
 					type="range"
@@ -88,15 +152,15 @@
 					bind:value={hsl.h}
 					oninput={updateFromHsl}
 					class="range range-xs w-full"
-					style="background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);"
+					style="background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000); border-radius: 999px;"
 				/>
 			</div>
 
 			<!-- Saturation -->
-			<div class="space-y-1">
-				<div class="flex justify-between text-xs text-text-muted">
-					<span>Saturation</span>
-					<span>{Math.round(hsl.s)}%</span>
+			<div class="space-y-1.5">
+				<div class="flex justify-between text-[11px]">
+					<span class="text-text-muted font-medium">Saturation</span>
+					<span class="text-white/70 font-mono tabular-nums">{Math.round(hsl.s)}%</span>
 				</div>
 				<input
 					type="range"
@@ -105,15 +169,15 @@
 					bind:value={hsl.s}
 					oninput={updateFromHsl}
 					class="range range-xs w-full"
-					style="background: linear-gradient(to right, hsl({hsl.h}, 0%, {hsl.l}%), hsl({hsl.h}, 100%, {hsl.l}%));"
+					style="background: linear-gradient(to right, hsl({hsl.h}, 0%, {hsl.l}%), hsl({hsl.h}, 100%, {hsl.l}%)); border-radius: 999px;"
 				/>
 			</div>
 
 			<!-- Lightness -->
-			<div class="space-y-1">
-				<div class="flex justify-between text-xs text-text-muted">
-					<span>Lightness</span>
-					<span>{Math.round(hsl.l)}%</span>
+			<div class="space-y-1.5">
+				<div class="flex justify-between text-[11px]">
+					<span class="text-text-muted font-medium">Lightness</span>
+					<span class="text-white/70 font-mono tabular-nums">{Math.round(hsl.l)}%</span>
 				</div>
 				<input
 					type="range"
@@ -122,7 +186,7 @@
 					bind:value={hsl.l}
 					oninput={updateFromHsl}
 					class="range range-xs w-full"
-					style="background: linear-gradient(to right, hsl({hsl.h}, {hsl.s}%, 0%), hsl({hsl.h}, {hsl.s}%, 50%), hsl({hsl.h}, {hsl.s}%, 100%));"
+					style="background: linear-gradient(to right, hsl({hsl.h}, {hsl.s}%, 0%), hsl({hsl.h}, {hsl.s}%, 50%), hsl({hsl.h}, {hsl.s}%, 100%)); border-radius: 999px;"
 				/>
 			</div>
 		</div>
@@ -130,7 +194,7 @@
 		<!-- Hex Input -->
 		<div class="relative">
 			<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-				<span class="text-text-muted font-mono">#</span>
+				<span class="text-text-muted/60 font-mono text-sm">#</span>
 			</div>
 			<input
 				type="text"
@@ -140,111 +204,75 @@
 					handleHexInput("#" + target.value);
 				}}
 				onblur={handleHexBlur}
-				class="input input-sm w-full bg-black/20 border-white/10 pl-7 font-mono text-white focus:border-phoenix-primary/50 uppercase"
+				class="input input-sm w-full bg-white/5 border-white/8 pl-7 font-mono text-white/90 text-sm focus:border-phoenix-primary/40 focus:bg-white/8 uppercase transition-all duration-200"
 				placeholder="000000"
 				maxlength="6"
 			/>
-			<button
-				onclick={() => {
-					if (activeColor) {
-						navigator.clipboard
-							.writeText(activeColor)
-							.then(() => toast.success("Copied!"))
-							.catch(() => toast.error("Failed to copy"));
-					}
-				}}
-				class="absolute inset-y-0 right-0 pr-2 flex items-center text-text-muted hover:text-white"
-				aria-label="Copy hex code"
-			>
-				<Icon icon="material-symbols:content-copy-outline" class="w-4 h-4" />
-			</button>
 		</div>
 	{:else}
-		<div class="flex-1 flex items-center justify-center text-text-muted/50 text-sm">
-			<p>Select a color to edit</p>
+		<div class="flex-1 flex items-center justify-center">
+			<div class="text-center space-y-2">
+				<Icon icon="material-symbols:touch-app" class="w-8 h-8 mx-auto text-white/10" />
+				<p class="text-xs text-text-muted/40">Select a color to edit</p>
+			</div>
 		</div>
 	{/if}
 
 	<!-- History -->
-	<div class="space-y-2">
-		<h4 class="text-xs font-bold text-text-muted uppercase tracking-wider">History</h4>
-		<div class="flex gap-2 flex-wrap">
-			{#each colorHistory.slice(0, 8) as color}
-				<button
-					class="w-8 h-8 rounded-lg border border-white/10 hover:scale-110 transition-transform cursor-pointer"
-					style:background-color={color}
-					onclick={() => onColorHistorySelect(color)}
-					aria-label={`Select color ${color}`}
-				></button>
-			{/each}
-			{#if colorHistory.length < 8}
-				{#each Array(8 - colorHistory.length) as _}
-					<div class="w-8 h-8 rounded-lg border border-dashed border-white/5"></div>
+	{#if colorHistory.length > 0}
+		<div class="space-y-2">
+			<h4 class="text-[10px] font-semibold text-text-muted/60 uppercase tracking-widest">
+				History
+			</h4>
+			<div class="flex gap-1.5 flex-wrap">
+				{#each colorHistory.slice(0, 8) as color}
+					<button
+						class="w-7 h-7 rounded-lg border border-white/8 hover:border-white/25 transition-all duration-200 cursor-pointer hover:shadow-lg"
+						style:background-color={color}
+						onclick={() => onColorHistorySelect(color)}
+						aria-label={`Select color ${color}`}
+					></button>
 				{/each}
-			{/if}
+			</div>
 		</div>
-	</div>
+	{/if}
 
-	<!-- Export Assets -->
-	<div class="mt-auto space-y-3">
-		<h4 class="text-xs font-bold text-text-muted uppercase tracking-wider">Export Assets</h4>
+	<!-- Export Section -->
+	<div class="mt-auto space-y-2 pt-2 border-t border-white/5">
+		<h4 class="text-[10px] font-semibold text-text-muted/60 uppercase tracking-widest">
+			Export
+		</h4>
 
-		<button
-			onclick={() => onExport("json")}
-			class="flex items-center justify-between w-full p-2 rounded-lg hover:bg-white/5 transition-colors group text-left"
-		>
-			<div class="flex items-center gap-3">
-				<div
-					class="w-6 h-6 rounded bg-purple-500/20 text-purple-400 flex items-center justify-center"
-				>
-					<Icon icon="material-symbols:data-object" class="w-4 h-4" />
+		<div class="grid grid-cols-3 gap-1.5">
+			<button
+				onclick={() => onExport("json")}
+				class="flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-white/3 border border-white/5 hover:bg-white/8 hover:border-white/12 transition-all duration-200 group"
+			>
+				<div class="w-5 h-5 rounded bg-purple-500/15 text-purple-400 flex items-center justify-center group-hover:bg-purple-500/25 transition-colors">
+					<Icon icon="material-symbols:data-object" class="w-3.5 h-3.5" />
 				</div>
-				<span class="text-sm font-medium text-text-muted group-hover:text-white">JSON</span>
-			</div>
-			<Icon
-				icon="material-symbols:download"
-				class="w-4 h-4 text-text-muted group-hover:text-white"
-			/>
-		</button>
+				<span class="text-[10px] font-medium text-text-muted/70 group-hover:text-white/80 transition-colors">JSON</span>
+			</button>
 
-		<button
-			onclick={() => onExport("css")}
-			class="flex items-center justify-between w-full p-2 rounded-lg hover:bg-white/5 transition-colors group text-left"
-		>
-			<div class="flex items-center gap-3">
-				<div class="w-6 h-6 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center">
-					<Icon icon="material-symbols:css" class="w-4 h-4" />
+			<button
+				onclick={() => onExport("css")}
+				class="flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-white/3 border border-white/5 hover:bg-white/8 hover:border-white/12 transition-all duration-200 group"
+			>
+				<div class="w-5 h-5 rounded bg-blue-500/15 text-blue-400 flex items-center justify-center group-hover:bg-blue-500/25 transition-colors">
+					<Icon icon="material-symbols:css" class="w-3.5 h-3.5" />
 				</div>
-				<span class="text-sm font-medium text-text-muted group-hover:text-white">CSS / SCSS</span>
-			</div>
-			<Icon
-				icon="material-symbols:download"
-				class="w-4 h-4 text-text-muted group-hover:text-white"
-			/>
-		</button>
+				<span class="text-[10px] font-medium text-text-muted/70 group-hover:text-white/80 transition-colors">CSS</span>
+			</button>
 
-		<button
-			onclick={() => onExport("png")}
-			class="flex items-center justify-between w-full p-2 rounded-lg hover:bg-white/5 transition-colors group text-left"
-		>
-			<div class="flex items-center gap-3">
-				<div class="w-6 h-6 rounded bg-pink-500/20 text-pink-400 flex items-center justify-center">
-					<Icon icon="material-symbols:image" class="w-4 h-4" />
+			<button
+				onclick={() => onExport("png")}
+				class="flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-white/3 border border-white/5 hover:bg-white/8 hover:border-white/12 transition-all duration-200 group"
+			>
+				<div class="w-5 h-5 rounded bg-pink-500/15 text-pink-400 flex items-center justify-center group-hover:bg-pink-500/25 transition-colors">
+					<Icon icon="material-symbols:image" class="w-3.5 h-3.5" />
 				</div>
-				<span class="text-sm font-medium text-text-muted group-hover:text-white">PNG Swatch</span>
-			</div>
-			<Icon
-				icon="material-symbols:download"
-				class="w-4 h-4 text-text-muted group-hover:text-white"
-			/>
-		</button>
-
-		<button
-			onclick={() => onExport("json")}
-			class="btn btn-primary w-full mt-4 text-black font-bold bg-phoenix-primary hover:bg-phoenix-primary/90 border-none"
-		>
-			<Icon icon="material-symbols:ios-share" class="w-4 h-4 mr-2" />
-			Export Palette
-		</button>
+				<span class="text-[10px] font-medium text-text-muted/70 group-hover:text-white/80 transition-colors">PNG</span>
+			</button>
+		</div>
 	</div>
 </div>

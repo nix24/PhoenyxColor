@@ -85,6 +85,19 @@ export const ReferenceImageSchema = z.object({
 	cropRect: CropRectSchema.nullable().optional(),
 	// Stacked effects
 	appliedEffects: z.array(AppliedEffectSchema).optional(),
+	// Layers
+	layers: z.array(z.object({
+		id: z.string().uuid(),
+		name: z.string().max(100),
+		type: z.enum(["image", "adjustment", "overlay"]),
+		src: z.string().optional(),
+		thumbnailSrc: z.string().optional(),
+		opacity: z.number().min(0).max(1),
+		blendMode: z.string(),
+		visible: z.boolean(),
+		locked: z.boolean(),
+	})).optional(),
+	activeLayerId: z.string().uuid().nullable().optional(),
 });
 
 // Gradient validation

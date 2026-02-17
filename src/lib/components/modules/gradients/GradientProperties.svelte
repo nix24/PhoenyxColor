@@ -15,27 +15,49 @@
 
 	let { interpolationMode, onInterpolationModeChange, onExport, onDelete } = $props();
 
-	let colorPickerValue = $state("#3b82f6");
-
-	// Safe access to active gradient
 	let activeGradient = $derived(app.gradients.activeGradient);
 
 	let cssOutput = $derived(
 		activeGradient ? generateCSSGradient(activeGradient, interpolationMode) : ""
 	);
+
+	function copyCss() {
+		navigator.clipboard
+			.writeText(`background: ${cssOutput};`)
+			.then(() => toast.success("CSS copied!"))
+			.catch(() => toast.error("Failed to copy"));
+	}
 </script>
 
 <div class="flex flex-col h-full gap-4 w-full overflow-y-auto custom-scrollbar">
 	<div class="flex items-center justify-between">
 		<div class="text-xs font-bold text-text-muted uppercase tracking-wider">Properties</div>
 		{#if activeGradient}
-			<button
-				class="btn btn-xs btn-ghost text-error hover:bg-error/10"
-				onclick={onDelete}
-				title="Delete gradient"
-			>
-				<Icon icon="material-symbols:delete-outline" class="w-4 h-4" />
-			</button>
+			<div class="flex items-center gap-1">
+				<button
+					class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+					onclick={() => app.gradients.history.undo(app.gradients.gradients)}
+					disabled={!app.gradients.history.canUndo}
+					title="Undo"
+				>
+					<Icon icon="material-symbols:undo" class="w-4 h-4" />
+				</button>
+				<button
+					class="btn btn-xs btn-ghost text-text-muted hover:text-white"
+					onclick={() => app.gradients.history.redo(app.gradients.gradients)}
+					disabled={!app.gradients.history.canRedo}
+					title="Redo"
+				>
+					<Icon icon="material-symbols:redo" class="w-4 h-4" />
+				</button>
+				<button
+					class="btn btn-xs btn-ghost text-error hover:bg-error/10"
+					onclick={onDelete}
+					title="Delete gradient"
+				>
+					<Icon icon="material-symbols:delete-outline" class="w-4 h-4" />
+				</button>
+			</div>
 		{/if}
 	</div>
 
@@ -46,13 +68,10 @@
 			<span class="text-text-muted/60 ml-1">({activeGradient.type})</span>
 		</div>
 
-		<!-- Full Gradient Controls from original component -->
 		<GradientControls
 			gradient={activeGradient}
 			{interpolationMode}
 			{onInterpolationModeChange}
-			{colorPickerValue}
-			onColorPickerChange={(color) => (colorPickerValue = color)}
 		/>
 
 		<div class="w-full h-px bg-white/5 my-2"></div>
@@ -63,18 +82,18 @@
 				<span class="text-xs font-bold text-text-muted uppercase tracking-wider">CSS Output</span>
 				<button
 					class="text-phoenix-primary hover:text-white transition-colors"
-					onclick={() => {
-						navigator.clipboard
-							.writeText(`background: ${cssOutput};`)
-							.then(() => toast.success("CSS copied!"))
-							.catch(() => toast.error("Failed to copy"));
-					}}
+					onclick={copyCss}
+					title="Copy CSS"
 				>
 					<Icon icon="material-symbols:content-copy" class="text-sm" />
 				</button>
 			</div>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="bg-black/40 rounded-xl p-3 border border-white/5 font-mono text-[10px] text-text-muted/80 break-all leading-relaxed max-h-24 overflow-y-auto custom-scrollbar relative group"
+				class="bg-black/40 rounded-xl p-3 border border-white/5 font-mono text-[10px] text-text-muted/80 break-all leading-relaxed max-h-24 overflow-y-auto custom-scrollbar relative group cursor-pointer hover:border-phoenix-primary/30 transition-colors"
+				onclick={copyCss}
+				title="Click to copy CSS"
 			>
 				<div
 					class="absolute top-2 left-2 w-1 h-full bg-linear-to-b from-phoenix-primary to-transparent opacity-50"

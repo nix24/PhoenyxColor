@@ -2,24 +2,22 @@
 	import { onMount } from "svelte";
 	import { app } from "$lib/stores/root.svelte";
 	import type { ValidatedReferenceImage } from "$lib/schemas/validation";
-	import type { ReferenceId } from "$lib/types/brands";
 	import Icon from "@iconify/svelte";
 	import { toast } from "svelte-sonner";
 	import { performanceService } from "$lib/services/performance";
-	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
-	import SkeletonCard from "$lib/components/ui/SkeletonCard.svelte";
-	import { cn } from "$lib/utils/cn";
-	import ImageEditor from "$lib/components/modules/references/ImageEditor.svelte";
+	import ImageLibrary from "$lib/components/modules/references/ImageLibrary.svelte";
+	import ImageEditorLayout from "$lib/components/modules/references/ImageEditorLayout.svelte";
 
 	let fileInput: HTMLInputElement;
 	let isDragOver = $state(false);
 	let uploadProgress: Record<string, number> = $state({});
 	let selectedImageId: string | null = $state(null);
-	let viewMode: "gallery" | "transform" = $state("gallery");
 	let showControls = $state(false);
-
-	// Initial loading state for skeleton display
 	let isLoading = $state(true);
+
+	// Context menu state
+	let contextMenuTarget: ValidatedReferenceImage | null = $state(null);
+	let contextMenuPos = $state({ x: 0, y: 0 });
 
 	onMount(() => {
 		const timer = setTimeout(() => {
@@ -28,8 +26,8 @@
 		return () => clearTimeout(timer);
 	});
 
-	// File validation constants
-	const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+	// File validation
+	const MAX_FILE_SIZE = 50 * 1024 * 1024;
 	const ALLOWED_TYPES = [
 		"image/jpeg",
 		"image/png",
@@ -40,44 +38,30 @@
 	];
 	const MAX_FILES_AT_ONCE = 20;
 
-	// Mobile action sheet handling
-	let actionTarget: ValidatedReferenceImage | null = $state(null);
-	let containerWidth = $state(0);
-
 	function validateFile(file: File): { valid: boolean; error?: string } {
 		if (!ALLOWED_TYPES.includes(file.type)) {
 			return { valid: false, error: `Unsupported file type: ${file.type}` };
 		}
-
 		if (file.size > MAX_FILE_SIZE) {
 			return {
 				valid: false,
 				error: `File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB (max 50MB)`,
 			};
 		}
-
 		return { valid: true };
 	}
 
 	function handleFileSelect(event: Event) {
 		const files = (event.target as HTMLInputElement).files;
-		if (files) {
-			addFiles(Array.from(files));
-		}
-		// Reset input to allow re-selecting same file
-		if (event.target) {
-			(event.target as HTMLInputElement).value = "";
-		}
+		if (files) addFiles(Array.from(files));
+		if (event.target) (event.target as HTMLInputElement).value = "";
 	}
 
 	function handleDrop(event: DragEvent) {
 		event.preventDefault();
 		isDragOver = false;
-
 		const files = event.dataTransfer?.files;
-		if (files) {
-			addFiles(Array.from(files));
-		}
+		if (files) addFiles(Array.from(files));
 	}
 
 	function handleDragOver(event: DragEvent) {
@@ -89,18 +73,9 @@
 
 	function handleDragLeave(event: DragEvent) {
 		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-		const x = event.clientX;
-		const y = event.clientY;
-
+		const { clientX: x, clientY: y } = event;
 		if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
 			isDragOver = false;
-		}
-	}
-
-	function handleDropZoneKeydown(event: KeyboardEvent) {
-		if (event.key === "Enter" || event.key === " ") {
-			event.preventDefault();
-			fileInput.click();
 		}
 	}
 
@@ -113,7 +88,6 @@
 		const validFiles: File[] = [];
 		let invalidCount = 0;
 
-		// Validate all files first
 		for (const file of files) {
 			const validation = validateFile(file);
 			if (!validation.valid) {
@@ -121,23 +95,17 @@
 				invalidCount++;
 				continue;
 			}
-
 			validFiles.push(file);
 		}
 
 		if (invalidCount > 0) {
 			toast.error(`${invalidCount} file(s) were invalid and skipped`);
 		}
+		if (validFiles.length === 0) return;
 
-		if (validFiles.length === 0) {
-			return;
-		}
-
-		// Process valid files
 		for (const file of validFiles) {
 			await processFile(file);
 		}
-
 		toast.success(`Added ${validFiles.length} reference image(s)`);
 	}
 
@@ -146,7 +114,6 @@
 		uploadProgress[progressId] = 0;
 
 		try {
-			// Optimize image and generate thumbnail
 			const { optimized, thumbnail } = await performanceService.optimizeImage(file, {
 				maxWidth: 1920,
 				maxHeight: 1080,
@@ -155,7 +122,6 @@
 
 			uploadProgress[progressId] = 50;
 
-			// Convert optimized image to data URL for persistence across page refreshes
 			const imageUrl = await new Promise<string>((resolve, reject) => {
 				const reader = new FileReader();
 				reader.onload = () => resolve(reader.result as string);
@@ -182,7 +148,6 @@
 			});
 
 			uploadProgress[progressId] = 100;
-			toast.success(`Added "${file.name}" to references`);
 		} catch (error) {
 			console.error("Error processing file:", error);
 			toast.error(`Failed to process "${file.name}"`);
@@ -193,467 +158,174 @@
 		}
 	}
 
-	function selectImage(id: string) {
+	function handleEdit(id: string) {
 		selectedImageId = selectedImageId === id ? null : id;
-		if (selectedImageId) {
-			viewMode = "transform";
-			showControls = true;
-		} else {
-			showControls = false;
-		}
+		showControls = !!selectedImageId;
 	}
 
-	function removeReference(id: string) {
+	function handleDelete(id: string) {
 		const reference = app.references.references.find((ref) => ref.id === id);
 		if (reference) {
-			// Cleanup blob URLs to prevent memory leaks (if any are still using blob URLs)
-			if (reference.src.startsWith("blob:")) {
-				URL.revokeObjectURL(reference.src);
-			}
-			if (reference.thumbnailSrc?.startsWith("blob:")) {
-				URL.revokeObjectURL(reference.thumbnailSrc);
-			}
-
+			if (reference.src.startsWith("blob:")) URL.revokeObjectURL(reference.src);
+			if (reference.thumbnailSrc?.startsWith("blob:")) URL.revokeObjectURL(reference.thumbnailSrc);
 			app.references.remove(id);
 			toast.info(`Removed "${reference.name}"`);
-
 			if (selectedImageId === id) {
 				selectedImageId = null;
 				showControls = false;
 			}
 		}
+		contextMenuTarget = null;
 	}
 
-	function clearAllReferences() {
+	function handleClearAll() {
 		if (app.references.references.length === 0) return;
-
 		const count = app.references.references.length;
-
-		// Cleanup blob URLs to prevent memory leaks
-		app.references.references.forEach((ref) => {
-			if (ref.src.startsWith("blob:")) {
-				URL.revokeObjectURL(ref.src);
-			}
-			if (ref.thumbnailSrc?.startsWith("blob:")) {
-				URL.revokeObjectURL(ref.thumbnailSrc);
-			}
+		for (const ref of app.references.references) {
+			if (ref.src.startsWith("blob:")) URL.revokeObjectURL(ref.src);
+			if (ref.thumbnailSrc?.startsWith("blob:")) URL.revokeObjectURL(ref.thumbnailSrc);
 			app.references.remove(ref.id);
-		});
-
+		}
 		selectedImageId = null;
 		showControls = false;
 		toast.success(`Cleared ${count} reference image(s)`);
 	}
 
-	function duplicateReference(id: string) {
+	function handleDuplicate(id: string) {
 		const reference = app.references.references.find((ref) => ref.id === id);
 		if (reference) {
 			app.references.add({
 				...reference,
 				name: `${reference.name} (Copy)`,
-				position: {
-					x: reference.position.x + 20,
-					y: reference.position.y + 20,
-				},
+				position: { x: reference.position.x + 20, y: reference.position.y + 20 },
 			});
 			toast.success(`Duplicated "${reference.name}"`);
 		}
+		contextMenuTarget = null;
 	}
 
-	function updateImageProperty(id: string, property: keyof ValidatedReferenceImage, value: any) {
-		app.references.update(id, { [property]: value });
-		// Auto-save changes
-		app.references.save().catch((error) => {
-			console.error("Failed to auto-save after updating image property:", error);
-		});
+	function handleContextMenu(e: MouseEvent, reference: ValidatedReferenceImage) {
+		e.preventDefault();
+		contextMenuTarget = reference;
+		contextMenuPos = { x: e.clientX, y: e.clientY };
 	}
 
-	function resetTransforms(id: string) {
-		app.references.update(id, {
-			scale: 1,
-			rotation: 0,
-			opacity: 1,
-			isGrayscale: false,
-			brightness: 100,
-			contrast: 100,
-			saturation: 100,
-			hueRotate: 0,
-			blur: 0,
-			sepia: 0,
-			invert: 0,
-			flipX: false,
-			flipY: false,
-		});
-		toast.success("All transforms reset");
+	function closeContextMenu() {
+		contextMenuTarget = null;
 	}
 
-	// Get selected reference
-	const selectedReference = $derived(
-		selectedImageId ? app.references.references.find((ref) => ref.id === selectedImageId) : null
-	);
-
-	function handleImageClick(reference: ValidatedReferenceImage) {
-		if (containerWidth < 768) {
-			// On mobile, tap opens editor directly
-			selectImage(reference.id);
-		} else {
-			selectImage(reference.id);
-		}
-	}
-
-	function closeTransformModal() {
+	function closeEditor() {
 		showControls = false;
 		selectedImageId = null;
 	}
-
-	function buildFilterString(reference: ValidatedReferenceImage): string {
-		const filters: string[] = [];
-		const ref = reference as any; // For accessing enhanced properties
-
-		if (reference.isGrayscale) filters.push("grayscale(100%)");
-		if (reference.sepia) filters.push(`sepia(${reference.sepia}%)`);
-		if (reference.invert) filters.push(`invert(${reference.invert}%)`);
-		if (reference.brightness !== undefined && reference.brightness !== 100)
-			filters.push(`brightness(${reference.brightness}%)`);
-		if (reference.contrast !== undefined && reference.contrast !== 100)
-			filters.push(`contrast(${reference.contrast}%)`);
-		if (reference.saturation !== undefined && reference.saturation !== 100)
-			filters.push(`saturate(${reference.saturation}%)`);
-		if (reference.hueRotate !== undefined && reference.hueRotate !== 0)
-			filters.push(`hue-rotate(${reference.hueRotate}deg)`);
-		if (reference.blur !== undefined && reference.blur !== 0)
-			filters.push(`blur(${reference.blur}px)`);
-
-		// Enhanced adjustments approximations for CSS
-		// Temperature: warm adds sepia, cool adds hue shift
-		if (ref.temperature && ref.temperature !== 0) {
-			if (ref.temperature > 0) {
-				filters.push(`sepia(${Math.abs(ref.temperature) * 0.15}%)`);
-			} else {
-				filters.push(`hue-rotate(${ref.temperature * 0.3}deg)`);
-			}
-		}
-
-		return filters.length > 0 ? filters.join(" ") : "none";
-	}
 </script>
 
-<div class="h-full flex flex-col gap-4 @container" bind:clientWidth={containerWidth}>
-	<!-- Module Header -->
-	<GlassPanel
-		class="flex flex-col @md:flex-row @md:items-center justify-between p-4 @md:p-6 gap-4 shrink-0"
-		intensity="low"
-	>
-		<div>
-			<h2 class="text-xl @md:text-2xl font-bold text-white tracking-wide">Reference Images</h2>
-			<p class="text-sm text-text-muted mt-2 mb-4">
-				{viewMode === "gallery"
-					? "Click images to transform them"
-					: "Transform your reference images"}
-			</p>
-		</div>
-
-		<div class="flex flex-wrap items-center gap-3">
-			<!-- View Mode Toggle -->
-			<div class="join bg-black/20 rounded-lg p-1 border border-white/5">
-				<button
-					class={cn(
-						"btn btn-sm join-item border-none transition-all duration-300",
-						viewMode === "gallery"
-							? "bg-phoenix-primary text-white shadow-lg"
-							: "bg-transparent text-text-muted hover:text-white"
-					)}
-					onclick={() => {
-						viewMode = "gallery";
-						selectedImageId = null;
-						showControls = false;
-					}}
-				>
-					<Icon icon="material-symbols:grid-view" class="w-4 h-4" />
-					Gallery
-				</button>
-				<button
-					class={cn(
-						"btn btn-sm join-item border-none transition-all duration-300",
-						viewMode === "transform"
-							? "bg-phoenix-primary text-white shadow-lg"
-							: "bg-transparent text-text-muted hover:text-white"
-					)}
-					onclick={() => {
-						viewMode = "transform";
-					}}
-					disabled={app.references.references.length === 0}
-				>
-					<Icon icon="material-symbols:transform" class="w-4 h-4" />
-					Transform
-				</button>
-			</div>
-
-			<button
-				class="btn btn-sm border-none bg-linear-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300"
-				onclick={() => fileInput.click()}
-				type="button"
-			>
-				<Icon icon="material-symbols:add" class="w-4 h-4" />
-				Add Images
-			</button>
-
-			<button
-				class="btn btn-outline btn-error btn-sm hover:bg-error/20"
-				onclick={clearAllReferences}
-				type="button"
-				disabled={app.references.references.length === 0}
-			>
-				<Icon icon="material-symbols:clear-all" class="w-4 h-4" />
-				Clear All
-			</button>
-		</div>
-	</GlassPanel>
-
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<div
+	class="h-full flex flex-col @container relative"
+	ondrop={handleDrop}
+	ondragover={handleDragOver}
+	ondragleave={handleDragLeave}
+	onclick={closeContextMenu}
+	onkeydown={(e) => e.key === "Escape" && closeContextMenu()}
+	role="application"
+	aria-label="Reference images"
+>
 	<!-- Upload Progress -->
 	{#if Object.keys(uploadProgress).length > 0}
-		<GlassPanel class="p-3" intensity="low">
-			<div class="text-sm text-text-muted mb-2">Uploading images...</div>
-			{#each Object.entries(uploadProgress) as [id, progress]}
-				<div class="mb-1">
-					<div class="flex justify-between text-xs text-text-muted/60 mb-1">
-						<span>{id.split("-")[0]}</span>
-						<span>{progress}%</span>
-					</div>
-					<div class="w-full bg-black/20 rounded-full h-1">
-						<div
-							class="bg-phoenix-primary h-1 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(255,0,127,0.5)]"
-							style:width="{progress}%"
-						></div>
-					</div>
+		<div class="mx-4 @md:mx-6 mt-2">
+			<div class="p-3 rounded-xl bg-white/5 border border-white/5">
+				<div class="flex items-center gap-2 text-xs text-text-muted mb-2">
+					<span class="loading loading-spinner loading-xs text-phoenix-primary"></span>
+					Uploading...
 				</div>
-			{/each}
-		</GlassPanel>
+				{#each Object.entries(uploadProgress) as [id, progress]}
+					<div class="mb-1.5 last:mb-0">
+						<div class="flex justify-between text-[10px] text-text-muted/60 mb-1">
+							<span class="truncate max-w-[200px]">{id.split("-").at(0)}</span>
+							<span class="font-mono">{progress}%</span>
+						</div>
+						<div class="w-full bg-black/30 rounded-full h-1 overflow-hidden">
+							<div
+								class="bg-phoenix-primary h-full rounded-full transition-all duration-300 ease-out"
+								style:width="{progress}%"
+							></div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
 	{/if}
 
-	<!-- Main Content -->
-	<div class="flex-1 overflow-hidden relative rounded-xl">
-		{#if isLoading}
-			<!-- Skeleton Loading State - Bento Pattern -->
-			<div class="h-full overflow-y-auto p-1">
-				<div
-					class="grid grid-cols-2 @sm:grid-cols-3 @md:grid-cols-4 @lg:grid-cols-5 @xl:grid-cols-6 gap-4 auto-rows-fr"
-				>
-					{#each Array(7) as _, i}
-						<div
-							style:animation-delay="{i * 50}ms"
-							class={cn("stagger-item", i === 0 && "col-span-2 row-span-2")}
-						>
-							<SkeletonCard type="image" class="h-full" />
-						</div>
-					{/each}
-				</div>
+	<!-- Drag Overlay -->
+	{#if isDragOver}
+		<div class="absolute inset-0 z-30 flex items-center justify-center bg-void-deep/80 backdrop-blur-sm rounded-xl border-2 border-dashed border-phoenix-primary pointer-events-none">
+			<div class="text-center">
+				<Icon icon="material-symbols:cloud-upload" class="w-12 h-12 text-phoenix-primary mx-auto mb-3 animate-float" />
+				<p class="text-lg font-bold text-white">Drop images here</p>
+				<p class="text-xs text-text-muted mt-1">Up to {MAX_FILES_AT_ONCE} files, 50MB each</p>
 			</div>
-		{:else if app.references.references.length > 0}
-			<!-- Bento Grid Image Gallery -->
-			<div class="h-full overflow-y-auto p-1">
-				<div
-					class="grid grid-cols-2 @sm:grid-cols-3 @md:grid-cols-4 @lg:grid-cols-5 @xl:grid-cols-6 gap-4 auto-rows-fr"
-				>
-					{#each app.references.references as reference, idx (reference.id)}
-						{@const isFeatured = idx === 0 && app.references.references.length > 3}
-						<GlassPanel
-							class={cn(
-								"group cursor-pointer p-0! overflow-visible!",
-								isFeatured && "col-span-2 row-span-2"
-							)}
-							intensity="low"
-							hoverEffect={true}
-							onclick={() => handleImageClick(reference)}
-							role="button"
-							tabindex="0"
-							onkeydown={(e: KeyboardEvent) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									handleImageClick(reference);
-								}
-							}}
-						>
-							<div
-								class={cn(
-									"relative overflow-hidden rounded-t-xl transition-all duration-300",
-									isFeatured ? "aspect-square" : "aspect-square",
-									selectedImageId === reference.id
-										? "ring-2 ring-phoenix-primary ring-offset-2 ring-offset-void"
-										: ""
-								)}
-							>
-								<!-- Image with transforms applied visually -->
-								<img
-									src={reference.thumbnailSrc || reference.src}
-									alt={reference.name}
-									class="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
-									style:opacity={reference.opacity}
-									style:filter={buildFilterString(reference)}
-									style:transform="scale({reference.scale}) rotate({reference.rotation}deg)"
-									loading="lazy"
-								/>
+		</div>
+	{/if}
 
-								<!-- Featured badge for first item -->
-								{#if isFeatured}
-									<div
-										class="absolute top-3 left-3 px-2 py-1 bg-phoenix-primary/90 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg"
-									>
-										Featured
-									</div>
-								{/if}
+	<!-- Image Library -->
+	<ImageLibrary
+		references={app.references.references}
+		{selectedImageId}
+		{isLoading}
+		{isDragOver}
+		onAddFiles={() => fileInput.click()}
+		onClearAll={handleClearAll}
+		onEdit={handleEdit}
+		onDuplicate={handleDuplicate}
+		onDelete={handleDelete}
+		onContextMenu={handleContextMenu}
+	/>
 
-								<!-- Gradient Overlay (Bottom Fade) -->
-								<div
-									class="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/80 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-300"
-								></div>
-
-								<!-- Overlay on hover/selection -->
-								<div
-									class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center pointer-events-none"
-								>
-									{#if selectedImageId === reference.id}
-										<div
-											class="bg-phoenix-primary text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg animate-pulse-slow"
-										>
-											Selected
-										</div>
-									{:else}
-										<div
-											class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2"
-										>
-											<button
-												class={cn(
-													"hidden md:inline-flex btn btn-circle bg-phoenix-primary border-none text-white pointer-events-auto hover:bg-phoenix-primary/80",
-													isFeatured ? "btn-sm" : "btn-xs md:btn-sm"
-												)}
-												onclick={(e) => {
-													e.stopPropagation();
-													duplicateReference(reference.id);
-												}}
-												title="Duplicate"
-											>
-												<Icon
-													icon="material-symbols:content-copy"
-													class={isFeatured ? "w-5 h-5" : "w-4 h-4"}
-												/>
-											</button>
-											<button
-												class={cn(
-													"hidden md:inline-flex btn btn-circle btn-error pointer-events-auto",
-													isFeatured ? "btn-sm" : "btn-xs md:btn-sm"
-												)}
-												onclick={(e) => {
-													e.stopPropagation();
-													removeReference(reference.id);
-												}}
-												title="Delete"
-											>
-												<Icon
-													icon="material-symbols:delete-outline"
-													class={isFeatured ? "w-5 h-5" : "w-4 h-4"}
-												/>
-											</button>
-										</div>
-									{/if}
-								</div>
-							</div>
-
-							<!-- Image name -->
-							<div class={cn("p-2 border-t border-white/5 bg-black/20", isFeatured && "p-3")}>
-								<p
-									class={cn(
-										"text-center text-text-muted truncate group-hover:text-white transition-colors",
-										isFeatured ? "text-sm font-medium" : "text-xs"
-									)}
-									title={reference.name}
-								>
-									{reference.name}
-								</p>
-							</div>
-						</GlassPanel>
-					{/each}
-
-					<!-- Add More Card -->
-					<div
-						class="aspect-square border-2 border-dashed border-white/10 hover:border-phoenix-primary/50 hover:bg-white/5 transition-all duration-300 cursor-pointer rounded-xl flex items-center justify-center group"
-						onclick={() => fileInput.click()}
-						role="button"
-						tabindex="0"
-						onkeydown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault();
-								fileInput.click();
-							}
-						}}
-					>
-						<div class="text-center group-hover:scale-105 transition-transform duration-300">
-							<div
-								class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-2 group-hover:bg-phoenix-primary/20 transition-colors"
-							>
-								<Icon
-									icon="material-symbols:add-photo-alternate"
-									class="w-6 h-6 text-text-muted group-hover:text-phoenix-primary transition-colors"
-								/>
-							</div>
-							<p class="text-xs text-text-muted group-hover:text-white transition-colors">
-								Add More
-							</p>
-						</div>
-					</div>
-				</div>
-			</div>
-		{:else}
-			<!-- Empty State -->
-			<div class="flex items-center justify-center h-full p-4">
-				<GlassPanel
-					class={cn(
-						"w-full max-w-md p-10 text-center cursor-pointer transition-all duration-300 border-2 border-dashed",
-						isDragOver
-							? "border-phoenix-primary bg-phoenix-primary/10 scale-105"
-							: "border-white/10 hover:border-white/20"
-					)}
-					intensity="medium"
-					ondrop={handleDrop}
-					ondragover={handleDragOver}
-					ondragleave={handleDragLeave}
-					onkeydown={handleDropZoneKeydown}
-					onclick={() => fileInput.click()}
-					role="button"
-					tabindex="0"
-				>
-					<div
-						class="w-20 h-20 rounded-full bg-linear-to-br from-phoenix-primary/20 to-phoenix-violet/20 flex items-center justify-center mx-auto mb-6 animate-float"
-					>
-						<Icon
-							icon="material-symbols:cloud-upload"
-							class={cn(
-								"w-10 h-10 transition-colors duration-300",
-								isDragOver ? "text-phoenix-primary" : "text-text-muted"
-							)}
-						/>
-					</div>
-
-					<h3 class="text-2xl font-bold mb-2 text-white tracking-wide">No References Yet</h3>
-					<p class="text-text-muted mb-8 max-w-xs mx-auto">
-						Drop your inspiration here or click to browse.
-					</p>
-
-					<button
-						class="btn btn-primary bg-linear-to-r from-phoenix-primary to-phoenix-violet border-none shadow-lg hover:shadow-phoenix-primary/50 hover:scale-105 transition-all duration-300"
-						type="button"
-					>
-						<Icon icon="material-symbols:add-photo-alternate" class="w-5 h-5" />
-						Add Your First Reference
-					</button>
-
-					<p class="text-[10px] text-text-muted/50 mt-6 uppercase tracking-wider">
-						Max {MAX_FILES_AT_ONCE} files • 50MB each
-					</p>
-				</GlassPanel>
-			</div>
-		{/if}
-	</div>
+	<!-- Context Menu -->
+	{#if contextMenuTarget}
+		<div
+			class="fixed z-50 min-w-[160px] py-1.5 bg-void-deep/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50"
+			style:left="{contextMenuPos.x}px"
+			style:top="{contextMenuPos.y}px"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.key === "Escape" && closeContextMenu()}
+			role="menu"
+			tabindex="-1"
+		>
+			<button
+				class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
+				onclick={() => {
+					if (contextMenuTarget) handleEdit(contextMenuTarget.id);
+					closeContextMenu();
+				}}
+				role="menuitem"
+				type="button"
+			>
+				<Icon icon="material-symbols:edit" class="w-4 h-4 text-phoenix-primary" />
+				Edit Image
+			</button>
+			<button
+				class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
+				onclick={() => contextMenuTarget && handleDuplicate(contextMenuTarget.id)}
+				role="menuitem"
+				type="button"
+			>
+				<Icon icon="material-symbols:content-copy" class="w-4 h-4 text-white/60" />
+				Duplicate
+			</button>
+			<div class="h-px bg-white/5 my-1"></div>
+			<button
+				class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors text-left"
+				onclick={() => contextMenuTarget && handleDelete(contextMenuTarget.id)}
+				role="menuitem"
+				type="button"
+			>
+				<Icon icon="material-symbols:delete-outline" class="w-4 h-4" />
+				Delete
+			</button>
+		</div>
+	{/if}
 
 	<!-- Hidden file input -->
 	<input
@@ -667,6 +339,6 @@
 
 	<!-- Image Editor Overlay -->
 	{#if selectedImageId && showControls}
-		<ImageEditor imageId={selectedImageId} onClose={closeTransformModal} />
+		<ImageEditorLayout imageId={selectedImageId} onClose={closeEditor} />
 	{/if}
 </div>
