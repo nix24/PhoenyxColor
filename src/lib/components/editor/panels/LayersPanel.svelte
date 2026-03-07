@@ -204,7 +204,6 @@
 							bind:value={editingNameValue}
 							onblur={() => commitRename(layer.id)}
 							onkeydown={(e) => { if (e.key === "Enter") commitRename(layer.id); if (e.key === "Escape") editingNameId = null; }}
-							autofocus
 						/>
 					{:else}
 						<span
