@@ -159,17 +159,17 @@
 
 	// Crop pointer interaction (unified mouse + touch via PointerEvent)
 	function getImageRelativePosition(e: PointerEvent): { x: number; y: number } | null {
-		const container = document.querySelector("[data-editor-canvas]");
-		if (!container) return null;
-		const containerRect = container.getBoundingClientRect();
-		const containerCenterX = containerRect.width / 2;
-		const containerCenterY = containerRect.height / 2;
-		const imageHalfWidth = (editor.imageWidth * panZoom.zoom) / 2;
-		const imageHalfHeight = (editor.imageHeight * panZoom.zoom) / 2;
-		const imageScreenX = containerRect.left + containerCenterX - imageHalfWidth + panZoom.panX * panZoom.zoom;
-		const imageScreenY = containerRect.top + containerCenterY - imageHalfHeight + panZoom.panY * panZoom.zoom;
-		const x = (e.clientX - imageScreenX) / panZoom.zoom;
-		const y = (e.clientY - imageScreenY) / panZoom.zoom;
+		// Use the actual rendered position of the image inner div.
+		// getBoundingClientRect() accounts for all CSS transforms (pan, zoom) automatically,
+		// so no manual math is needed. The inner div's coordinate space (0..naturalWidth,
+		// 0..naturalHeight) is exactly the crop coordinate space used by CropOverlay.
+		const inner = document.querySelector("[data-image-inner]") as HTMLElement | null;
+		if (!inner) return null;
+		const rect = inner.getBoundingClientRect();
+		if (!rect.width || !rect.height) return null;
+		// rect.width = naturalWidth * panZoom.zoom, so dividing by zoom gives natural image pixels.
+		const x = (e.clientX - rect.left) / panZoom.zoom;
+		const y = (e.clientY - rect.top) / panZoom.zoom;
 		return { x, y };
 	}
 

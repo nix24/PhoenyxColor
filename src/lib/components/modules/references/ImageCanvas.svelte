@@ -176,6 +176,7 @@
 	<div
 		class="relative transition-transform duration-75 ease-out will-change-transform"
 		style:transform="translate({panZoom.panX}px, {panZoom.panY}px) scale({panZoom.zoom})"
+		data-image-inner
 	>
 		<!-- Image Container with Crop -->
 		<div class="relative" style:clip-path={appliedCrop && !isComparing ? cropClipPath : "none"}>
