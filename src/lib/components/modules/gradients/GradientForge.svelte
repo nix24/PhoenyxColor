@@ -1,160 +1,154 @@
 <script lang="ts">
-	import { app } from "$lib/stores/root.svelte";
-	import { onDestroy } from "svelte";
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import GradientPreview from "./GradientPreview.svelte";
-	import MeshGradientCanvas from "./MeshGradientCanvas.svelte";
-	import type { MeshPoint, InterpolationMode } from "./gradient-utils";
-	import {
-		generateDefaultMeshPoints,
-		generateMeshPointsFromColors,
-		interpolateColorAtPosition,
-	} from "./gradient-utils";
+import { app } from "$lib/stores/root.svelte";
+import { onDestroy } from "svelte";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import GradientPreview from "./GradientPreview.svelte";
+import MeshGradientCanvas from "./MeshGradientCanvas.svelte";
+import type { MeshPoint, InterpolationMode } from "./gradient-utils";
+import {
+	generateDefaultMeshPoints,
+	generateMeshPointsFromColors,
+	interpolateColorAtPosition,
+} from "./gradient-utils";
 
-	interface Props {
-		interpolationMode: InterpolationMode;
-		onStopPositionChange: (index: number, position: number) => void;
-		onAngleChange: (angle: number) => void;
-		onCenterChange: (x: number, y: number) => void;
-		onBrowsePresets?: () => void;
-	}
+interface Props {
+	interpolationMode: InterpolationMode;
+	onStopPositionChange: (index: number, position: number) => void;
+	onAngleChange: (angle: number) => void;
+	onCenterChange: (x: number, y: number) => void;
+	onBrowsePresets?: () => void;
+}
 
-	let {
-		interpolationMode,
-		onStopPositionChange,
-		onAngleChange,
-		onCenterChange,
-		onBrowsePresets = undefined,
-	}: Props = $props();
+let {
+	interpolationMode,
+	onStopPositionChange,
+	onAngleChange,
+	onCenterChange,
+	onBrowsePresets = undefined,
+}: Props = $props();
 
-	// Canvas state
-	let previewSize = $state({ width: 600, height: 400 });
-	let showInteractiveHandles = $state(true);
-	let draggingStopIndex = $state<number | null>(null);
-	let sliderEl = $state<HTMLDivElement | null>(null);
+// Canvas state
+let previewSize = $state({ width: 600, height: 400 });
+let showInteractiveHandles = $state(true);
+let draggingStopIndex = $state<number | null>(null);
+let sliderEl = $state<HTMLDivElement | null>(null);
 
-	// Mesh state (internal -- secondary feature)
-	let isMeshMode = $state(false);
-	let meshPoints = $state<MeshPoint[]>([]);
-	let noiseEnabled = $state(false);
-	let noiseIntensity = $state(10);
-	let noiseScale = $state(1);
+// Mesh state (internal -- secondary feature)
+let isMeshMode = $state(false);
+let meshPoints = $state<MeshPoint[]>([]);
+let noiseEnabled = $state(false);
+let noiseIntensity = $state(10);
+let noiseScale = $state(1);
 
-	// Track active drag listeners for cleanup on unmount
-	let activeDragCleanup: (() => void) | null = null;
+// Track active drag listeners for cleanup on unmount
+let activeDragCleanup: (() => void) | null = null;
 
-	// Derived info badge text
-	let gradientInfo = $derived.by(() => {
-		const g = app.gradients.activeGradient;
-		if (!g) return "";
-		if (g.type === "linear") return `${g.type} ${g.angle ?? 45}°`;
-		if (g.type === "radial" || g.type === "conic")
-			return `${g.type} ${g.centerX ?? 50}%, ${g.centerY ?? 50}%`;
-		return g.type;
-	});
+// Derived info badge text
+let gradientInfo = $derived.by(() => {
+	const g = app.gradients.activeGradient;
+	if (!g) return "";
+	if (g.type === "linear") return `${g.type} ${g.angle ?? 45}°`;
+	if (g.type === "radial" || g.type === "conic")
+		return `${g.type} ${g.centerX ?? 50}%, ${g.centerY ?? 50}%`;
+	return g.type;
+});
 
-	function startStopDrag(index: number, e: MouseEvent) {
-		e.stopPropagation();
-		draggingStopIndex = index;
+function startStopDrag(index: number, e: MouseEvent) {
+	e.stopPropagation();
+	draggingStopIndex = index;
 
-		const handleMove = (moveEvent: MouseEvent) => {
-			if (draggingStopIndex === null || !sliderEl) return;
-			const rect = sliderEl.getBoundingClientRect();
-			const position = Math.max(
-				0,
-				Math.min(100, ((moveEvent.clientX - rect.left) / rect.width) * 100)
-			);
-			onStopPositionChange(draggingStopIndex, Math.round(position));
-		};
-
-		const handleUp = () => {
-			draggingStopIndex = null;
-			window.removeEventListener("mousemove", handleMove);
-			window.removeEventListener("mouseup", handleUp);
-			activeDragCleanup = null;
-		};
-
-		window.addEventListener("mousemove", handleMove);
-		window.addEventListener("mouseup", handleUp);
-
-		activeDragCleanup = () => {
-			window.removeEventListener("mousemove", handleMove);
-			window.removeEventListener("mouseup", handleUp);
-		};
-	}
-
-	onDestroy(() => {
-		activeDragCleanup?.();
-	});
-
-	function handleSliderClick(e: MouseEvent) {
-		if (draggingStopIndex !== null) return;
-		const gradient = app.gradients.activeGradient;
-		if (!gradient || !sliderEl) return;
-
+	const handleMove = (moveEvent: MouseEvent) => {
+		if (draggingStopIndex === null || !sliderEl) return;
 		const rect = sliderEl.getBoundingClientRect();
 		const position = Math.max(
 			0,
-			Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)
+			Math.min(100, ((moveEvent.clientX - rect.left) / rect.width) * 100),
 		);
-		const roundedPos = Math.round(position);
+		onStopPositionChange(draggingStopIndex, Math.round(position));
+	};
 
-		const color = interpolateColorAtPosition(gradient.stops, roundedPos, interpolationMode);
-		const newStops = [...gradient.stops, { color, position: roundedPos }].sort(
-			(a, b) => a.position - b.position
-		);
-		app.gradients.update(gradient.id, { stops: newStops });
+	const handleUp = () => {
+		draggingStopIndex = null;
+		window.removeEventListener("mousemove", handleMove);
+		window.removeEventListener("mouseup", handleUp);
+		activeDragCleanup = null;
+	};
+
+	window.addEventListener("mousemove", handleMove);
+	window.addEventListener("mouseup", handleUp);
+
+	activeDragCleanup = () => {
+		window.removeEventListener("mousemove", handleMove);
+		window.removeEventListener("mouseup", handleUp);
+	};
+}
+
+onDestroy(() => {
+	activeDragCleanup?.();
+});
+
+function handleSliderClick(e: MouseEvent) {
+	if (draggingStopIndex !== null) return;
+	const gradient = app.gradients.activeGradient;
+	if (!gradient || !sliderEl) return;
+
+	const rect = sliderEl.getBoundingClientRect();
+	const position = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+	const roundedPos = Math.round(position);
+
+	const color = interpolateColorAtPosition(gradient.stops, roundedPos, interpolationMode);
+	const newStops = [...gradient.stops, { color, position: roundedPos }].sort(
+		(a, b) => a.position - b.position,
+	);
+	app.gradients.update(gradient.id, { stops: newStops });
+}
+
+function handleStopKeydown(e: KeyboardEvent, index: number, currentPosition: number) {
+	if (e.key === "ArrowLeft") {
+		e.preventDefault();
+		onStopPositionChange(index, Math.max(0, currentPosition - 1));
+	} else if (e.key === "ArrowRight") {
+		e.preventDefault();
+		onStopPositionChange(index, Math.min(100, currentPosition + 1));
 	}
+}
 
-	function handleStopKeydown(e: KeyboardEvent, index: number, currentPosition: number) {
-		if (e.key === "ArrowLeft") {
-			e.preventDefault();
-			onStopPositionChange(index, Math.max(0, currentPosition - 1));
-		} else if (e.key === "ArrowRight") {
-			e.preventDefault();
-			onStopPositionChange(index, Math.min(100, currentPosition + 1));
-		}
-	}
-
-	// Mesh handlers (internal)
-	function toggleMeshMode() {
-		if (!isMeshMode) {
-			if (meshPoints.length === 0) {
-				const gradient = app.gradients.activeGradient;
-				if (gradient && gradient.stops.length > 0) {
-					const colors = gradient.stops.map((s) => s.color);
-					meshPoints = generateMeshPointsFromColors(colors);
-				} else {
-					meshPoints = generateDefaultMeshPoints();
-				}
+// Mesh handlers (internal)
+function toggleMeshMode() {
+	if (!isMeshMode) {
+		if (meshPoints.length === 0) {
+			const gradient = app.gradients.activeGradient;
+			if (gradient && gradient.stops.length > 0) {
+				const colors = gradient.stops.map((s) => s.color);
+				meshPoints = generateMeshPointsFromColors(colors);
+			} else {
+				meshPoints = generateDefaultMeshPoints();
 			}
 		}
-		isMeshMode = !isMeshMode;
 	}
+	isMeshMode = !isMeshMode;
+}
 
-	function handleMeshPointMove(id: string, x: number, y: number) {
-		meshPoints = meshPoints.map((p) => (p.id === id ? { ...p, x, y } : p));
-	}
+function handleMeshPointMove(id: string, x: number, y: number) {
+	meshPoints = meshPoints.map((p) => (p.id === id ? { ...p, x, y } : p));
+}
 
-	function handleMeshPointAdd(x: number, y: number, color: string) {
-		meshPoints = [
-			...meshPoints,
-			{ id: crypto.randomUUID(), x, y, color, radius: 50 },
-		];
-	}
+function handleMeshPointAdd(x: number, y: number, color: string) {
+	meshPoints = [...meshPoints, { id: crypto.randomUUID(), x, y, color, radius: 50 }];
+}
 
-	function handleMeshPointRemove(id: string) {
-		meshPoints = meshPoints.filter((p) => p.id !== id);
-	}
+function handleMeshPointRemove(id: string) {
+	meshPoints = meshPoints.filter((p) => p.id !== id);
+}
 
-	function handleMeshPointColorChange(id: string, color: string) {
-		meshPoints = meshPoints.map((p) => (p.id === id ? { ...p, color } : p));
-	}
+function handleMeshPointColorChange(id: string, color: string) {
+	meshPoints = meshPoints.map((p) => (p.id === id ? { ...p, color } : p));
+}
 
-	function handleMeshPointRadiusChange(id: string, radius: number) {
-		meshPoints = meshPoints.map((p) => (p.id === id ? { ...p, radius } : p));
-	}
+function handleMeshPointRadiusChange(id: string, radius: number) {
+	meshPoints = meshPoints.map((p) => (p.id === id ? { ...p, radius } : p));
+}
 </script>
 
 <div

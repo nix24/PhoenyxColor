@@ -5,6 +5,7 @@ import starlightTypeDoc, { typeDocSidebarGroup } from 'starlight-typedoc';
 
 // https://astro.build/config
 export default defineConfig({
+	site: 'https://phoenyxcolor.app',
 	integrations: [
 		starlight({
 			title: 'PhoenyxColor Docs',
@@ -13,10 +14,10 @@ export default defineConfig({
 				// Generate TypeDoc documentation from all TypeScript files in src/lib
 				starlightTypeDoc({
 					entryPoints: [
-						'../src/lib/index.ts',
-						'../src/lib/schemas',
-						'../src/lib/services',
-						'../src/lib/utils',
+						'../src/lib/schemas/**/*.ts',
+						'../src/lib/services/**/*.ts',
+						'../src/lib/stores/**/*.svelte.ts',
+						'../src/lib/utils/**/*.ts',
 					],
 					tsconfig: '../tsconfig.json',
 					output: 'reference/api',
@@ -24,7 +25,6 @@ export default defineConfig({
 						excludePrivate: true,
 						excludeInternal: true,
 						excludeExternals: true,
-						exclude: ['**/app.svelte.ts'],
 					},
 				}),
 			],

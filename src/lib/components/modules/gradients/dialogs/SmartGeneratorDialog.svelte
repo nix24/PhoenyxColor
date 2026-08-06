@@ -1,53 +1,49 @@
 <script lang="ts">
-	import { scale } from "svelte/transition";
-	import { cubicOut } from "svelte/easing";
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import type { ValidatedGradientStop } from "$lib/schemas/validation";
-	import {
-		generateMoodGradient,
-		generateRandomGradient,
-		type MoodType,
-	} from "../gradient-utils";
+import { scale } from "svelte/transition";
+import { cubicOut } from "svelte/easing";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import type { ValidatedGradientStop } from "$lib/schemas/validation";
+import { generateMoodGradient, generateRandomGradient, type MoodType } from "../gradient-utils";
 
-	interface Props {
-		open: boolean;
-		onClose: () => void;
-		onGenerate: (stops: ValidatedGradientStop[], name: string) => void;
-	}
+interface Props {
+	open: boolean;
+	onClose: () => void;
+	onGenerate: (stops: ValidatedGradientStop[], name: string) => void;
+}
 
-	let { open, onClose, onGenerate } = $props();
+let { open, onClose, onGenerate } = $props();
 
-	let seedColor = $state("#3b82f6");
-	let colorCount = $state(4);
-	let mood = $state<MoodType>("calm");
+let seedColor = $state("#3b82f6");
+let colorCount = $state(4);
+let mood = $state<MoodType>("calm");
 
-	const moods = [
-		{ id: "calm", label: "Calm", icon: "material-symbols:spa" },
-		{ id: "energetic", label: "Energetic", icon: "material-symbols:bolt" },
-		{ id: "corporate", label: "Corporate", icon: "material-symbols:business" },
-		{ id: "playful", label: "Playful", icon: "material-symbols:celebration" },
-		{ id: "luxury", label: "Luxury", icon: "material-symbols:diamond" },
-		{ id: "natural", label: "Natural", icon: "material-symbols:eco" },
-	] as const;
+const moods = [
+	{ id: "calm", label: "Calm", icon: "material-symbols:spa" },
+	{ id: "energetic", label: "Energetic", icon: "material-symbols:bolt" },
+	{ id: "corporate", label: "Corporate", icon: "material-symbols:business" },
+	{ id: "playful", label: "Playful", icon: "material-symbols:celebration" },
+	{ id: "luxury", label: "Luxury", icon: "material-symbols:diamond" },
+	{ id: "natural", label: "Natural", icon: "material-symbols:eco" },
+] as const;
 
-	function buildStops(colors: string[]): ValidatedGradientStop[] {
-		return colors.map((color, index) => ({
-			color,
-			position: (index / (colors.length - 1)) * 100,
-		}));
-	}
+function buildStops(colors: string[]): ValidatedGradientStop[] {
+	return colors.map((color, index) => ({
+		color,
+		position: (index / (colors.length - 1)) * 100,
+	}));
+}
 
-	function handleGenerate() {
-		const colors = generateMoodGradient(mood, seedColor, colorCount);
-		const moodLabel = mood.charAt(0).toUpperCase() + mood.slice(1);
-		onGenerate(buildStops(colors), `${moodLabel} Gradient`);
-	}
+function handleGenerate() {
+	const colors = generateMoodGradient(mood, seedColor, colorCount);
+	const moodLabel = mood.charAt(0).toUpperCase() + mood.slice(1);
+	onGenerate(buildStops(colors), `${moodLabel} Gradient`);
+}
 
-	function handleRandom() {
-		const colors = generateRandomGradient(colorCount);
-		onGenerate(buildStops(colors), "Random Gradient");
-	}
+function handleRandom() {
+	const colors = generateRandomGradient(colorCount);
+	onGenerate(buildStops(colors), "Random Gradient");
+}
 </script>
 
 {#if open}

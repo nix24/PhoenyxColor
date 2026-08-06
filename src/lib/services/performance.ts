@@ -1,20 +1,20 @@
 // Performance optimization utilities for PhoenyxColor
 import { toast } from "svelte-sonner";
 
-export interface ImageOptimizationOptions {
+interface ImageOptimizationOptions {
 	maxWidth?: number;
 	maxHeight?: number;
 	quality?: number;
 	format?: "jpeg" | "png" | "webp";
 }
 
-export interface ThumbnailOptions {
+interface ThumbnailOptions {
 	width: number;
 	height: number;
 	quality?: number;
 }
 
-export class PerformanceService {
+class PerformanceService {
 	private static instance: PerformanceService;
 	private imageCache = new Map<string, string>();
 	private thumbnailCache = new Map<string, string>();
@@ -54,7 +54,9 @@ export class PerformanceService {
 
 		return new Promise((resolve, reject) => {
 			const img = new Image();
+			const objectUrl = URL.createObjectURL(file);
 			img.onload = () => {
+				URL.revokeObjectURL(objectUrl);
 				try {
 					// Calculate new dimensions while maintaining aspect ratio
 					const { width: newWidth, height: newHeight } = this.calculateOptimalDimensions(
@@ -66,14 +68,13 @@ export class PerformanceService {
 
 					// Create canvas for optimization with high quality rendering
 					const canvas = document.createElement("canvas");
-					const ctx = canvas.getContext("2d");
 					canvas.width = newWidth;
 					canvas.height = newHeight;
+					const ctx = canvas.getContext("2d");
 
 					// Enable high-quality image rendering
 					if (!ctx) {
-						toast.error("Failed to create canvas context");
-						return;
+						throw new Error("Failed to create canvas context");
 					}
 					ctx.imageSmoothingEnabled = true;
 					ctx.imageSmoothingQuality = "high";
@@ -110,8 +111,10 @@ export class PerformanceService {
 				}
 			};
 
-			img.onerror = () => reject(new Error("Failed to load image"));
-			const objectUrl = URL.createObjectURL(file);
+			img.onerror = () => {
+				URL.revokeObjectURL(objectUrl);
+				reject(new Error("Failed to load image"));
+			};
 			img.src = objectUrl;
 		});
 	}

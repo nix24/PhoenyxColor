@@ -37,7 +37,7 @@ export type PresetCategory =
 	| "duotone"
 	| "mesh";
 
-export interface NoiseConfig {
+interface NoiseConfig {
 	enabled: boolean;
 	intensity: number; // 0-100
 	scale: number; // 0.1-10
@@ -401,7 +401,7 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 
 export function generateCSSGradient(
 	gradient: ValidatedGradient | null,
-	interpolationMode: InterpolationMode = "oklch"
+	interpolationMode: InterpolationMode = "oklch",
 ): string {
 	if (!gradient || !gradient.stops || !gradient.stops.length) {
 		return `linear-gradient(45deg in oklch, #3b82f6, #8b5cf6)`;
@@ -477,16 +477,19 @@ export function generateCSSVariables(gradient: ValidatedGradient, prefix = "grad
 
 // --- Color Manipulation ---
 
-export function interpolateGradientColors(
+function interpolateGradientColors(
 	colors: string[],
 	steps: number,
-	mode: InterpolationMode = "oklch"
+	mode: InterpolationMode = "oklch",
 ): string[] {
 	if (colors.length < 2) return colors;
 
 	try {
 		const chromaMode = mode === "oklch" ? "lch" : mode === "oklab" ? "lab" : mode;
-		return chroma.scale(colors).mode(chromaMode as any).colors(steps);
+		return chroma
+			.scale(colors)
+			.mode(chromaMode as any)
+			.colors(steps);
 	} catch {
 		return chroma.scale(colors).colors(steps);
 	}
@@ -494,7 +497,7 @@ export function interpolateGradientColors(
 
 export function smoothenGradientStops(
 	stops: ValidatedGradientStop[],
-	mode: InterpolationMode = "oklch"
+	mode: InterpolationMode = "oklch",
 ): ValidatedGradientStop[] {
 	if (stops.length < 3) return stops;
 
@@ -525,11 +528,7 @@ export function distributeStopsEvenly(stops: ValidatedGradientStop[]): Validated
 
 // --- Mood-based Generation ---
 
-export function generateMoodGradient(
-	mood: MoodType,
-	baseColor?: string,
-	colorCount = 3
-): string[] {
+export function generateMoodGradient(mood: MoodType, baseColor?: string, colorCount = 3): string[] {
 	const seed = baseColor || getRandomColor();
 
 	const moodConfigs: Record<
@@ -557,11 +556,7 @@ export function generateMoodGradient(
 			config.lightnessRange[0] +
 			(i / (colorCount - 1)) * (config.lightnessRange[1] - config.lightnessRange[0]);
 
-		colors.push(
-			chroma
-				.hsl((baseHsl[0] + hueOffset + 360) % 360, saturation, lightness)
-				.hex()
-		);
+		colors.push(chroma.hsl((baseHsl[0] + hueOffset + 360) % 360, saturation, lightness).hex());
 	}
 
 	return colors;
@@ -587,7 +582,7 @@ function getRandomColor(): string {
 
 // --- Mesh Gradient Utilities ---
 
-export function createMeshPoint(x: number, y: number, color?: string): MeshPoint {
+function createMeshPoint(x: number, y: number, color?: string): MeshPoint {
 	return {
 		id: crypto.randomUUID(),
 		x: Math.max(0, Math.min(100, x)),
@@ -626,8 +621,14 @@ export function generateMeshPointsFromColors(colors: string[]): MeshPoint[] {
 
 	// Predefined positions for mesh points based on count
 	const positions: [number, number][] = [
-		[25, 25], [75, 25], [50, 75], [50, 50],
-		[15, 50], [85, 50], [25, 85], [75, 85],
+		[25, 25],
+		[75, 25],
+		[50, 75],
+		[50, 50],
+		[15, 50],
+		[85, 50],
+		[25, 85],
+		[75, 85],
 	];
 
 	return colors.slice(0, 8).map((color, index) => {
@@ -638,11 +639,7 @@ export function generateMeshPointsFromColors(colors: string[]): MeshPoint[] {
 
 // --- Export Utilities ---
 
-export function gradientToSVG(
-	gradient: ValidatedGradient,
-	width = 400,
-	height = 200
-): string {
+export function gradientToSVG(gradient: ValidatedGradient, width = 400, height = 200): string {
 	const gradientId = `gradient-${Date.now()}`;
 	let gradientDef = "";
 
@@ -692,18 +689,18 @@ export function gradientToSVG(
 
 // --- Validation Helpers ---
 
-export function isValidHexColor(color: string): boolean {
+function isValidHexColor(color: string): boolean {
 	return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
 }
 
-export function normalizeHexColor(color: string): string {
+function normalizeHexColor(color: string): string {
 	if (!color.startsWith("#")) {
-		color = "#" + color;
+		color = `#${color}`;
 	}
 
 	if (color.length === 4) {
 		// Expand shorthand (#RGB -> #RRGGBB)
-		color = "#" + color[1] + color[1] + color[2] + color[2] + color[3] + color[3];
+		color = `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
 	}
 
 	return color.toLowerCase();
@@ -712,7 +709,7 @@ export function normalizeHexColor(color: string): string {
 export function interpolateColorAtPosition(
 	stops: ValidatedGradientStop[],
 	position: number,
-	mode: InterpolationMode = "oklch"
+	mode: InterpolationMode = "oklch",
 ): string {
 	const sorted = [...stops].sort((a, b) => a.position - b.position);
 	if (sorted.length === 0) return "#808080";
@@ -738,4 +735,3 @@ export function getContrastColor(bgColor: string): string {
 		return "#ffffff";
 	}
 }
-

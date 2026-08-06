@@ -1,12 +1,12 @@
 <script lang="ts">
-	// This page should not render as it redirects server-side
-	// This is a fallback loading state in case the redirect is slow
-	import Icon from "@iconify/svelte";
-	import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
+// This page should not render as it redirects server-side
+// This is a fallback loading state in case the redirect is slow
+import Icon from "@iconify/svelte";
+import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
 
-	const meta = PAGE_METADATA.home!;
-	const canonicalUrl = getFullUrl(meta.path);
-	const ogImage = getOgImageUrl();
+const meta = PAGE_METADATA.home!;
+const canonicalUrl = getFullUrl(meta.path);
+const ogImage = getOgImageUrl();
 </script>
 
 <svelte:head>
@@ -32,8 +32,9 @@
 </svelte:head>
 
 <!-- Fallback loading state (shouldn't normally be seen due to redirect) -->
-<div class="h-full flex items-center justify-center">
+<div class="h-full flex items-center justify-center" role="status" aria-live="polite">
 	<div class="text-center">
+		<span class="sr-only">Opening the reference library</span>
 		<!-- Animated logo skeleton -->
 		<div class="relative w-20 h-20 mx-auto mb-6">
 			<div

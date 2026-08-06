@@ -3,7 +3,7 @@ import { goto } from "$app/navigation";
 import { toast } from "svelte-sonner";
 import { PersistenceService } from "$lib/services/persistence";
 
-export interface ShortcutAction {
+interface ShortcutAction {
 	key: string;
 	ctrlKey?: boolean;
 	shiftKey?: boolean;
@@ -11,6 +11,19 @@ export interface ShortcutAction {
 	action: () => void;
 	description: string;
 	category: "navigation" | "editing" | "tools" | "export";
+}
+
+function performHistoryAction(action: "undo" | "redo"): void {
+	const path = window.location.pathname;
+	if (path.includes("/palettes")) {
+		app.palettes.history[action](app.palettes.palettes);
+	} else if (path.includes("/references")) {
+		app.references.history[action](app.references.references);
+	} else if (path.includes("/gradients")) {
+		app.gradients.history[action](app.gradients.gradients);
+	} else {
+		toast.info(`${action === "undo" ? "Undo" : "Redo"} not available here`);
+	}
 }
 
 class KeyboardShortcutsService {
@@ -66,30 +79,14 @@ class KeyboardShortcutsService {
 			{
 				key: "z",
 				ctrlKey: true,
-				action: () => {
-					// Context aware undo
-					const path = window.location.pathname;
-					if (path.includes("/palettes")) app.palettes.history.undo(app.palettes.palettes);
-					else if (path.includes("/references"))
-						app.references.history.undo(app.references.references);
-					else if (path.includes("/gradients")) app.gradients.history.undo(app.gradients.gradients);
-					else toast.info("Undo not available here");
-				},
+				action: () => performHistoryAction("undo"),
 				description: "Undo",
 				category: "editing",
 			},
 			{
 				key: "y",
 				ctrlKey: true,
-				action: () => {
-					// Context aware redo
-					const path = window.location.pathname;
-					if (path.includes("/palettes")) app.palettes.history.redo(app.palettes.palettes);
-					else if (path.includes("/references"))
-						app.references.history.redo(app.references.references);
-					else if (path.includes("/gradients")) app.gradients.history.redo(app.gradients.gradients);
-					else toast.info("Redo not available here");
-				},
+				action: () => performHistoryAction("redo"),
 				description: "Redo",
 				category: "editing",
 			},
@@ -97,15 +94,7 @@ class KeyboardShortcutsService {
 				key: "z",
 				ctrlKey: true,
 				shiftKey: true,
-				action: () => {
-					// Context aware redo (Alt)
-					const path = window.location.pathname;
-					if (path.includes("/palettes")) app.palettes.history.redo(app.palettes.palettes);
-					else if (path.includes("/references"))
-						app.references.history.redo(app.references.references);
-					else if (path.includes("/gradients")) app.gradients.history.redo(app.gradients.gradients);
-					else toast.info("Redo not available here");
-				},
+				action: () => performHistoryAction("redo"),
 				description: "Redo (Alt)",
 				category: "editing",
 			},

@@ -1,26 +1,29 @@
 /* Late 2025 Typography System - Inter, Geist, Clash Display */
 /* Preconnect hints are in +layout.svelte <svelte:head> for performance */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-@import url('https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap");
+@import "tailwindcss";
 
 /* Geist Mono - Vercel's modern monospace */
 @font-face {
 	font-family: "Geist Mono";
-	src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Regular.woff2") format("woff2");
+	src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Regular.woff2")
+		format("woff2");
 	font-weight: 400;
 	font-display: swap;
 }
 
 @font-face {
 	font-family: "Geist Mono";
-	src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Medium.woff2") format("woff2");
+	src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Medium.woff2")
+		format("woff2");
 	font-weight: 500;
 	font-display: swap;
 }
-@import "tailwindcss";
 @plugin "@tailwindcss/forms";
 @plugin "@tailwindcss/typography";
 @plugin "daisyui" {
+	/* biome-ignore lint/correctness/noUnknownProperty: daisyUI uses declarations inside its plugin block. */
 	themes:
 		light --default,
 		dark --prefersdark,
@@ -31,7 +34,6 @@
 		synthwave,
 		valentine;
 }
-
 
 @theme {
 	/* Late 2025 Font Stack */
@@ -104,7 +106,7 @@
 	--color-phoenix-violet: var(--color-secondary);
 	--color-phoenix-accent: var(--color-accent);
 	--color-text-main: var(--color-text);
-	
+
 	/* Animation Curves (Osu! / Persona style - snappy & elastic) */
 	--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
 	--ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Bouncy! */
@@ -255,7 +257,7 @@ pre,
 	letter-spacing: 0.02em;
 	text-transform: uppercase;
 	border: 1px solid transparent;
-	transition: 
+	transition:
 		transform 0.15s var(--ease-spring),
 		box-shadow 0.2s var(--ease-out-quart),
 		background 0.2s var(--ease-out-quart);
@@ -276,10 +278,18 @@ pre,
 
 /* Bounce-back animation on release */
 @keyframes btn-bounce-back {
-	0% { transform: scale(0.95); }
-	40% { transform: scale(1.02); }
-	70% { transform: scale(0.99); }
-	100% { transform: scale(1); }
+	0% {
+		transform: scale(0.95);
+	}
+	40% {
+		transform: scale(1.02);
+	}
+	70% {
+		transform: scale(0.99);
+	}
+	100% {
+		transform: scale(1);
+	}
 }
 
 .btn:not(:active):focus-visible {
@@ -291,25 +301,25 @@ pre,
 	content: "";
 	position: absolute;
 	inset: 0;
-	background: radial-gradient(circle at center, rgba(255,255,255,0.3) 0%, transparent 70%);
+	background: radial-gradient(circle at center, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
 	opacity: 0;
 	transform: scale(0);
-	transition: transform 0.5s var(--ease-out-quart), opacity 0.3s ease;
+	transition:
+		transform 0.5s var(--ease-out-quart),
+		opacity 0.3s ease;
 }
 
 .btn:active::after {
 	transform: scale(2);
 	opacity: 1;
-	transition: transform 0.1s ease-out, opacity 0s;
+	transition:
+		transform 0.1s ease-out,
+		opacity 0s;
 }
 
 /* Primary Button - Liquid Gradient */
 .btn-primary {
-	background: linear-gradient(
-		135deg,
-		var(--color-phoenix-primary),
-		var(--color-phoenix-violet)
-	);
+	background: linear-gradient(135deg, var(--color-phoenix-primary), var(--color-phoenix-violet));
 	border: none;
 	box-shadow:
 		0 4px 15px rgba(255, 0, 127, 0.4),
@@ -344,7 +354,7 @@ pre,
 	background: rgba(20, 20, 30, 0.6);
 	border: 1px solid rgba(255, 255, 255, 0.1);
 	border-radius: var(--radius-pop);
-	transition: 
+	transition:
 		border-color 0.2s var(--ease-out-quart),
 		box-shadow 0.3s var(--ease-out-quart),
 		background 0.2s var(--ease-out-quart),
@@ -357,7 +367,7 @@ pre,
 .textarea:focus {
 	outline: none;
 	border-color: var(--color-phoenix-primary);
-	box-shadow: 
+	box-shadow:
 		0 0 0 3px rgba(255, 0, 127, 0.15),
 		0 0 20px rgba(255, 0, 127, 0.2),
 		inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -384,7 +394,7 @@ pre,
 	--p: 255 0 127; /* Phoenix Pink */
 	--s: 127 0 255; /* Phoenix Violet */
 	--a: 255 215 0; /* Accent Gold */
-	
+
 	--rounded-box: var(--radius-pop);
 	--rounded-btn: var(--radius-pill);
 }
@@ -395,7 +405,8 @@ pre,
    ============================================ */
 
 @keyframes skeleton-pulse {
-	0%, 100% {
+	0%,
+	100% {
 		opacity: 0.4;
 	}
 	50% {
@@ -496,7 +507,7 @@ pre,
 
 .btn-success-state {
 	animation: success-pulse 0.6s ease-out;
-	background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+	background: linear-gradient(135deg, #22c55e, #16a34a);
 }
 
 /* Layout spring animation for list item removal */
@@ -561,4 +572,3 @@ pre,
 	-webkit-backdrop-filter: blur(8px) saturate(1.2);
 	background: rgba(0, 0, 0, 0.6);
 }
-

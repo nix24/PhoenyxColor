@@ -40,6 +40,13 @@ export const BLEND_MODES: { value: BlendMode; label: string }[] = [
 	{ value: "luminosity", label: "Luminosity" },
 ];
 
+export interface CurveChannels {
+	rgb: Array<{ x: number; y: number }>;
+	red: Array<{ x: number; y: number }>;
+	green: Array<{ x: number; y: number }>;
+	blue: Array<{ x: number; y: number }>;
+}
+
 export interface ImageLayer {
 	id: string;
 	name: string;
@@ -81,6 +88,6 @@ export interface FilterPresetSettings {
 	vignette: number;
 }
 
-export type SortMode = "name" | "date" | "recent";
+export type SortMode = "name" | "date";
 export type ViewMode = "grid" | "list";
 export type CropGuideType = "none" | "thirds" | "golden" | "diagonal";

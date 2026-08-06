@@ -27,7 +27,8 @@
 				"noArrayIndexKey": "off"
 			},
 			"style": {
-				"useConst": "off"
+				"useConst": "off",
+				"noNonNullAssertion": "off"
 			},
 			"complexity": {
 				"useArrowFunction": "off"

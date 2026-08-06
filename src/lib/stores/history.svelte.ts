@@ -50,3 +50,37 @@ export class HistoryStore<T> {
 		this.redoStack = [];
 	}
 }
+
+function snapshotStoreState<T>(state: T): T {
+	return $state.snapshot(state) as T;
+}
+
+export function recordCollectionUpdate<T>(
+	current: T[],
+	index: number,
+	updates: Partial<T>,
+	applyUpdates: () => void,
+	setState: (state: T[]) => void,
+	save: () => void,
+	history: HistoryStore<T[]>,
+	label: string,
+): void {
+	const previousState = snapshotStoreState(current);
+	const nextState = previousState.map((item, itemIndex) =>
+		itemIndex === index ? { ...item, ...updates } : item,
+	);
+	applyUpdates();
+	save();
+	history.push({
+		label,
+		undo: () => {
+			setState(previousState);
+			save();
+		},
+		redo: () => {
+			setState(nextState);
+			save();
+		},
+	});
+}
+// fallow-ignore-file unused-class-member

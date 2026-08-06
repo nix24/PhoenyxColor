@@ -192,8 +192,7 @@ function deltaE2000(
 	const rc = 2 * Math.sqrt(cBarPrime ** 7 / (cBarPrime ** 7 + 25 ** 7));
 
 	// Calculate SL, SC, and SH
-	const sl =
-		1 + (0.015 * (lBarPrime - 50) ** 2) / Math.sqrt(20 + (lBarPrime - 50) ** 2);
+	const sl = 1 + (0.015 * (lBarPrime - 50) ** 2) / Math.sqrt(20 + (lBarPrime - 50) ** 2);
 	const sc = 1 + 0.045 * cBarPrime;
 	const sh = 1 + 0.015 * cBarPrime * t;
 
@@ -207,9 +206,9 @@ function deltaE2000(
 
 	const deltaE = Math.sqrt(
 		(deltaLPrime / (kL * sl)) ** 2 +
-		(deltaCPrime / (kC * sc)) ** 2 +
-		(deltaHPrimeValue / (kH * sh)) ** 2 +
-		rt * (deltaCPrime / (kC * sc)) * (deltaHPrimeValue / (kH * sh)),
+			(deltaCPrime / (kC * sc)) ** 2 +
+			(deltaHPrimeValue / (kH * sh)) ** 2 +
+			rt * (deltaCPrime / (kC * sc)) * (deltaHPrimeValue / (kH * sh)),
 	);
 
 	return deltaE;
@@ -219,7 +218,7 @@ function deltaE2000(
  * Order colors using iterative nearest neighbor algorithm in perceptual color space
  * This creates smooth transitions by minimizing perceptual color differences
  */
-export function orderColorsForGradient(colors: string[]): string[] {
+function orderColorsForGradient(colors: string[]): string[] {
 	if (colors.length <= 2) return colors;
 
 	// Convert all colors to LAB color space
@@ -291,7 +290,7 @@ export function orderColorsForGradient(colors: string[]): string[] {
  * Alternative ordering method: Structured LCH sort with hue grouping
  * This method groups similar hues together and sorts by lightness within groups
  */
-export function orderColorsByHueLightness(colors: string[]): string[] {
+function orderColorsByHueLightness(colors: string[]): string[] {
 	if (colors.length <= 2) return colors;
 
 	// Convert to LCH and filter valid colors
@@ -330,7 +329,7 @@ export function orderColorsByHueLightness(colors: string[]): string[] {
  * Calculate the perceived brightness/luminance of a color
  * Uses the standard luminance formula: 0.299*R + 0.587*G + 0.114*B
  */
-export function getColorBrightness(color: string): number {
+function getColorBrightness(color: string): number {
 	const rgb = hexToRgb(color);
 	if (!rgb) return 0;
 
@@ -378,7 +377,7 @@ export function rgbToHsl(r: number, g: number, b: number): { h: number; s: numbe
 /**
  * Get the HSL lightness value of a color (0-100)
  */
-export function getColorLightness(color: string): number {
+function getColorLightness(color: string): number {
 	const rgb = hexToRgb(color);
 	if (!rgb) return 0;
 
@@ -389,13 +388,13 @@ export function getColorLightness(color: string): number {
 /**
  * Determine if a color is considered "light" or "dark"
  */
-export function isLightColor(color: string): boolean {
+function isLightColor(color: string): boolean {
 	return getColorBrightness(color) > 127.5; // Middle of 0-255 range
 }
 
 /**
  * Get a contrasting color (black or white) for text on a colored background
  */
-export function getContrastColor(backgroundColor: string): string {
+function getContrastColor(backgroundColor: string): string {
 	return isLightColor(backgroundColor) ? "#000000" : "#FFFFFF";
 }

@@ -38,7 +38,7 @@ async function loadImageElement(src: string): Promise<HTMLImageElement> {
 	});
 }
 
-export interface CompositeOptions {
+interface CompositeOptions {
 	width: number;
 	height: number;
 	baseImageSrc: string;
@@ -49,7 +49,7 @@ export interface CompositeOptions {
  * The base image is drawn first, then each visible layer on top.
  * Layers are drawn bottom-to-top (index 0 = bottom).
  */
-export async function compositeLayers(
+async function compositeLayers(
 	canvas: HTMLCanvasElement,
 	layers: ImageLayer[],
 	options: CompositeOptions,
@@ -83,10 +83,7 @@ export async function compositeLayers(
 /**
  * Flatten all visible layers into a single image data URL.
  */
-export async function flattenLayers(
-	layers: ImageLayer[],
-	options: CompositeOptions,
-): Promise<string> {
+async function flattenLayers(layers: ImageLayer[], options: CompositeOptions): Promise<string> {
 	const canvas = document.createElement("canvas");
 	await compositeLayers(canvas, layers, options);
 	return canvas.toDataURL("image/png");
@@ -95,10 +92,7 @@ export async function flattenLayers(
 /**
  * Generate a small thumbnail for a layer.
  */
-export async function generateLayerThumbnail(
-	src: string,
-	maxSize: number = 64,
-): Promise<string> {
+export async function generateLayerThumbnail(src: string, maxSize: number = 64): Promise<string> {
 	const img = await loadImageElement(src);
 	const scale = Math.min(maxSize / img.naturalWidth, maxSize / img.naturalHeight, 1);
 	const width = Math.round(img.naturalWidth * scale);

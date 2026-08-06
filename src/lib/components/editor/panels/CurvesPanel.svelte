@@ -1,350 +1,295 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import { onMount } from "svelte";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import { onMount } from "svelte";
+import { loadImage } from "$lib/utils/canvas-renderer";
+import { interpolateCurvePoints, readRgbPixel } from "$lib/utils/image-processing";
 
-	type CurveChannel = "rgb" | "red" | "green" | "blue";
-	type CurvePoint = { x: number; y: number };
+type CurveChannel = "rgb" | "red" | "green" | "blue";
+type CurvePoint = { x: number; y: number };
 
-	let { imageSrc, curves, onCurvesChange } = $props<{
-		imageSrc: string;
-		curves: {
-			rgb: CurvePoint[];
-			red: CurvePoint[];
-			green: CurvePoint[];
-			blue: CurvePoint[];
-		};
-		onCurvesChange: (curves: {
-			rgb: CurvePoint[];
-			red: CurvePoint[];
-			green: CurvePoint[];
-			blue: CurvePoint[];
-		}) => void;
-	}>();
-
-	let activeChannel = $state<CurveChannel>("rgb");
-	let histogramData = $state<number[]>([]);
-	let canvasElement: HTMLCanvasElement;
-	let isDragging = $state(false);
-	let selectedPointIndex = $state<number | null>(null);
-
-	const CANVAS_SIZE = 180;
-	const DATA_RANGE = 255;
-	const SCALE_FACTOR = CANVAS_SIZE / DATA_RANGE;
-	const channelColors: Record<CurveChannel, string> = {
-		rgb: "#ffffff",
-		red: "#ff4444",
-		green: "#44ff44",
-		blue: "#4444ff",
+let { imageSrc, curves, onCurvesChange } = $props<{
+	imageSrc: string;
+	curves: {
+		rgb: CurvePoint[];
+		red: CurvePoint[];
+		green: CurvePoint[];
+		blue: CurvePoint[];
 	};
+	onCurvesChange: (curves: {
+		rgb: CurvePoint[];
+		red: CurvePoint[];
+		green: CurvePoint[];
+		blue: CurvePoint[];
+	}) => void;
+}>();
 
-	// Generate histogram from image
-	async function generateHistogram() {
-		const img = new Image();
-		img.crossOrigin = "anonymous";
+let activeChannel = $state<CurveChannel>("rgb");
+let histogramData = $state<number[]>([]);
+let canvasElement: HTMLCanvasElement;
+let isDragging = $state(false);
+let selectedPointIndex = $state<number | null>(null);
 
-		await new Promise<void>((resolve, reject) => {
-			img.onload = () => resolve();
-			img.onerror = () => reject(new Error("Failed to load image"));
-			img.src = imageSrc;
-		});
+const CANVAS_SIZE = 180;
+const DATA_RANGE = 255;
+const SCALE_FACTOR = CANVAS_SIZE / DATA_RANGE;
+const channelColors: Record<CurveChannel, string> = {
+	rgb: "#ffffff",
+	red: "#ff4444",
+	green: "#44ff44",
+	blue: "#4444ff",
+};
 
-		const canvas = document.createElement("canvas");
-		const ctx = canvas.getContext("2d");
-		if (!ctx) return;
+// Generate histogram from image
+async function generateHistogram() {
+	const img = await loadImage(imageSrc);
 
-		// Downsample for performance
-		const maxSize = 256;
-		let width = img.naturalWidth;
-		let height = img.naturalHeight;
-		if (width > maxSize || height > maxSize) {
-			const ratio = Math.min(maxSize / width, maxSize / height);
-			width = Math.round(width * ratio);
-			height = Math.round(height * ratio);
-		}
+	const canvas = document.createElement("canvas");
+	const ctx = canvas.getContext("2d");
+	if (!ctx) return;
 
-		canvas.width = width;
-		canvas.height = height;
-		ctx.drawImage(img, 0, 0, width, height);
-
-		const imageData = ctx.getImageData(0, 0, width, height);
-		const data = imageData.data;
-		const histogram = new Array(256).fill(0);
-
-		// Calculate luminance histogram
-		for (let i = 0; i < data.length; i += 4) {
-			const r = data[i] ?? 0;
-			const g = data[i + 1] ?? 0;
-			const b = data[i + 2] ?? 0;
-			const lum = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
-			histogram[lum]++;
-		}
-
-		// Normalize
-		const max = Math.max(...histogram);
-		histogramData = histogram.map((v) => v / max);
+	// Downsample for performance
+	const maxSize = 256;
+	let width = img.naturalWidth;
+	let height = img.naturalHeight;
+	if (width > maxSize || height > maxSize) {
+		const ratio = Math.min(maxSize / width, maxSize / height);
+		width = Math.round(width * ratio);
+		height = Math.round(height * ratio);
 	}
 
-	// Draw curve canvas
-	function drawCurve() {
-		if (!canvasElement) return;
-		const ctx = canvasElement.getContext("2d");
-		if (!ctx) return;
+	canvas.width = width;
+	canvas.height = height;
+	ctx.drawImage(img, 0, 0, width, height);
 
-		const size = CANVAS_SIZE;
-		ctx.clearRect(0, 0, size, size);
+	const imageData = ctx.getImageData(0, 0, width, height);
+	const data = imageData.data;
+	const histogram = new Array(256).fill(0);
 
-		// Draw histogram background
-		ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
-		for (let i = 0; i < histogramData.length; i++) {
-			const height = (histogramData[i] ?? 0) * size * 0.8;
-			const scaledX = i * SCALE_FACTOR;
-			ctx.fillRect(scaledX, size - height, SCALE_FACTOR, height);
-		}
+	// Calculate luminance histogram
+	for (let i = 0; i < data.length; i += 4) {
+		const [r, g, b] = readRgbPixel(data, i);
+		const lum = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
+		histogram[lum]++;
+	}
 
-		// Draw grid
-		ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
-		ctx.lineWidth = 1;
-		for (let i = 0; i <= 4; i++) {
-			const pos = (size / 4) * i;
-			ctx.beginPath();
-			ctx.moveTo(pos, 0);
-			ctx.lineTo(pos, size);
-			ctx.stroke();
-			ctx.beginPath();
-			ctx.moveTo(0, pos);
-			ctx.lineTo(size, pos);
-			ctx.stroke();
-		}
+	// Normalize
+	const max = Math.max(...histogram);
+	histogramData = histogram.map((v) => v / max);
+}
 
-		// Draw diagonal reference line
-		ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-		ctx.setLineDash([5, 5]);
+// Draw curve canvas
+function drawCurve() {
+	if (!canvasElement) return;
+	const ctx = canvasElement.getContext("2d");
+	if (!ctx) return;
+
+	const size = CANVAS_SIZE;
+	ctx.clearRect(0, 0, size, size);
+
+	// Draw histogram background
+	ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+	for (let i = 0; i < histogramData.length; i++) {
+		const height = (histogramData[i] ?? 0) * size * 0.8;
+		const scaledX = i * SCALE_FACTOR;
+		ctx.fillRect(scaledX, size - height, SCALE_FACTOR, height);
+	}
+
+	// Draw grid
+	ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+	ctx.lineWidth = 1;
+	for (let i = 0; i <= 4; i++) {
+		const pos = (size / 4) * i;
 		ctx.beginPath();
-		ctx.moveTo(0, size);
-		ctx.lineTo(size, 0);
+		ctx.moveTo(pos, 0);
+		ctx.lineTo(pos, size);
 		ctx.stroke();
-		ctx.setLineDash([]);
-
-		// Draw curve for active channel
-		const points = curves[activeChannel];
-		if (points.length < 2) return;
-
-		ctx.strokeStyle = channelColors[activeChannel];
-		ctx.lineWidth = 2;
 		ctx.beginPath();
-
-		// Simple Catmull-Rom spline for smooth curve
-		const curvePoints = interpolateCurve(points);
-		// Scale coordinates from 0-255 to 0-180
-		const scaledX0 = (curvePoints[0]?.x ?? 0) * SCALE_FACTOR;
-		const scaledY0 = size - (curvePoints[0]?.y ?? 0) * SCALE_FACTOR;
-		ctx.moveTo(scaledX0, scaledY0);
-		for (let i = 1; i < curvePoints.length; i++) {
-			const pt = curvePoints[i];
-			if (pt) {
-				// Scale coordinates from 0-255 to 0-180
-				const scaledX = pt.x * SCALE_FACTOR;
-				const scaledY = size - pt.y * SCALE_FACTOR;
-				ctx.lineTo(scaledX, scaledY);
-			}
-		}
+		ctx.moveTo(0, pos);
+		ctx.lineTo(size, pos);
 		ctx.stroke();
+	}
 
-		// Draw control points
-		for (let i = 0; i < points.length; i++) {
-			const pt = points[i];
-			if (!pt) continue;
+	// Draw diagonal reference line
+	ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+	ctx.setLineDash([5, 5]);
+	ctx.beginPath();
+	ctx.moveTo(0, size);
+	ctx.lineTo(size, 0);
+	ctx.stroke();
+	ctx.setLineDash([]);
 
+	// Draw curve for active channel
+	const points = curves[activeChannel];
+	if (points.length < 2) return;
+
+	ctx.strokeStyle = channelColors[activeChannel];
+	ctx.lineWidth = 2;
+	ctx.beginPath();
+
+	// Simple Catmull-Rom spline for smooth curve
+	const curvePoints = interpolateCurvePoints(points);
+	// Scale coordinates from 0-255 to 0-180
+	const scaledX0 = (curvePoints[0]?.x ?? 0) * SCALE_FACTOR;
+	const scaledY0 = size - (curvePoints[0]?.y ?? 0) * SCALE_FACTOR;
+	ctx.moveTo(scaledX0, scaledY0);
+	for (let i = 1; i < curvePoints.length; i++) {
+		const pt = curvePoints[i];
+		if (pt) {
 			// Scale coordinates from 0-255 to 0-180
 			const scaledX = pt.x * SCALE_FACTOR;
 			const scaledY = size - pt.y * SCALE_FACTOR;
+			ctx.lineTo(scaledX, scaledY);
+		}
+	}
+	ctx.stroke();
 
-			ctx.fillStyle = selectedPointIndex === i ? "#ff007f" : channelColors[activeChannel];
-			ctx.beginPath();
-			ctx.arc(scaledX, scaledY, 6, 0, Math.PI * 2);
-			ctx.fill();
-			ctx.strokeStyle = "#000";
-			ctx.lineWidth = 1;
-			ctx.stroke();
+	// Draw control points
+	for (let i = 0; i < points.length; i++) {
+		const pt = points[i];
+		if (!pt) continue;
+
+		// Scale coordinates from 0-255 to 0-180
+		const scaledX = pt.x * SCALE_FACTOR;
+		const scaledY = size - pt.y * SCALE_FACTOR;
+
+		ctx.fillStyle = selectedPointIndex === i ? "#ff007f" : channelColors[activeChannel];
+		ctx.beginPath();
+		ctx.arc(scaledX, scaledY, 6, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.strokeStyle = "#000";
+		ctx.lineWidth = 1;
+		ctx.stroke();
+	}
+}
+
+// Handle mouse interactions
+function handleMouseDown(e: MouseEvent) {
+	const rect = canvasElement.getBoundingClientRect();
+	const x = ((e.clientX - rect.left) / rect.width) * CANVAS_SIZE;
+	const y = CANVAS_SIZE - ((e.clientY - rect.top) / rect.height) * CANVAS_SIZE;
+
+	// Check if clicking near existing point
+	// Convert canvas coordinates (0-180) to data coordinates (0-255)
+	const dataX = (x / CANVAS_SIZE) * DATA_RANGE;
+	const dataY = (y / CANVAS_SIZE) * DATA_RANGE;
+	const points = curves[activeChannel];
+	for (let i = 0; i < points.length; i++) {
+		const pt = points[i];
+		if (!pt) continue;
+		const dist = Math.sqrt((pt.x - dataX) ** 2 + (pt.y - dataY) ** 2);
+		if (dist < 12) {
+			selectedPointIndex = i;
+			isDragging = true;
+			return;
 		}
 	}
 
-	// Interpolate curve points using Catmull-Rom spline
-	function interpolateCurve(points: CurvePoint[]): CurvePoint[] {
-		if (points.length < 2) return points;
+	// Add new point (convert canvas coordinates to data coordinates)
+	const newDataX = Math.max(0, Math.min(DATA_RANGE, (x / CANVAS_SIZE) * DATA_RANGE));
+	const newDataY = Math.max(0, Math.min(DATA_RANGE, (y / CANVAS_SIZE) * DATA_RANGE));
+	const newPoints = [...points, { x: newDataX, y: newDataY }].sort((a, b) => a.x - b.x);
+	const newIndex = newPoints.findIndex((p) => p.x === newDataX && p.y === newDataY);
+	selectedPointIndex = newIndex;
+	isDragging = true;
 
-		const sortedPoints = [...points].sort((a, b) => a.x - b.x);
-		const result: CurvePoint[] = [];
+	const newCurves = { ...curves, [activeChannel]: newPoints };
+	onCurvesChange(newCurves);
+}
 
-		for (let i = 0; i < sortedPoints.length - 1; i++) {
-			const p0 = sortedPoints[Math.max(0, i - 1)];
-			const p1 = sortedPoints[i];
-			const p2 = sortedPoints[i + 1];
-			const p3 = sortedPoints[Math.min(sortedPoints.length - 1, i + 2)];
+function handleMouseMove(e: MouseEvent) {
+	if (!isDragging || selectedPointIndex === null) return;
 
-			if (!p0 || !p1 || !p2 || !p3) continue;
+	const rect = canvasElement.getBoundingClientRect();
+	// Get canvas coordinates (0-180)
+	const canvasX = Math.max(
+		0,
+		Math.min(CANVAS_SIZE, ((e.clientX - rect.left) / rect.width) * CANVAS_SIZE),
+	);
+	const canvasY = Math.max(
+		0,
+		Math.min(CANVAS_SIZE, CANVAS_SIZE - ((e.clientY - rect.top) / rect.height) * CANVAS_SIZE),
+	);
+	// Convert to data coordinates (0-255)
+	const x = Math.max(0, Math.min(DATA_RANGE, (canvasX / CANVAS_SIZE) * DATA_RANGE));
+	const y = Math.max(0, Math.min(DATA_RANGE, (canvasY / CANVAS_SIZE) * DATA_RANGE));
 
-			for (let t = 0; t < 1; t += 0.05) {
-				const t2 = t * t;
-				const t3 = t2 * t;
-
-				const x =
-					0.5 *
-					(2 * p1.x +
-						(-p0.x + p2.x) * t +
-						(2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
-						(-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
-
-				const y =
-					0.5 *
-					(2 * p1.y +
-						(-p0.y + p2.y) * t +
-						(2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
-						(-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
-
-				result.push({
-					x: Math.max(0, Math.min(DATA_RANGE, x)),
-					y: Math.max(0, Math.min(DATA_RANGE, y)),
-				});
-			}
+	const points = [...curves[activeChannel]];
+	const point = points[selectedPointIndex];
+	if (point) {
+		// Don't move first and last points horizontally
+		if (selectedPointIndex === 0) {
+			points[selectedPointIndex] = { x: 0, y };
+		} else if (selectedPointIndex === points.length - 1) {
+			points[selectedPointIndex] = { x: DATA_RANGE, y };
+		} else {
+			points[selectedPointIndex] = { x, y };
 		}
-
-		const lastPoint = sortedPoints[sortedPoints.length - 1];
-		if (lastPoint) {
-			result.push(lastPoint);
-		}
-
-		return result;
 	}
 
-	// Handle mouse interactions
-	function handleMouseDown(e: MouseEvent) {
-		const rect = canvasElement.getBoundingClientRect();
-		const x = ((e.clientX - rect.left) / rect.width) * CANVAS_SIZE;
-		const y = CANVAS_SIZE - ((e.clientY - rect.top) / rect.height) * CANVAS_SIZE;
+	onCurvesChange({ ...curves, [activeChannel]: points.sort((a, b) => a.x - b.x) });
+}
 
-		// Check if clicking near existing point
-		// Convert canvas coordinates (0-180) to data coordinates (0-255)
-		const dataX = (x / CANVAS_SIZE) * DATA_RANGE;
-		const dataY = (y / CANVAS_SIZE) * DATA_RANGE;
+function handleMouseUp() {
+	isDragging = false;
+}
+
+function handleDoubleClick(_e: MouseEvent) {
+	// Remove point on double click (except first and last)
+	if (selectedPointIndex !== null && selectedPointIndex > 0) {
 		const points = curves[activeChannel];
-		for (let i = 0; i < points.length; i++) {
-			const pt = points[i];
-			if (!pt) continue;
-			const dist = Math.sqrt((pt.x - dataX) ** 2 + (pt.y - dataY) ** 2);
-			if (dist < 12) {
-				selectedPointIndex = i;
-				isDragging = true;
-				return;
-			}
-		}
-
-		// Add new point (convert canvas coordinates to data coordinates)
-		const newDataX = Math.max(0, Math.min(DATA_RANGE, (x / CANVAS_SIZE) * DATA_RANGE));
-		const newDataY = Math.max(0, Math.min(DATA_RANGE, (y / CANVAS_SIZE) * DATA_RANGE));
-		const newPoints = [...points, { x: newDataX, y: newDataY }].sort((a, b) => a.x - b.x);
-		const newIndex = newPoints.findIndex((p) => p.x === newDataX && p.y === newDataY);
-		selectedPointIndex = newIndex;
-		isDragging = true;
-
-		const newCurves = { ...curves, [activeChannel]: newPoints };
-		onCurvesChange(newCurves);
-	}
-
-	function handleMouseMove(e: MouseEvent) {
-		if (!isDragging || selectedPointIndex === null) return;
-
-		const rect = canvasElement.getBoundingClientRect();
-		// Get canvas coordinates (0-180)
-		const canvasX = Math.max(
-			0,
-			Math.min(CANVAS_SIZE, ((e.clientX - rect.left) / rect.width) * CANVAS_SIZE)
-		);
-		const canvasY = Math.max(
-			0,
-			Math.min(CANVAS_SIZE, CANVAS_SIZE - ((e.clientY - rect.top) / rect.height) * CANVAS_SIZE)
-		);
-		// Convert to data coordinates (0-255)
-		const x = Math.max(0, Math.min(DATA_RANGE, (canvasX / CANVAS_SIZE) * DATA_RANGE));
-		const y = Math.max(0, Math.min(DATA_RANGE, (canvasY / CANVAS_SIZE) * DATA_RANGE));
-
-		const points = [...curves[activeChannel]];
-		const point = points[selectedPointIndex];
-		if (point) {
-			// Don't move first and last points horizontally
-			if (selectedPointIndex === 0) {
-				points[selectedPointIndex] = { x: 0, y };
-			} else if (selectedPointIndex === points.length - 1) {
-				points[selectedPointIndex] = { x: DATA_RANGE, y };
-			} else {
-				points[selectedPointIndex] = { x, y };
-			}
-		}
-
-		onCurvesChange({ ...curves, [activeChannel]: points.sort((a, b) => a.x - b.x) });
-	}
-
-	function handleMouseUp() {
-		isDragging = false;
-	}
-
-	function handleDoubleClick(e: MouseEvent) {
-		// Remove point on double click (except first and last)
-		if (selectedPointIndex !== null && selectedPointIndex > 0) {
-			const points = curves[activeChannel];
-			if (selectedPointIndex < points.length - 1) {
-				const newPoints = points.filter((_i: number, i: number) => i !== selectedPointIndex);
-				onCurvesChange({ ...curves, [activeChannel]: newPoints });
-				selectedPointIndex = null;
-			}
+		if (selectedPointIndex < points.length - 1) {
+			const newPoints = points.filter((_i: number, i: number) => i !== selectedPointIndex);
+			onCurvesChange({ ...curves, [activeChannel]: newPoints });
+			selectedPointIndex = null;
 		}
 	}
+}
 
-	function resetChannel() {
-		onCurvesChange({
-			...curves,
-			[activeChannel]: [
-				{ x: 0, y: 0 },
-				{ x: DATA_RANGE, y: DATA_RANGE },
-			],
-		});
-	}
-
-	function resetAll() {
-		onCurvesChange({
-			rgb: [
-				{ x: 0, y: 0 },
-				{ x: DATA_RANGE, y: DATA_RANGE },
-			],
-			red: [
-				{ x: 0, y: 0 },
-				{ x: DATA_RANGE, y: DATA_RANGE },
-			],
-			green: [
-				{ x: 0, y: 0 },
-				{ x: DATA_RANGE, y: DATA_RANGE },
-			],
-			blue: [
-				{ x: 0, y: 0 },
-				{ x: DATA_RANGE, y: DATA_RANGE },
-			],
-		});
-	}
-
-	$effect(() => {
-		generateHistogram().catch((error) => {
-			console.error("Failed to generate histogram:", error);
-		});
+function resetChannel() {
+	onCurvesChange({
+		...curves,
+		[activeChannel]: [
+			{ x: 0, y: 0 },
+			{ x: DATA_RANGE, y: DATA_RANGE },
+		],
 	});
+}
 
-	$effect(() => {
-		drawCurve();
+function resetAll() {
+	onCurvesChange({
+		rgb: [
+			{ x: 0, y: 0 },
+			{ x: DATA_RANGE, y: DATA_RANGE },
+		],
+		red: [
+			{ x: 0, y: 0 },
+			{ x: DATA_RANGE, y: DATA_RANGE },
+		],
+		green: [
+			{ x: 0, y: 0 },
+			{ x: DATA_RANGE, y: DATA_RANGE },
+		],
+		blue: [
+			{ x: 0, y: 0 },
+			{ x: DATA_RANGE, y: DATA_RANGE },
+		],
 	});
+}
 
-	onMount(() => {
-		drawCurve();
+$effect(() => {
+	generateHistogram().catch((error) => {
+		console.error("Failed to generate histogram:", error);
 	});
+});
+
+$effect(() => {
+	drawCurve();
+});
+
+onMount(() => {
+	drawCurve();
+});
 </script>
 
 <div class="space-y-4">

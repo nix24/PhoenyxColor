@@ -1,70 +1,71 @@
 <script lang="ts">
-	import { app } from "$lib/stores/root.svelte";
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import {
-		generateCSSGradient,
-		GRADIENT_PRESETS,
-		PRESET_CATEGORIES,
-		type GradientPreset,
-		type PresetCategory,
-	} from "./gradient-utils";
-	import { toast } from "svelte-sonner";
+import { app } from "$lib/stores/root.svelte";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import {
+	generateCSSGradient,
+	GRADIENT_PRESETS,
+	PRESET_CATEGORIES,
+	type GradientPreset,
+	type PresetCategory,
+} from "./gradient-utils";
+import { toast } from "svelte-sonner";
 
-	interface Props {
-		searchTerm?: string;
-		onCreateNew?: () => void;
-		onGenerate?: () => void;
-		onFromImage?: () => void;
-		onFromPalette?: () => void;
-		onApplyPreset?: (preset: GradientPreset) => void;
-		onSelect?: () => void;
-	}
+interface Props {
+	searchTerm?: string;
+	onCreateNew?: () => void;
+	onGenerate?: () => void;
+	onFromImage?: () => void;
+	onFromPalette?: () => void;
+	onApplyPreset?: (preset: GradientPreset) => void;
+	onSelect?: () => void;
+}
 
-	let {
-		searchTerm = $bindable(""),
-		onCreateNew,
-		onGenerate,
-		onFromImage,
-		onFromPalette,
-		onApplyPreset,
-		onSelect = undefined,
-	}: Props = $props();
+let {
+	searchTerm = $bindable(""),
+	onCreateNew,
+	onGenerate,
+	onFromImage,
+	onFromPalette,
+	onApplyPreset,
+	onSelect = undefined,
+}: Props = $props();
 
-	// Library state
-	type LibraryTab = "gradients" | "presets";
-	let activeTab = $state<LibraryTab>("gradients");
-	let viewMode = $state<"grid" | "list">("grid");
-	let selectedCategory = $state<PresetCategory | "all">("all");
+// Library state
+type LibraryTab = "gradients" | "presets";
+let activeTab = $state<LibraryTab>("gradients");
+let viewMode = $state<"grid" | "list">("grid");
+let selectedCategory = $state<PresetCategory | "all">("all");
 
-	let filteredGradients = $derived(
-		app.gradients.gradients.filter((gradient) =>
-			(gradient.name || "Untitled").toLowerCase().includes((searchTerm || "").toLowerCase())
-		)
-	);
+let filteredGradients = $derived(
+	app.gradients.gradients.filter((gradient) =>
+		(gradient.name || "Untitled").toLowerCase().includes((searchTerm || "").toLowerCase()),
+	),
+);
 
-	let filteredPresets = $derived(
-		GRADIENT_PRESETS.filter((preset) => {
-			const matchesCategory = selectedCategory === "all" || preset.category === selectedCategory;
-			const matchesSearch = !searchTerm || preset.name.toLowerCase().includes(searchTerm.toLowerCase());
-			return matchesCategory && matchesSearch;
-		})
-	);
+let filteredPresets = $derived(
+	GRADIENT_PRESETS.filter((preset) => {
+		const matchesCategory = selectedCategory === "all" || preset.category === selectedCategory;
+		const matchesSearch =
+			!searchTerm || preset.name.toLowerCase().includes(searchTerm.toLowerCase());
+		return matchesCategory && matchesSearch;
+	}),
+);
 
-	function handleGradientClick(gradientId: string) {
-		app.gradients.setActive(gradientId);
-		onSelect?.();
-	}
+function handleGradientClick(gradientId: string) {
+	app.gradients.setActive(gradientId);
+	onSelect?.();
+}
 
-	function handlePresetClick(preset: GradientPreset) {
-		onApplyPreset?.(preset);
-	}
+function handlePresetClick(preset: GradientPreset) {
+	onApplyPreset?.(preset);
+}
 
-	function deleteGradient(gradientId: string, name: string, e: Event) {
-		e.stopPropagation();
-		app.gradients.remove(gradientId);
-		toast.info(`Deleted "${name}"`);
-	}
+function deleteGradient(gradientId: string, name: string, e: Event) {
+	e.stopPropagation();
+	app.gradients.remove(gradientId);
+	toast.info(`Deleted "${name}"`);
+}
 </script>
 
 <div class="flex flex-col h-full gap-3 w-full">

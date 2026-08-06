@@ -53,3 +53,4 @@ export class IndexedDBAdapter implements StorageAdapter {
 		await db.clear(this.storeName as "keyval");
 	}
 }
+// fallow-ignore-file unused-class-member

@@ -1,360 +1,360 @@
 <script lang="ts">
-	import { scale } from "svelte/transition";
-	import { elasticOut } from "svelte/easing";
-	import { app } from "$lib/stores/root.svelte";
-	import type { ValidatedColorPalette } from "$lib/schemas/validation";
-	import pkg from "file-saver";
-	import Icon from "@iconify/svelte";
-	import { toast } from "svelte-sonner";
-	import { extractPalette } from "$lib/utils/color-engine";
-	import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
-	import { cn } from "$lib/utils/cn";
-	import { validatePalette } from "$lib/schemas/validation";
+import { scale } from "svelte/transition";
+import { elasticOut } from "svelte/easing";
+import { app } from "$lib/stores/root.svelte";
+import type { ValidatedColorPalette } from "$lib/schemas/validation";
+import pkg from "file-saver";
+import Icon from "@iconify/svelte";
+import { toast } from "svelte-sonner";
+import { extractPalette } from "$lib/utils/color-engine";
+import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
+import { cn } from "$lib/utils/cn";
+import { validatePalette } from "$lib/schemas/validation";
 
-	// Sub-components
-	import PaletteList from "./palettes/PaletteList.svelte";
-	import PaletteEditor from "./palettes/PaletteEditor.svelte";
-	import PaletteInspector from "./palettes/PaletteInspector.svelte";
-	import { isValidHexColor, normalizeHexColor } from "./palettes/palette-utils";
+// Sub-components
+import PaletteList from "./palettes/PaletteList.svelte";
+import PaletteEditor from "./palettes/PaletteEditor.svelte";
+import PaletteInspector from "./palettes/PaletteInspector.svelte";
+import { isValidHexColor, normalizeHexColor } from "./palettes/palette-utils";
 
-	const { saveAs } = pkg;
+const { saveAs } = pkg;
 
-	// State
-	let newPaletteName = $state("");
-	let showCreateDialog = $state(false);
-	let newPaletteSlots = $state(5);
-	let activeColorIndex = $state<number | null>(null); // Index-based selection
-	let colorHistory: string[] = $state(["#FF0080", "#00E5FF", "#FFB800"]);
-	let searchTerm = $state("");
+// State
+let newPaletteName = $state("");
+let showCreateDialog = $state(false);
+let newPaletteSlots = $state(5);
+let activeColorIndex = $state<number | null>(null); // Index-based selection
+let colorHistory: string[] = $state(["#FF0080", "#00E5FF", "#FFB800"]);
+let searchTerm = $state("");
 
-	// Color extraction state
-	let showExtractDialog = $state(false);
-	let showImagePicker = $state(false);
-	let extractSlots = $state(5);
-	let extractingFrom: string | null = $state(null);
+// Color extraction state
+let showExtractDialog = $state(false);
+let showImagePicker = $state(false);
+let extractSlots = $state(5);
+let extractingFrom: string | null = $state(null);
 
-	function addToColorHistory(color: string) {
-		if (!colorHistory.includes(color)) {
-			colorHistory = [color, ...colorHistory.slice(0, 19)];
-		}
+function addToColorHistory(color: string) {
+	if (!colorHistory.includes(color)) {
+		colorHistory = [color, ...colorHistory.slice(0, 19)];
+	}
+}
+
+function validatePaletteName(name: string): { valid: boolean; error?: string } {
+	const trimmed = name.trim();
+	if (!trimmed) return { valid: false, error: "Palette name cannot be empty" };
+	if (trimmed.length > 50)
+		return { valid: false, error: "Palette name too long (max 50 characters)" };
+	if (app.palettes.palettes.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
+		return { valid: false, error: "A palette with this name already exists" };
+	}
+	return { valid: true };
+}
+
+function createPalette() {
+	const validation = validatePaletteName(newPaletteName);
+	if (!validation.valid) {
+		toast.error(validation.error || "Invalid palette name");
+		return;
 	}
 
-	function validatePaletteName(name: string): { valid: boolean; error?: string } {
-		const trimmed = name.trim();
-		if (!trimmed) return { valid: false, error: "Palette name cannot be empty" };
-		if (trimmed.length > 50)
-			return { valid: false, error: "Palette name too long (max 50 characters)" };
-		if (app.palettes.palettes.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
-			return { valid: false, error: "A palette with this name already exists" };
-		}
-		return { valid: true };
+	if (newPaletteSlots < 3 || newPaletteSlots > 50) {
+		toast.error("Number of slots must be between 3 and 50");
+		return;
 	}
 
-	function createPalette() {
-		const validation = validatePaletteName(newPaletteName);
-		if (!validation.valid) {
-			toast.error(validation.error || "Invalid palette name");
+	const paletteName = newPaletteName.trim();
+	app.palettes.add({
+		name: paletteName,
+		colors: [],
+		maxSlots: newPaletteSlots,
+		tags: [],
+	});
+
+	newPaletteName = "";
+	showCreateDialog = false;
+	toast.success(`Palette "${paletteName}" created!`);
+}
+
+function exportPalette(format: "json" | "css" | "png") {
+	const palette = app.palettes.activePalette;
+	if (!palette) return;
+
+	const validation = validatePalette(palette);
+	if (!validation.valid) {
+		toast.error(`Cannot export invalid palette: ${validation.error}`);
+		return;
+	}
+
+	let content = "";
+	let filename = "";
+	let mimeType = "text/plain";
+
+	switch (format) {
+		case "json":
+			content = JSON.stringify(
+				{
+					id: palette.id,
+					name: palette.name,
+					colors: palette.colors,
+					maxSlots: palette.maxSlots,
+					createdAt: palette.createdAt.toISOString(),
+					tags: palette.tags,
+				},
+				null,
+				2,
+			);
+			filename = `${palette.name.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "palette"}.json`;
+			mimeType = "application/json";
+			break;
+		case "css":
+			content = `:root {\n${palette.colors
+				.map(
+					(color, index) =>
+						`  --color-${palette.name.replace(/\s+/g, "-").toLowerCase()}-${index + 1}: ${color};`,
+				)
+				.join("\n")}\n}`;
+			filename = `${palette.name.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "palette"}.css`;
+			break;
+		case "png":
+			exportPaletteAsImage(palette);
 			return;
-		}
-
-		if (newPaletteSlots < 3 || newPaletteSlots > 50) {
-			toast.error("Number of slots must be between 3 and 50");
-			return;
-		}
-
-		const paletteName = newPaletteName.trim();
-		app.palettes.add({
-			name: paletteName,
-			colors: [],
-			maxSlots: newPaletteSlots,
-			tags: [],
-		});
-
-		newPaletteName = "";
-		showCreateDialog = false;
-		toast.success(`Palette "${paletteName}" created!`);
 	}
 
-	function exportPalette(format: "json" | "css" | "png") {
-		const palette = app.palettes.activePalette;
-		if (!palette) return;
+	const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+	saveAs(blob, filename);
+	toast.success(`Palette exported as ${filename}`);
+}
 
-		const validation = validatePalette(palette);
-		if (!validation.valid) {
-			toast.error(`Cannot export invalid palette: ${validation.error}`);
-			return;
-		}
-
-		let content = "";
-		let filename = "";
-		let mimeType = "text/plain";
-
-		switch (format) {
-			case "json":
-				content = JSON.stringify(
-					{
-						id: palette.id,
-						name: palette.name,
-						colors: palette.colors,
-						maxSlots: palette.maxSlots,
-						createdAt: palette.createdAt.toISOString(),
-						tags: palette.tags,
-					},
-					null,
-					2
-				);
-				filename = `${palette.name.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "palette"}.json`;
-				mimeType = "application/json";
-				break;
-			case "css":
-				content = `:root {\n${palette.colors
-					.map(
-						(color, index) =>
-							`  --color-${palette.name.replace(/\s+/g, "-").toLowerCase()}-${index + 1}: ${color};`
-					)
-					.join("\n")}\n}`;
-				filename = `${palette.name.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "palette"}.css`;
-				break;
-			case "png":
-				exportPaletteAsImage(palette);
-				return;
-		}
-
-		const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
-		saveAs(blob, filename);
-		toast.success(`Palette exported as ${filename}`);
+function exportPaletteAsImage(palette: ValidatedColorPalette) {
+	const swatchSize = 100;
+	const padding = 10;
+	const textHeight = 30;
+	const totalColors = palette.colors.length;
+	if (totalColors === 0) {
+		toast.error("Cannot export empty palette as image.");
+		return;
 	}
 
-	function exportPaletteAsImage(palette: ValidatedColorPalette) {
-		const swatchSize = 100;
-		const padding = 10;
-		const textHeight = 30;
-		const totalColors = palette.colors.length;
-		if (totalColors === 0) {
-			toast.error("Cannot export empty palette as image.");
-			return;
-		}
+	const canvasWidth = totalColors * swatchSize + (totalColors + 1) * padding;
+	const canvasHeight = swatchSize + 2 * padding + textHeight;
 
-		const canvasWidth = totalColors * swatchSize + (totalColors + 1) * padding;
-		const canvasHeight = swatchSize + 2 * padding + textHeight;
-
-		const canvas = document.createElement("canvas");
-		canvas.width = canvasWidth;
-		canvas.height = canvasHeight;
-		const ctx = canvas.getContext("2d");
-		if (!ctx) {
-			toast.error("Failed to create canvas for PNG export");
-			return;
-		}
-
-		ctx.fillStyle = "#1a1a2e";
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-		palette.colors.forEach((color, index) => {
-			const x = padding + index * (swatchSize + padding);
-			ctx.fillStyle = color;
-			ctx.fillRect(x, padding, swatchSize, swatchSize);
-
-			ctx.fillStyle = "#ffffff";
-			ctx.font = "12px monospace";
-			ctx.textAlign = "center";
-			ctx.fillText(color, x + swatchSize / 2, padding + swatchSize + textHeight / 1.5);
-		});
-
-		canvas.toBlob((blob) => {
-			if (blob) {
-				saveAs(blob, `${palette.name.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "palette"}.png`);
-				toast.success(`Palette exported as PNG.`);
-			} else {
-				toast.error("Failed to generate PNG blob.");
-			}
-		}, "image/png");
+	const canvas = document.createElement("canvas");
+	canvas.width = canvasWidth;
+	canvas.height = canvasHeight;
+	const ctx = canvas.getContext("2d");
+	if (!ctx) {
+		toast.error("Failed to create canvas for PNG export");
+		return;
 	}
 
-	// Color extraction functions
-	function buildFilterString(reference: any): string {
-		const filters: string[] = [];
-		if (reference.isGrayscale) filters.push("grayscale(100%)");
-		if (reference.brightness !== undefined && reference.brightness !== 100) {
-			filters.push(`brightness(${reference.brightness}%)`);
-		}
-		if (reference.contrast !== undefined && reference.contrast !== 100) {
-			filters.push(`contrast(${reference.contrast}%)`);
-		}
-		if (reference.saturation !== undefined && reference.saturation !== 100) {
-			filters.push(`saturate(${reference.saturation}%)`);
-		}
-		if (reference.hueRotate !== undefined && reference.hueRotate !== 0) {
-			filters.push(`hue-rotate(${reference.hueRotate}deg)`);
-		}
-		if (reference.blur !== undefined && reference.blur !== 0) {
-			filters.push(`blur(${reference.blur}px)`);
-		}
-		return filters.length > 0 ? filters.join(" ") : "none";
-	}
+	ctx.fillStyle = "#1a1a2e";
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-	async function extractColorsFromTransformedImage(
-		reference: any,
-		numColors: number
-	): Promise<string[]> {
-		return new Promise((resolve, reject) => {
-			const canvas = document.createElement("canvas");
-			const ctx = canvas.getContext("2d");
-			const img = new Image();
+	palette.colors.forEach((color, index) => {
+		const x = padding + index * (swatchSize + padding);
+		ctx.fillStyle = color;
+		ctx.fillRect(x, padding, swatchSize, swatchSize);
 
-			img.onload = async () => {
-				const maxSize = 200;
-				const scale = Math.min(maxSize / img.width, maxSize / img.height);
-				canvas.width = img.width * scale;
-				canvas.height = img.height * scale;
+		ctx.fillStyle = "#ffffff";
+		ctx.font = "12px monospace";
+		ctx.textAlign = "center";
+		ctx.fillText(color, x + swatchSize / 2, padding + swatchSize + textHeight / 1.5);
+	});
 
-				if (!ctx) {
-					reject(new Error("Failed to create canvas context"));
-					return;
-				}
-
-				const filterString = buildFilterString(reference);
-				if (filterString !== "none") {
-					ctx.filter = filterString;
-				}
-
-				ctx.globalAlpha = reference.opacity || 1;
-				ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-				try {
-					const dataUrl = canvas.toDataURL();
-					const colors = await extractPalette(dataUrl, {
-						colorCount: numColors,
-						quality: "balanced",
-					});
-					resolve(colors);
-				} catch (error) {
-					reject(error);
-				}
-			};
-
-			img.onerror = () => reject(new Error("Failed to load image"));
-			img.crossOrigin = "anonymous";
-			img.src = reference.src;
-		});
-	}
-
-	async function startColorExtraction(referenceId: string) {
-		const reference = app.references.references.find((r) => r.id === referenceId);
-		if (!reference) {
-			toast.error("Reference not found");
-			return;
-		}
-		extractingFrom = referenceId;
-		showExtractDialog = true;
-	}
-
-	async function createPaletteFromReference() {
-		if (!extractingFrom) return;
-
-		const reference = app.references.references.find((r) => r.id === extractingFrom);
-		if (!reference) {
-			toast.error("Reference not found");
-			return;
-		}
-
-		try {
-			toast.info("Extracting colors from transformed image...");
-			const colors = await extractColorsFromTransformedImage(reference, extractSlots);
-
-			const baseName = reference.name.split(".")[0] ?? reference.name;
-			const suffix = " Colors";
-			const maxBaseLength = 50 - suffix.length;
-			const truncatedBaseName =
-				baseName.length > maxBaseLength ? baseName.substring(0, maxBaseLength).trim() : baseName;
-
-			let uniqueName = `${truncatedBaseName}${suffix}`;
-			let counter = 1;
-			while (app.palettes.palettes.some((p) => p.name === uniqueName)) {
-				const counterSuffix = ` ${counter}`;
-				const maxNameLength = 50 - counterSuffix.length;
-				const basePaletteName =
-					uniqueName.length > maxNameLength
-						? uniqueName.substring(0, maxNameLength).trim()
-						: uniqueName;
-				uniqueName = `${basePaletteName}${counterSuffix}`;
-				counter++;
-			}
-
-			app.palettes.add({
-				name: uniqueName,
-				colors: colors,
-				maxSlots: extractSlots,
-				tags: ["extracted"],
-			});
-
-			showExtractDialog = false;
-			extractingFrom = null;
-			toast.success(`Created palette "${uniqueName}" with ${colors.length} colors!`);
-		} catch (error) {
-			toast.error("Failed to extract colors from image");
-			console.error(error);
-		}
-	}
-
-	function handleColorChange(newColor: string) {
-		if (!app.palettes.activePaletteId || activeColorIndex === null) return;
-
-		const palette = app.palettes.activePalette;
-		if (!palette) return;
-
-		const newColors = [...palette.colors];
-		if (activeColorIndex >= 0 && activeColorIndex < newColors.length) {
-			newColors[activeColorIndex] = newColor;
-			app.palettes.update(palette.id, { colors: newColors });
-			addToColorHistory(newColor);
-		}
-	}
-
-	function deletePalette() {
-		if (!app.palettes.activePaletteId) return;
-		const name = app.palettes.activePalette?.name || "Palette";
-		app.palettes.remove(app.palettes.activePaletteId);
-		activeColorIndex = null;
-		toast.success(`Deleted "${name}"`);
-	}
-
-	function openImagePicker() {
-		if (!app.references?.references || app.references.references.length === 0) {
-			toast.error("No reference images available. Add images in the References module first.");
-			return;
-		}
-		showImagePicker = true;
-	}
-
-	function selectImageForExtraction(refId: string) {
-		showImagePicker = false;
-		startColorExtraction(refId);
-	}
-	// View State for Mobile
-	type MobileView = "list" | "editor" | "inspector";
-	let mobileView = $state<MobileView>("list");
-	let containerWidth = $state(0);
-
-	function handlePaletteSelect() {
-		// Switch to editor view if container is small (mobile layout)
-		if (containerWidth < 768) {
-			mobileView = "editor";
-		}
-	}
-
-	function handleBackToList() {
-		mobileView = "list";
-		activeColorIndex = null;
-	}
-
-	function toggleInspector() {
-		if (mobileView === "inspector") {
-			mobileView = "editor";
+	canvas.toBlob((blob) => {
+		if (blob) {
+			saveAs(blob, `${palette.name.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "palette"}.png`);
+			toast.success(`Palette exported as PNG.`);
 		} else {
-			mobileView = "inspector";
+			toast.error("Failed to generate PNG blob.");
 		}
+	}, "image/png");
+}
+
+// Color extraction functions
+function buildFilterString(reference: any): string {
+	const filters: string[] = [];
+	if (reference.isGrayscale) filters.push("grayscale(100%)");
+	if (reference.brightness !== undefined && reference.brightness !== 100) {
+		filters.push(`brightness(${reference.brightness}%)`);
 	}
+	if (reference.contrast !== undefined && reference.contrast !== 100) {
+		filters.push(`contrast(${reference.contrast}%)`);
+	}
+	if (reference.saturation !== undefined && reference.saturation !== 100) {
+		filters.push(`saturate(${reference.saturation}%)`);
+	}
+	if (reference.hueRotate !== undefined && reference.hueRotate !== 0) {
+		filters.push(`hue-rotate(${reference.hueRotate}deg)`);
+	}
+	if (reference.blur !== undefined && reference.blur !== 0) {
+		filters.push(`blur(${reference.blur}px)`);
+	}
+	return filters.length > 0 ? filters.join(" ") : "none";
+}
+
+async function extractColorsFromTransformedImage(
+	reference: any,
+	numColors: number,
+): Promise<string[]> {
+	return new Promise((resolve, reject) => {
+		const canvas = document.createElement("canvas");
+		const ctx = canvas.getContext("2d");
+		const img = new Image();
+
+		img.onload = async () => {
+			const maxSize = 200;
+			const scale = Math.min(maxSize / img.width, maxSize / img.height);
+			canvas.width = img.width * scale;
+			canvas.height = img.height * scale;
+
+			if (!ctx) {
+				reject(new Error("Failed to create canvas context"));
+				return;
+			}
+
+			const filterString = buildFilterString(reference);
+			if (filterString !== "none") {
+				ctx.filter = filterString;
+			}
+
+			ctx.globalAlpha = reference.opacity || 1;
+			ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+			try {
+				const dataUrl = canvas.toDataURL();
+				const colors = await extractPalette(dataUrl, {
+					colorCount: numColors,
+					quality: "balanced",
+				});
+				resolve(colors);
+			} catch (error) {
+				reject(error);
+			}
+		};
+
+		img.onerror = () => reject(new Error("Failed to load image"));
+		img.crossOrigin = "anonymous";
+		img.src = reference.src;
+	});
+}
+
+async function startColorExtraction(referenceId: string) {
+	const reference = app.references.references.find((r) => r.id === referenceId);
+	if (!reference) {
+		toast.error("Reference not found");
+		return;
+	}
+	extractingFrom = referenceId;
+	showExtractDialog = true;
+}
+
+async function createPaletteFromReference() {
+	if (!extractingFrom) return;
+
+	const reference = app.references.references.find((r) => r.id === extractingFrom);
+	if (!reference) {
+		toast.error("Reference not found");
+		return;
+	}
+
+	try {
+		toast.info("Extracting colors from transformed image...");
+		const colors = await extractColorsFromTransformedImage(reference, extractSlots);
+
+		const baseName = reference.name.split(".")[0] ?? reference.name;
+		const suffix = " Colors";
+		const maxBaseLength = 50 - suffix.length;
+		const truncatedBaseName =
+			baseName.length > maxBaseLength ? baseName.substring(0, maxBaseLength).trim() : baseName;
+
+		let uniqueName = `${truncatedBaseName}${suffix}`;
+		let counter = 1;
+		while (app.palettes.palettes.some((p) => p.name === uniqueName)) {
+			const counterSuffix = ` ${counter}`;
+			const maxNameLength = 50 - counterSuffix.length;
+			const basePaletteName =
+				uniqueName.length > maxNameLength
+					? uniqueName.substring(0, maxNameLength).trim()
+					: uniqueName;
+			uniqueName = `${basePaletteName}${counterSuffix}`;
+			counter++;
+		}
+
+		app.palettes.add({
+			name: uniqueName,
+			colors: colors,
+			maxSlots: extractSlots,
+			tags: ["extracted"],
+		});
+
+		showExtractDialog = false;
+		extractingFrom = null;
+		toast.success(`Created palette "${uniqueName}" with ${colors.length} colors!`);
+	} catch (error) {
+		toast.error("Failed to extract colors from image");
+		console.error(error);
+	}
+}
+
+function handleColorChange(newColor: string) {
+	if (!app.palettes.activePaletteId || activeColorIndex === null) return;
+
+	const palette = app.palettes.activePalette;
+	if (!palette) return;
+
+	const newColors = [...palette.colors];
+	if (activeColorIndex >= 0 && activeColorIndex < newColors.length) {
+		newColors[activeColorIndex] = newColor;
+		app.palettes.update(palette.id, { colors: newColors });
+		addToColorHistory(newColor);
+	}
+}
+
+function deletePalette() {
+	if (!app.palettes.activePaletteId) return;
+	const name = app.palettes.activePalette?.name || "Palette";
+	app.palettes.remove(app.palettes.activePaletteId);
+	activeColorIndex = null;
+	toast.success(`Deleted "${name}"`);
+}
+
+function openImagePicker() {
+	if (!app.references?.references || app.references.references.length === 0) {
+		toast.error("No reference images available. Add images in the References module first.");
+		return;
+	}
+	showImagePicker = true;
+}
+
+function selectImageForExtraction(refId: string) {
+	showImagePicker = false;
+	startColorExtraction(refId);
+}
+// View State for Mobile
+type MobileView = "list" | "editor" | "inspector";
+let mobileView = $state<MobileView>("list");
+let containerWidth = $state(0);
+
+function handlePaletteSelect() {
+	// Switch to editor view if container is small (mobile layout)
+	if (containerWidth < 768) {
+		mobileView = "editor";
+	}
+}
+
+function handleBackToList() {
+	mobileView = "list";
+	activeColorIndex = null;
+}
+
+function toggleInspector() {
+	if (mobileView === "inspector") {
+		mobileView = "editor";
+	} else {
+		mobileView = "inspector";
+	}
+}
 </script>
 
 <div

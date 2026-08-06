@@ -1,42 +1,42 @@
 <script lang="ts">
-	import { app } from "$lib/stores/root.svelte";
-	import { preloadData } from "$app/navigation";
-	import { page } from "$app/state";
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import { toast } from "svelte-sonner";
-	import { slide } from "svelte/transition";
-	import { cubicOut } from "svelte/easing";
+import { app } from "$lib/stores/root.svelte";
+import { preloadData } from "$app/navigation";
+import { page } from "$app/state";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import { toast } from "svelte-sonner";
+import { slide } from "svelte/transition";
+import { cubicOut } from "svelte/easing";
 
-	let { title = "PhoenyxColor" } = $props();
+let { title = "PhoenyxColor" } = $props();
 
-	const navItems = [
-		{
-			id: "references",
-			path: "/references",
-			label: "References",
-			icon: "material-symbols:image-outline",
-		},
-		{
-			id: "palettes",
-			path: "/palettes",
-			label: "Palettes",
-			icon: "material-symbols:palette-outline",
-		},
-		{
-			id: "gradients",
-			path: "/gradients",
-			label: "Gradients",
-			icon: "material-symbols:gradient",
-		},
-	];
+const navItems = [
+	{
+		id: "references",
+		path: "/references",
+		label: "References",
+		icon: "material-symbols:image-outline",
+	},
+	{
+		id: "palettes",
+		path: "/palettes",
+		label: "Palettes",
+		icon: "material-symbols:palette-outline",
+	},
+	{
+		id: "gradients",
+		path: "/gradients",
+		label: "Gradients",
+		icon: "material-symbols:gradient",
+	},
+];
 
-	let currentPath = $derived(page.url.pathname);
-	let activeIndex = $derived(navItems.findIndex((item) => currentPath.includes(item.path)));
+let currentPath = $derived(page.url.pathname);
+let activeIndex = $derived(navItems.findIndex((item) => currentPath.includes(item.path)));
 
-	function handleHover(path: string) {
-		preloadData(path);
-	}
+function handleHover(path: string) {
+	preloadData(path);
+}
 </script>
 
 <header class="nav-header h-12 flex items-center justify-between px-4 md:px-5 z-30 shrink-0">

@@ -1,5 +1,5 @@
 import { storage } from "$lib/services/storage";
-import { HistoryStore } from "./history.svelte";
+import { HistoryStore, recordCollectionUpdate } from "./history.svelte";
 import type { ValidatedColorPalette } from "$lib/schemas/validation";
 import type { PaletteId } from "$lib/types/brands";
 
@@ -112,25 +112,16 @@ export class PaletteStore {
 
 		const item = this.palettes[index];
 		if (item) {
-			const prevState = $state.snapshot(this.palettes);
-			// Create next state before applying updates
-			const nextState = prevState.map((p, i) =>
-				i === index ? { ...p, ...updates } : p
+			recordCollectionUpdate(
+				this.palettes,
+				index,
+				updates,
+				() => Object.assign(item, updates),
+				(state) => (this.palettes = state),
+				() => this.save(),
+				this.history,
+				"Update Palette",
 			);
-			Object.assign(item, updates);
-			this.save();
-
-			this.history.push({
-				label: "Update Palette",
-				undo: () => {
-					this.palettes = prevState;
-					this.save();
-				},
-				redo: () => {
-					this.palettes = nextState;
-					this.save();
-				},
-			});
 		}
 	}
 
@@ -138,8 +129,12 @@ export class PaletteStore {
 		this.activePaletteId = id;
 	}
 
+	private findPalette(paletteId: string) {
+		return this.palettes.find((p) => p.id === paletteId);
+	}
+
 	addColor(paletteId: string, color: string) {
-		const palette = this.palettes.find((p) => p.id === paletteId);
+		const palette = this.findPalette(paletteId);
 		if (!palette) return;
 
 		if (palette.colors.length >= palette.maxSlots) return;
@@ -149,7 +144,7 @@ export class PaletteStore {
 	}
 
 	removeColor(paletteId: string, colorIndex: number) {
-		const palette = this.palettes.find((p) => p.id === paletteId);
+		const palette = this.findPalette(paletteId);
 		if (!palette) return;
 
 		if (colorIndex < 0 || colorIndex >= palette.colors.length) return;
@@ -160,7 +155,7 @@ export class PaletteStore {
 	}
 
 	updateColor(paletteId: string, colorIndex: number, newColor: string) {
-		const palette = this.palettes.find((p) => p.id === paletteId);
+		const palette = this.findPalette(paletteId);
 		if (!palette) return;
 
 		if (colorIndex < 0 || colorIndex >= palette.colors.length) return;
@@ -170,3 +165,4 @@ export class PaletteStore {
 		this.update(paletteId, { colors: newColors });
 	}
 }
+// fallow-ignore-file unused-class-member

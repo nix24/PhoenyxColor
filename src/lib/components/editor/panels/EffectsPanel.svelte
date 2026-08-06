@@ -1,122 +1,111 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import { app } from "$lib/stores/root.svelte";
-	import type { AppliedEffect } from "../EditorHistory.svelte";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import { app } from "$lib/stores/root.svelte";
+import type { QuickEffect } from "$lib/types/effects";
+import type { AppliedEffect } from "../EditorHistory.svelte";
 
-	export type QuickEffect =
-		| "none"
-		| "posterize"
-		| "pixelate"
-		| "solarize"
-		| "duotone"
-		| "halftone"
-		| "vhs"
-		| "glitch"
-		| "emboss"
-		| "sharpen";
+let {
+	activeEffect = "none",
+	effectIntensity = 50,
+	duotoneColors = ["#000000", "#ffffff"],
+	appliedEffects = [],
+	onEffectChange,
+	onIntensityChange,
+	onDuotoneColorsChange,
+	onApplyEffect,
+	onRemoveEffect,
+	onClearEffects,
+} = $props<{
+	activeEffect: QuickEffect;
+	effectIntensity: number;
+	duotoneColors: [string, string];
+	appliedEffects: AppliedEffect[];
+	onEffectChange: (effect: QuickEffect) => void;
+	onIntensityChange: (intensity: number) => void;
+	onDuotoneColorsChange: (colors: [string, string]) => void;
+	onApplyEffect: () => void;
+	onRemoveEffect: (index: number) => void;
+	onClearEffects: () => void;
+}>();
 
-	let {
-		activeEffect = "none",
-		effectIntensity = 50,
-		duotoneColors = ["#000000", "#ffffff"],
-		appliedEffects = [],
-		onEffectChange,
-		onIntensityChange,
-		onDuotoneColorsChange,
-		onApplyEffect,
-		onRemoveEffect,
-		onClearEffects,
-	} = $props<{
-		activeEffect: QuickEffect;
-		effectIntensity: number;
-		duotoneColors: [string, string];
-		appliedEffects: AppliedEffect[];
-		onEffectChange: (effect: QuickEffect) => void;
-		onIntensityChange: (intensity: number) => void;
-		onDuotoneColorsChange: (colors: [string, string]) => void;
-		onApplyEffect: () => void;
-		onRemoveEffect: (index: number) => void;
-		onClearEffects: () => void;
-	}>();
+const effects: Array<{ id: QuickEffect; name: string; icon: string; description: string }> = [
+	{ id: "none", name: "None", icon: "material-symbols:block", description: "No effect applied" },
+	{
+		id: "posterize",
+		name: "Posterize",
+		icon: "material-symbols:gradient",
+		description: "Reduce color levels",
+	},
+	{
+		id: "pixelate",
+		name: "Pixelate",
+		icon: "material-symbols:grid-view",
+		description: "Retro pixel effect",
+	},
+	{
+		id: "solarize",
+		name: "Solarize",
+		icon: "material-symbols:wb-sunny",
+		description: "Partial negative effect",
+	},
+	{
+		id: "duotone",
+		name: "Duotone",
+		icon: "material-symbols:contrast",
+		description: "Two-color effect",
+	},
+	{
+		id: "halftone",
+		name: "Halftone",
+		icon: "material-symbols:blur-circular",
+		description: "Dot pattern effect",
+	},
+	{
+		id: "vhs",
+		name: "VHS",
+		icon: "material-symbols:videocam",
+		description: "Retro VHS distortion",
+	},
+	{
+		id: "glitch",
+		name: "Glitch",
+		icon: "material-symbols:broken-image",
+		description: "Digital glitch art",
+	},
+	{
+		id: "emboss",
+		name: "Emboss",
+		icon: "material-symbols:texture",
+		description: "3D embossed look",
+	},
+	{
+		id: "sharpen",
+		name: "Sharpen",
+		icon: "material-symbols:center-focus-strong",
+		description: "Enhance details",
+	},
+];
 
-	const effects: Array<{ id: QuickEffect; name: string; icon: string; description: string }> = [
-		{ id: "none", name: "None", icon: "material-symbols:block", description: "No effect applied" },
-		{
-			id: "posterize",
-			name: "Posterize",
-			icon: "material-symbols:gradient",
-			description: "Reduce color levels",
-		},
-		{
-			id: "pixelate",
-			name: "Pixelate",
-			icon: "material-symbols:grid-view",
-			description: "Retro pixel effect",
-		},
-		{
-			id: "solarize",
-			name: "Solarize",
-			icon: "material-symbols:wb-sunny",
-			description: "Partial negative effect",
-		},
-		{
-			id: "duotone",
-			name: "Duotone",
-			icon: "material-symbols:contrast",
-			description: "Two-color effect",
-		},
-		{
-			id: "halftone",
-			name: "Halftone",
-			icon: "material-symbols:blur-circular",
-			description: "Dot pattern effect",
-		},
-		{
-			id: "vhs",
-			name: "VHS",
-			icon: "material-symbols:videocam",
-			description: "Retro VHS distortion",
-		},
-		{
-			id: "glitch",
-			name: "Glitch",
-			icon: "material-symbols:broken-image",
-			description: "Digital glitch art",
-		},
-		{
-			id: "emboss",
-			name: "Emboss",
-			icon: "material-symbols:texture",
-			description: "3D embossed look",
-		},
-		{
-			id: "sharpen",
-			name: "Sharpen",
-			icon: "material-symbols:center-focus-strong",
-			description: "Enhance details",
-		},
-	];
-
-	// Get duotone colors from active palette if available
-	function usePaletteForDuotone() {
-		if (app.palettes.activePalette && app.palettes.activePalette.colors.length >= 2) {
-			const colors = app.palettes.activePalette.colors;
-			onDuotoneColorsChange([colors[0], colors[colors.length - 1]]);
-		}
+// Get duotone colors from active palette if available
+function usePaletteForDuotone() {
+	if (app.palettes.activePalette && app.palettes.activePalette.colors.length >= 2) {
+		const colors = app.palettes.activePalette.colors;
+		onDuotoneColorsChange([colors[0], colors[colors.length - 1]]);
 	}
+}
 
-	// Preset duotone combinations
-	const duotonePresets: Array<{ name: string; colors: [string, string] }> = [
-		{ name: "Classic", colors: ["#000000", "#ffffff"] },
-		{ name: "Sunset", colors: ["#1a1a2e", "#ff6b6b"] },
-		{ name: "Ocean", colors: ["#0a0a23", "#00d4ff"] },
-		{ name: "Forest", colors: ["#1a2f1a", "#7fff00"] },
-		{ name: "Neon", colors: ["#0d0221", "#ff00ff"] },
-		{ name: "Vintage", colors: ["#2c1810", "#d4a373"] },
-		{ name: "Cyan", colors: ["#000033", "#00ffff"] },
-		{ name: "Warm", colors: ["#1a0a00", "#ff9500"] },
-	];
+// Preset duotone combinations
+const duotonePresets: Array<{ name: string; colors: [string, string] }> = [
+	{ name: "Classic", colors: ["#000000", "#ffffff"] },
+	{ name: "Sunset", colors: ["#1a1a2e", "#ff6b6b"] },
+	{ name: "Ocean", colors: ["#0a0a23", "#00d4ff"] },
+	{ name: "Forest", colors: ["#1a2f1a", "#7fff00"] },
+	{ name: "Neon", colors: ["#0d0221", "#ff00ff"] },
+	{ name: "Vintage", colors: ["#2c1810", "#d4a373"] },
+	{ name: "Cyan", colors: ["#000033", "#00ffff"] },
+	{ name: "Warm", colors: ["#1a0a00", "#ff9500"] },
+];
 </script>
 
 <div class="space-y-6">

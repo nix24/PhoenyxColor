@@ -1,161 +1,161 @@
 <script lang="ts">
-	import { app } from "$lib/stores/root.svelte";
-	import Icon from "@iconify/svelte";
-	import { dndzone } from "svelte-dnd-action";
-	import { cn } from "$lib/utils/cn";
-	import {
-		getContrastRatio,
-		getWcagLevel,
-		generateAnalogousColors,
-		generateTriadicColors,
-		generateComplementaryColor,
-		generateSplitComplementaryColors,
-		generateMonochromaticColors,
-	} from "./palette-utils";
-	import { toast } from "svelte-sonner";
+import { app } from "$lib/stores/root.svelte";
+import Icon from "@iconify/svelte";
+import { dndzone } from "svelte-dnd-action";
+import { cn } from "$lib/utils/cn";
+import {
+	getContrastRatio,
+	getWcagLevel,
+	generateAnalogousColors,
+	generateTriadicColors,
+	generateComplementaryColor,
+	generateSplitComplementaryColors,
+	generateMonochromaticColors,
+} from "./palette-utils";
+import { toast } from "svelte-sonner";
 
-	interface Props {
-		activeColorIndex: number | null;
-		onColorIndexSelect: (index: number) => void;
+interface Props {
+	activeColorIndex: number | null;
+	onColorIndexSelect: (index: number) => void;
+}
+
+let { activeColorIndex, onColorIndexSelect }: Props = $props();
+
+// Local state for dnd - we manage items locally, not derived.
+let localItems = $state<Array<{ id: string; color: string; index: number }>>([]);
+
+// Stable ID counter for DnD identity tracking
+let idCounter = 0;
+
+// Sync local items when palette changes (but not during drag)
+let isDragging = $state(false);
+
+$effect(() => {
+	if (!isDragging && app.palettes.activePalette) {
+		localItems = app.palettes.activePalette.colors.map((color, index) => ({
+			id: `slot-${idCounter++}`,
+			color,
+			index,
+		}));
 	}
+});
 
-	let { activeColorIndex, onColorIndexSelect }: Props = $props();
+function handleDndConsider(e: CustomEvent<any>) {
+	isDragging = true;
+	localItems = e.detail.items;
+}
 
-	// Local state for dnd - we manage items locally, not derived.
-	let localItems = $state<Array<{ id: string; color: string; index: number }>>([]);
+function handleDndFinalize(e: CustomEvent<any>) {
+	isDragging = false;
+	localItems = e.detail.items;
 
-	// Stable ID counter for DnD identity tracking
-	let idCounter = 0;
+	if (!app.palettes.activePalette) return;
 
-	// Sync local items when palette changes (but not during drag)
-	let isDragging = $state(false);
+	// Extract colors from reordered items
+	const newColors = localItems.map((item) => item.color);
+	app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
+}
 
-	$effect(() => {
-		if (!isDragging && app.palettes.activePalette) {
-			localItems = app.palettes.activePalette.colors.map((color, index) => ({
-				id: `slot-${idCounter++}`,
-				color,
-				index,
-			}));
-		}
-	});
+// Accessibility Checks derived from active palette
+let activePaletteColors = $derived(app.palettes.activePalette?.colors ?? []);
 
-	function handleDndConsider(e: CustomEvent<any>) {
-		isDragging = true;
-		localItems = e.detail.items;
-	}
+let accessibilityStats = $derived.by(() => {
+	if (activePaletteColors.length < 2) return { aaa: 0, aa: 0, fail: 0, bestRatio: 0 };
 
-	function handleDndFinalize(e: CustomEvent<any>) {
-		isDragging = false;
-		localItems = e.detail.items;
+	let aaa = 0;
+	let aa = 0;
+	let fail = 0;
+	let bestRatio = 0;
 
-		if (!app.palettes.activePalette) return;
-
-		// Extract colors from reordered items
-		const newColors = localItems.map((item) => item.color);
-		app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
-	}
-
-	// Accessibility Checks derived from active palette
-	let activePaletteColors = $derived(app.palettes.activePalette?.colors ?? []);
-
-	let accessibilityStats = $derived.by(() => {
-		if (activePaletteColors.length < 2) return { aaa: 0, aa: 0, fail: 0, bestRatio: 0 };
-
-		let aaa = 0;
-		let aa = 0;
-		let fail = 0;
-		let bestRatio = 0;
-
-		for (let i = 0; i < activePaletteColors.length; i++) {
-			for (let j = i + 1; j < activePaletteColors.length; j++) {
-				const ratio = getContrastRatio(activePaletteColors[i]!, activePaletteColors[j]!);
-				if (ratio > bestRatio) bestRatio = ratio;
-				const level = getWcagLevel(ratio);
-				if (level.aaa) aaa++;
-				else if (level.aa) aa++;
-				else fail++;
-			}
-		}
-		return { aaa, aa, fail, bestRatio };
-	});
-
-	function setActiveIndex(index: number) {
-		onColorIndexSelect(index);
-	}
-
-	function addColor() {
-		if (app.palettes.activePaletteId) {
-			app.palettes.addColor(app.palettes.activePaletteId, "#808080");
+	for (let i = 0; i < activePaletteColors.length; i++) {
+		for (let j = i + 1; j < activePaletteColors.length; j++) {
+			const ratio = getContrastRatio(activePaletteColors[i]!, activePaletteColors[j]!);
+			if (ratio > bestRatio) bestRatio = ratio;
+			const level = getWcagLevel(ratio);
+			if (level.aaa) aaa++;
+			else if (level.aa) aa++;
+			else fail++;
 		}
 	}
+	return { aaa, aa, fail, bestRatio };
+});
 
-	function removeColor(idx: number, e: Event) {
-		e.stopPropagation();
-		if (app.palettes.activePaletteId) {
-			app.palettes.removeColor(app.palettes.activePaletteId, idx);
-		}
+function setActiveIndex(index: number) {
+	onColorIndexSelect(index);
+}
+
+function addColor() {
+	if (app.palettes.activePaletteId) {
+		app.palettes.addColor(app.palettes.activePaletteId, "#808080");
+	}
+}
+
+function removeColor(idx: number, e: Event) {
+	e.stopPropagation();
+	if (app.palettes.activePaletteId) {
+		app.palettes.removeColor(app.palettes.activePaletteId, idx);
+	}
+}
+
+// Harmony generation
+let selectedHarmony = $state<string>("none");
+const harmonyOptions = [
+	{ value: "none", label: "Select Harmony..." },
+	{ value: "complementary", label: "Complementary" },
+	{ value: "analogous", label: "Analogous" },
+	{ value: "triadic", label: "Triadic" },
+	{ value: "split-complementary", label: "Split Complementary" },
+	{ value: "monochromatic", label: "Monochromatic" },
+];
+
+function applyHarmony() {
+	if (!app.palettes.activePalette || selectedHarmony === "none") return;
+
+	const baseColor =
+		(activeColorIndex !== null && activePaletteColors[activeColorIndex]) ||
+		activePaletteColors[0] ||
+		"#FF0080";
+	let newColors: string[] = [baseColor];
+
+	switch (selectedHarmony) {
+		case "complementary":
+			newColors.push(generateComplementaryColor(baseColor));
+			break;
+		case "analogous":
+			newColors.push(...generateAnalogousColors(baseColor));
+			break;
+		case "triadic":
+			newColors.push(...generateTriadicColors(baseColor));
+			break;
+		case "split-complementary":
+			newColors.push(...generateSplitComplementaryColors(baseColor));
+			break;
+		case "monochromatic":
+			newColors.push(...generateMonochromaticColors(baseColor, 4));
+			break;
 	}
 
-	// Harmony generation
-	let selectedHarmony = $state<string>("none");
-	const harmonyOptions = [
-		{ value: "none", label: "Select Harmony..." },
-		{ value: "complementary", label: "Complementary" },
-		{ value: "analogous", label: "Analogous" },
-		{ value: "triadic", label: "Triadic" },
-		{ value: "split-complementary", label: "Split Complementary" },
-		{ value: "monochromatic", label: "Monochromatic" },
-	];
+	const harmonyName = selectedHarmony;
+	app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
+	selectedHarmony = "none";
+	toast.success(`Applied ${harmonyName} harmony!`);
+}
 
-	function applyHarmony() {
-		if (!app.palettes.activePalette || selectedHarmony === "none") return;
+function handleUndo() {
+	toast.info("Undo not yet implemented");
+}
 
-		const baseColor =
-			(activeColorIndex !== null && activePaletteColors[activeColorIndex]) ||
-			activePaletteColors[0] ||
-			"#FF0080";
-		let newColors: string[] = [baseColor];
+function handleRedo() {
+	toast.info("Redo not yet implemented");
+}
 
-		switch (selectedHarmony) {
-			case "complementary":
-				newColors.push(generateComplementaryColor(baseColor));
-				break;
-			case "analogous":
-				newColors.push(...generateAnalogousColors(baseColor));
-				break;
-			case "triadic":
-				newColors.push(...generateTriadicColors(baseColor));
-				break;
-			case "split-complementary":
-				newColors.push(...generateSplitComplementaryColors(baseColor));
-				break;
-			case "monochromatic":
-				newColors.push(...generateMonochromaticColors(baseColor, 4));
-				break;
-		}
-
-		const harmonyName = selectedHarmony;
-		app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
-		selectedHarmony = "none";
-		toast.success(`Applied ${harmonyName} harmony!`);
-	}
-
-	function handleUndo() {
-		toast.info("Undo not yet implemented");
-	}
-
-	function handleRedo() {
-		toast.info("Redo not yet implemented");
-	}
-
-	// Calculate minimum width needed for hex code display
-	function getMinWidth(colorCount: number): string {
-		// Each color needs at least 80px to show hex code fully
-		const minPerColor = 80;
-		const total = colorCount * minPerColor;
-		return `${Math.max(total, 400)}px`;
-	}
+// Calculate minimum width needed for hex code display
+function getMinWidth(colorCount: number): string {
+	// Each color needs at least 80px to show hex code fully
+	const minPerColor = 80;
+	const total = colorCount * minPerColor;
+	return `${Math.max(total, 400)}px`;
+}
 </script>
 
 <div

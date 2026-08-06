@@ -1,85 +1,85 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
-	import { app } from "$lib/stores/root.svelte";
-	import { hexToHsl, hslToHex, validateAndNormalizeColor, type HSL } from "./palette-utils";
-	import { toast } from "svelte-sonner";
+import Icon from "@iconify/svelte";
+import { app } from "$lib/stores/root.svelte";
+import { hexToHsl, hslToHex, validateAndNormalizeColor, type HSL } from "./palette-utils";
+import { toast } from "svelte-sonner";
 
-	interface Props {
-		activeColorIndex: number | null;
-		colorHistory: string[];
-		onColorChange: (newColor: string) => void;
-		onExport: (format: "json" | "css" | "png") => void;
-		onColorHistorySelect: (color: string) => void;
-	}
+interface Props {
+	activeColorIndex: number | null;
+	colorHistory: string[];
+	onColorChange: (newColor: string) => void;
+	onExport: (format: "json" | "css" | "png") => void;
+	onColorHistorySelect: (color: string) => void;
+}
 
-	let { activeColorIndex, colorHistory, onColorChange, onExport, onColorHistorySelect }: Props =
-		$props();
+let { activeColorIndex, colorHistory, onColorChange, onExport, onColorHistorySelect }: Props =
+	$props();
 
-	// Get the actual color from the palette based on index
-	let activeColor = $derived(
-		activeColorIndex !== null && app.palettes.activePalette?.colors
-			? (app.palettes.activePalette.colors[activeColorIndex] ?? null)
-			: null
-	);
+// Get the actual color from the palette based on index
+let activeColor = $derived(
+	activeColorIndex !== null && app.palettes.activePalette?.colors
+		? (app.palettes.activePalette.colors[activeColorIndex] ?? null)
+		: null,
+);
 
-	let hsl = $state<HSL>({ h: 0, s: 0, l: 0 });
-	let hexInput = $state("");
+let hsl = $state<HSL>({ h: 0, s: 0, l: 0 });
+let hexInput = $state("");
 
-	// Derive text color for active swatch
-	let isDark = $derived(() => {
-		if (!activeColor) return true;
-		const hex = activeColor.replace("#", "");
-		const r = parseInt(hex.substring(0, 2), 16);
-		const g = parseInt(hex.substring(2, 4), 16);
-		const b = parseInt(hex.substring(4, 6), 16);
-		return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
-	});
+// Derive text color for active swatch
+let isDark = $derived(() => {
+	if (!activeColor) return true;
+	const hex = activeColor.replace("#", "");
+	const r = parseInt(hex.substring(0, 2), 16);
+	const g = parseInt(hex.substring(2, 4), 16);
+	const b = parseInt(hex.substring(4, 6), 16);
+	return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+});
 
-	// Update HSL when active color changes
-	$effect(() => {
-		if (activeColor) {
-			const extracted = hexToHsl(activeColor);
-			if (extracted) {
-				hsl = { ...extracted };
-			}
-			hexInput = activeColor;
-		} else {
-			hsl = { h: 0, s: 0, l: 0 };
-			hexInput = "";
+// Update HSL when active color changes
+$effect(() => {
+	if (activeColor) {
+		const extracted = hexToHsl(activeColor);
+		if (extracted) {
+			hsl = { ...extracted };
 		}
-	});
-
-	function updateFromHsl() {
-		if (activeColorIndex === null) return;
-		const newHex = hslToHex(hsl.h, hsl.s, hsl.l);
-		onColorChange(newHex);
+		hexInput = activeColor;
+	} else {
+		hsl = { h: 0, s: 0, l: 0 };
+		hexInput = "";
 	}
+});
 
-	function handleHexInput(val: string) {
-		hexInput = val;
-		if (val.length >= 7) {
-			const valid = validateAndNormalizeColor(val);
-			if (valid.valid && valid.color) {
-				onColorChange(valid.color);
-			}
-		}
-	}
+function updateFromHsl() {
+	if (activeColorIndex === null) return;
+	const newHex = hslToHex(hsl.h, hsl.s, hsl.l);
+	onColorChange(newHex);
+}
 
-	function handleHexBlur() {
-		if (activeColor) {
-			hexInput = activeColor;
+function handleHexInput(val: string) {
+	hexInput = val;
+	if (val.length >= 7) {
+		const valid = validateAndNormalizeColor(val);
+		if (valid.valid && valid.color) {
+			onColorChange(valid.color);
 		}
 	}
+}
 
-	async function copyHex() {
-		if (!activeColor) return;
-		try {
-			await navigator.clipboard.writeText(activeColor);
-			toast.success("Copied!");
-		} catch {
-			toast.error("Failed to copy");
-		}
+function handleHexBlur() {
+	if (activeColor) {
+		hexInput = activeColor;
 	}
+}
+
+async function copyHex() {
+	if (!activeColor) return;
+	try {
+		await navigator.clipboard.writeText(activeColor);
+		toast.success("Copied!");
+	} catch {
+		toast.error("Failed to copy");
+	}
+}
 </script>
 
 <div class="h-full flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">

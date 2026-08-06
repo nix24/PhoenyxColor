@@ -43,9 +43,7 @@ export class GradientStore {
 				this.gradients = saved.map((g) => ({
 					...g,
 					createdAt: new Date(g.createdAt),
-					stops: (g.stops && Array.isArray(g.stops) && g.stops.length >= 2)
-						? g.stops
-						: defaultStops
+					stops: g.stops && Array.isArray(g.stops) && g.stops.length >= 2 ? g.stops : defaultStops,
 				}));
 			}
 		} catch (error) {
@@ -121,9 +119,7 @@ export class GradientStore {
 		if (item) {
 			const prevState = $state.snapshot(this.gradients);
 			// Create next state before applying updates
-			const nextState = prevState.map((g, i) =>
-				i === index ? { ...g, ...updates } : g
-			);
+			const nextState = prevState.map((g, i) => (i === index ? { ...g, ...updates } : g));
 			Object.assign(item, updates);
 			this.save();
 
@@ -145,3 +141,4 @@ export class GradientStore {
 		this.activeGradientId = id;
 	}
 }
+// fallow-ignore-file unused-class-member

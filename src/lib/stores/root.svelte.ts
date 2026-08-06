@@ -79,4 +79,4 @@ export class RootStore {
 export const app = new RootStore();
 
 // Export for usage in components
-export const getApp = () => app;
+// fallow-ignore-file unused-class-member

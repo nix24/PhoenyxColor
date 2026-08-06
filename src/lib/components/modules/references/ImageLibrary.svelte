@@ -1,69 +1,71 @@
 <script lang="ts">
-	import type { ValidatedReferenceImage } from "$lib/schemas/validation";
-	import type { SortMode, ViewMode } from "$lib/types/image-editor";
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import ImageCard from "./ImageCard.svelte";
-	import SkeletonCard from "$lib/components/ui/SkeletonCard.svelte";
-	import { buildReferenceFilterString } from "$lib/utils/image-filters";
+import type { ValidatedReferenceImage } from "$lib/schemas/validation";
+import type { SortMode, ViewMode } from "$lib/types/image-editor";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import ImageCard from "./ImageCard.svelte";
+import SkeletonCard from "$lib/components/ui/SkeletonCard.svelte";
+import { buildReferenceFilterString } from "$lib/utils/image-filters";
 
-	interface Props {
-		references: ValidatedReferenceImage[];
-		selectedImageId: string | null;
-		isLoading: boolean;
-		isDragOver: boolean;
-		onAddFiles: () => void;
-		onClearAll: () => void;
-		onEdit: (id: string) => void;
-		onDuplicate: (id: string) => void;
-		onDelete: (id: string) => void;
-		onContextMenu: (e: MouseEvent, ref: ValidatedReferenceImage) => void;
+interface Props {
+	references: ValidatedReferenceImage[];
+	selectedImageId: string | null;
+	isLoading: boolean;
+	loadError: string | null;
+	isDragOver: boolean;
+	onAddFiles: () => void;
+	onClearAll: () => void;
+	onEdit: (id: string) => void;
+	onDuplicate: (id: string) => void;
+	onDelete: (id: string) => void;
+	onContextMenu: (e: MouseEvent, ref: ValidatedReferenceImage) => void;
+	onRetry: () => void;
+}
+
+const {
+	references,
+	selectedImageId,
+	isLoading,
+	loadError,
+	isDragOver,
+	onAddFiles,
+	onClearAll,
+	onEdit,
+	onDuplicate,
+	onDelete,
+	onContextMenu,
+	onRetry,
+}: Props = $props();
+
+let searchTerm = $state("");
+let sortMode = $state<SortMode>("date");
+let viewMode = $state<ViewMode>("grid");
+
+const filteredReferences = $derived.by(() => {
+	let result = references;
+
+	// Filter by search
+	if (searchTerm.trim()) {
+		const term = searchTerm.toLowerCase();
+		result = result.filter((ref) => ref.name.toLowerCase().includes(term));
 	}
 
-	const {
-		references,
-		selectedImageId,
-		isLoading,
-		isDragOver,
-		onAddFiles,
-		onClearAll,
-		onEdit,
-		onDuplicate,
-		onDelete,
-		onContextMenu,
-	}: Props = $props();
-
-	let searchTerm = $state("");
-	let sortMode = $state<SortMode>("date");
-	let viewMode = $state<ViewMode>("grid");
-
-	const filteredReferences = $derived.by(() => {
-		let result = references;
-
-		// Filter by search
-		if (searchTerm.trim()) {
-			const term = searchTerm.toLowerCase();
-			result = result.filter((ref) => ref.name.toLowerCase().includes(term));
+	// Sort
+	result = [...result].sort((a, b) => {
+		switch (sortMode) {
+			case "name":
+				return a.name.localeCompare(b.name);
+			case "date":
+				return b.createdAt.getTime() - a.createdAt.getTime();
+			default:
+				return 0;
 		}
-
-		// Sort
-		result = [...result].sort((a, b) => {
-			switch (sortMode) {
-				case "name":
-					return a.name.localeCompare(b.name);
-				case "date":
-					return b.createdAt.getTime() - a.createdAt.getTime();
-				case "recent":
-					return b.createdAt.getTime() - a.createdAt.getTime();
-				default:
-					return 0;
-			}
-		});
-
-		return result;
 	});
 
-	const refCount = $derived(references.length);
+	return result;
+});
+
+const refCount = $derived(references.length);
 </script>
 
 <div class="flex flex-col h-full gap-3">
@@ -81,7 +83,7 @@
 					{/if}
 				</h2>
 				<p class="text-xs text-text-muted/70 mt-0.5">
-					Click to edit &middot; Right-click for options
+					Select an image to edit or open its actions
 				</p>
 			</div>
 		</div>
@@ -113,11 +115,13 @@
 
 	<!-- Search & Controls -->
 	{#if refCount > 0}
-		<div class="px-4 @md:px-6 flex items-center gap-2 shrink-0">
+		<div class="px-4 @md:px-6 grid grid-cols-[minmax(0,1fr)_auto] @sm:flex items-center gap-2 shrink-0">
 			<!-- Search -->
-			<div class="relative flex-1">
+			<div class="relative flex-1 col-span-2 @sm:col-span-1">
+				<label for="reference-search" class="sr-only">Search reference images</label>
 				<Icon icon="material-symbols:search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted/50" />
 				<input
+					id="reference-search"
 					type="text"
 					bind:value={searchTerm}
 					placeholder="Search images..."
@@ -165,6 +169,14 @@
 		</div>
 	{/if}
 
+	{#if loadError && references.length > 0 && !isLoading}
+		<div role="alert" class="mx-4 mb-3 flex items-center gap-3 rounded-xl border border-amber-300/20 bg-amber-300/8 px-4 py-3 text-sm text-amber-100 @md:mx-6">
+			<Icon icon="material-symbols:warning-outline" class="h-5 w-5 shrink-0" />
+			<p class="min-w-0 flex-1 leading-relaxed">{loadError}</p>
+			<button class="btn btn-sm btn-ghost shrink-0" type="button" onclick={onRetry}>Retry</button>
+		</div>
+	{/if}
+
 	<!-- Content -->
 	<div class="flex-1 overflow-hidden relative">
 		{#if isLoading}
@@ -178,6 +190,20 @@
 							<SkeletonCard type="image" class="h-full" />
 						</div>
 					{/each}
+				</div>
+			</div>
+		{:else if loadError && references.length === 0}
+			<div class="flex items-center justify-center h-full p-6">
+				<div role="alert" class="w-full max-w-md rounded-2xl border border-red-400/20 bg-red-400/8 p-6 text-center">
+					<div class="w-12 h-12 rounded-xl bg-red-400/10 flex items-center justify-center mx-auto mb-4">
+						<Icon icon="material-symbols:cloud-off" class="w-6 h-6 text-red-300" />
+					</div>
+					<h3 class="text-base font-semibold text-white">References unavailable</h3>
+					<p class="mt-2 text-sm text-text-muted leading-relaxed">{loadError}</p>
+					<button class="btn btn-sm btn-primary mt-5" type="button" onclick={onRetry}>
+						<Icon icon="material-symbols:refresh" class="w-4 h-4" />
+						Try again
+					</button>
 				</div>
 			</div>
 		{:else if filteredReferences.length > 0}
@@ -272,9 +298,9 @@
 								</div>
 
 								<!-- Actions -->
-								<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+								<div class="flex items-center gap-1 opacity-100 @md:opacity-0 @md:group-hover:opacity-100 @md:group-focus-within:opacity-100 transition-opacity">
 									<button
-										class="w-7 h-7 rounded-md flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all"
+										class="w-10 h-10 rounded-lg flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all"
 										onclick={(e) => {
 											e.stopPropagation();
 											onDuplicate(reference.id);
@@ -285,7 +311,7 @@
 										<Icon icon="material-symbols:content-copy" class="w-3.5 h-3.5" />
 									</button>
 									<button
-										class="w-7 h-7 rounded-md flex items-center justify-center text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-all"
+										class="w-10 h-10 rounded-lg flex items-center justify-center text-white/50 hover:text-red-400 hover:bg-red-400/10 transition-all"
 										onclick={(e) => {
 											e.stopPropagation();
 											onDelete(reference.id);
@@ -314,22 +340,13 @@
 			<div class="flex items-center justify-center h-full p-6">
 				<div
 					class={cn(
-						"w-full max-w-sm text-center cursor-pointer transition-all duration-300",
+						"w-full max-w-sm text-center transition-all duration-300",
 						"p-8 @md:p-10 rounded-2xl border-2 border-dashed",
 						"bg-white/2",
 						isDragOver
 							? "border-phoenix-primary bg-phoenix-primary/5 scale-[1.02]"
 							: "border-white/8 hover:border-white/15"
 					)}
-					onclick={onAddFiles}
-					onkeydown={(e) => {
-						if (e.key === "Enter" || e.key === " ") {
-							e.preventDefault();
-							onAddFiles();
-						}
-					}}
-					role="button"
-					tabindex="0"
 				>
 					<div class="w-16 h-16 rounded-2xl bg-linear-to-br from-phoenix-primary/15 to-phoenix-violet/15 flex items-center justify-center mx-auto mb-5">
 						<Icon
@@ -343,12 +360,13 @@
 
 					<h3 class="text-lg font-bold mb-1.5 text-white">Add References</h3>
 					<p class="text-sm text-text-muted/70 mb-6 max-w-[240px] mx-auto leading-relaxed">
-						Drop images here or click to browse your files
+						Drop images here or choose files from your device
 					</p>
 
 					<button
 						class="btn btn-sm btn-primary gap-1.5"
 						type="button"
+						onclick={onAddFiles}
 					>
 						<Icon icon="material-symbols:upload" class="w-4 h-4" />
 						Choose Files

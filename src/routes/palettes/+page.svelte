@@ -1,10 +1,10 @@
 <script lang="ts">
-	import PalettesModule from "$lib/components/modules/PalettesModule.svelte";
-	import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
+import PalettesModule from "$lib/components/modules/PalettesModule.svelte";
+import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
 
-	const meta = PAGE_METADATA.palettes!;
-	const canonicalUrl = getFullUrl(meta.path);
-	const ogImage = getOgImageUrl();
+const meta = PAGE_METADATA.palettes!;
+const canonicalUrl = getFullUrl(meta.path);
+const ogImage = getOgImageUrl();
 </script>
 
 <svelte:head>

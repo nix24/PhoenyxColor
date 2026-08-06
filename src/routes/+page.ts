@@ -4,6 +4,6 @@ import { redirect } from "@sveltejs/kit";
 import type { Load } from "@sveltejs/kit";
 
 export const load: Load = () => {
-    // Redirect to the references page as the default landing
-    redirect(302, "/references");
+	// Redirect to the references page as the default landing
+	redirect(302, "/references");
 };

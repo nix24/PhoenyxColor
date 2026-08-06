@@ -1,32 +1,32 @@
 <script lang="ts">
-	import { app } from "$lib/stores/root.svelte";
-	import Icon from "@iconify/svelte";
-	import type { InterpolationMode } from "./gradient-utils";
-	import { generateCSSGradient } from "./gradient-utils";
-	import { toast } from "svelte-sonner";
-	import GradientControls from "./GradientControls.svelte";
+import { app } from "$lib/stores/root.svelte";
+import Icon from "@iconify/svelte";
+import type { InterpolationMode } from "./gradient-utils";
+import { generateCSSGradient } from "./gradient-utils";
+import { toast } from "svelte-sonner";
+import GradientControls from "./GradientControls.svelte";
 
-	interface Props {
-		interpolationMode: InterpolationMode;
-		onInterpolationModeChange: (mode: InterpolationMode) => void;
-		onExport: () => void;
-		onDelete: () => void;
-	}
+interface Props {
+	interpolationMode: InterpolationMode;
+	onInterpolationModeChange: (mode: InterpolationMode) => void;
+	onExport: () => void;
+	onDelete: () => void;
+}
 
-	let { interpolationMode, onInterpolationModeChange, onExport, onDelete } = $props();
+let { interpolationMode, onInterpolationModeChange, onExport, onDelete } = $props();
 
-	let activeGradient = $derived(app.gradients.activeGradient);
+let activeGradient = $derived(app.gradients.activeGradient);
 
-	let cssOutput = $derived(
-		activeGradient ? generateCSSGradient(activeGradient, interpolationMode) : ""
-	);
+let cssOutput = $derived(
+	activeGradient ? generateCSSGradient(activeGradient, interpolationMode) : "",
+);
 
-	function copyCss() {
-		navigator.clipboard
-			.writeText(`background: ${cssOutput};`)
-			.then(() => toast.success("CSS copied!"))
-			.catch(() => toast.error("Failed to copy"));
-	}
+function copyCss() {
+	navigator.clipboard
+		.writeText(`background: ${cssOutput};`)
+		.then(() => toast.success("CSS copied!"))
+		.catch(() => toast.error("Failed to copy"));
+}
 </script>
 
 <div class="flex flex-col h-full gap-4 w-full overflow-y-auto custom-scrollbar">

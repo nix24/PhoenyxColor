@@ -1,83 +1,130 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import type { ImageEditorState } from "../EditorHistory.svelte.ts";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import type { ImageEditorState } from "../EditorHistory.svelte.ts";
 
-	let { editorState, onUpdate } = $props<{
-		editorState: ImageEditorState;
-		onUpdate: (updates: Partial<ImageEditorState>) => void;
-	}>();
+let { editorState, onUpdate } = $props<{
+	editorState: ImageEditorState;
+	onUpdate: (updates: Partial<ImageEditorState>) => void;
+}>();
 
-	let activeSection = $state<"light" | "color" | "effects" | "detail">("light");
+let activeSection = $state<"light" | "color" | "effects" | "detail">("light");
 
-	interface SliderConfig {
-		key: keyof ImageEditorState;
-		label: string;
-		min: number;
-		max: number;
-		step: number;
-		unit: string;
-		defaultValue: number;
+interface SliderConfig {
+	key: keyof ImageEditorState;
+	label: string;
+	min: number;
+	max: number;
+	step: number;
+	unit: string;
+	defaultValue: number;
+}
+
+const lightSliders: SliderConfig[] = [
+	{
+		key: "brightness",
+		label: "Brightness",
+		min: 0,
+		max: 200,
+		step: 1,
+		unit: "%",
+		defaultValue: 100,
+	},
+	{ key: "contrast", label: "Contrast", min: 0, max: 200, step: 1, unit: "%", defaultValue: 100 },
+	{ key: "shadows", label: "Shadows", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
+	{
+		key: "highlights",
+		label: "Highlights",
+		min: -100,
+		max: 100,
+		step: 1,
+		unit: "",
+		defaultValue: 0,
+	},
+];
+
+const colorSliders: SliderConfig[] = [
+	{
+		key: "saturation",
+		label: "Saturation",
+		min: 0,
+		max: 200,
+		step: 1,
+		unit: "%",
+		defaultValue: 100,
+	},
+	{ key: "vibrance", label: "Vibrance", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
+	{ key: "hueRotate", label: "Hue", min: 0, max: 360, step: 1, unit: "\u00B0", defaultValue: 0 },
+	{
+		key: "temperature",
+		label: "Temperature",
+		min: -100,
+		max: 100,
+		step: 1,
+		unit: "",
+		defaultValue: 0,
+	},
+	{ key: "tint", label: "Tint", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
+];
+
+const effectSliders: SliderConfig[] = [
+	{ key: "sepia", label: "Sepia", min: 0, max: 100, step: 1, unit: "%", defaultValue: 0 },
+	{ key: "invert", label: "Invert", min: 0, max: 100, step: 1, unit: "%", defaultValue: 0 },
+	{ key: "opacity", label: "Opacity", min: 0, max: 1, step: 0.01, unit: "", defaultValue: 1 },
+];
+
+const detailSliders: SliderConfig[] = [
+	{ key: "clarity", label: "Clarity", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
+	{ key: "blur", label: "Blur", min: 0, max: 20, step: 0.5, unit: "px", defaultValue: 0 },
+	{ key: "vignette", label: "Vignette", min: 0, max: 100, step: 1, unit: "%", defaultValue: 0 },
+];
+
+const sections = [
+	{
+		id: "light" as const,
+		label: "Light",
+		icon: "material-symbols:light-mode",
+		sliders: lightSliders,
+	},
+	{ id: "color" as const, label: "Color", icon: "material-symbols:palette", sliders: colorSliders },
+	{
+		id: "effects" as const,
+		label: "Effects",
+		icon: "material-symbols:blur-on",
+		sliders: effectSliders,
+	},
+	{
+		id: "detail" as const,
+		label: "Detail",
+		icon: "material-symbols:details",
+		sliders: detailSliders,
+	},
+];
+
+function handleSliderChange(key: keyof ImageEditorState, value: number) {
+	onUpdate({ [key]: value });
+}
+
+function formatValue(value: number, config: SliderConfig): string {
+	if (config.key === "opacity") {
+		return `${Math.round(value * 100)}%`;
 	}
+	return `${Math.round(value)}${config.unit}`;
+}
 
-	const lightSliders: SliderConfig[] = [
-		{ key: "brightness", label: "Brightness", min: 0, max: 200, step: 1, unit: "%", defaultValue: 100 },
-		{ key: "contrast", label: "Contrast", min: 0, max: 200, step: 1, unit: "%", defaultValue: 100 },
-		{ key: "shadows", label: "Shadows", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
-		{ key: "highlights", label: "Highlights", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
-	];
+function isDefaultValue(value: number, defaultVal: number): boolean {
+	return Math.abs(value - defaultVal) < 0.01;
+}
 
-	const colorSliders: SliderConfig[] = [
-		{ key: "saturation", label: "Saturation", min: 0, max: 200, step: 1, unit: "%", defaultValue: 100 },
-		{ key: "vibrance", label: "Vibrance", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
-		{ key: "hueRotate", label: "Hue", min: 0, max: 360, step: 1, unit: "\u00B0", defaultValue: 0 },
-		{ key: "temperature", label: "Temperature", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
-		{ key: "tint", label: "Tint", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
-	];
+function getStateValue(key: keyof ImageEditorState): number {
+	const val = editorState[key];
+	return typeof val === "number" ? val : 0;
+}
 
-	const effectSliders: SliderConfig[] = [
-		{ key: "sepia", label: "Sepia", min: 0, max: 100, step: 1, unit: "%", defaultValue: 0 },
-		{ key: "invert", label: "Invert", min: 0, max: 100, step: 1, unit: "%", defaultValue: 0 },
-		{ key: "opacity", label: "Opacity", min: 0, max: 1, step: 0.01, unit: "", defaultValue: 1 },
-	];
-
-	const detailSliders: SliderConfig[] = [
-		{ key: "clarity", label: "Clarity", min: -100, max: 100, step: 1, unit: "", defaultValue: 0 },
-		{ key: "blur", label: "Blur", min: 0, max: 20, step: 0.5, unit: "px", defaultValue: 0 },
-		{ key: "vignette", label: "Vignette", min: 0, max: 100, step: 1, unit: "%", defaultValue: 0 },
-	];
-
-	const sections = [
-		{ id: "light" as const, label: "Light", icon: "material-symbols:light-mode", sliders: lightSliders },
-		{ id: "color" as const, label: "Color", icon: "material-symbols:palette", sliders: colorSliders },
-		{ id: "effects" as const, label: "Effects", icon: "material-symbols:blur-on", sliders: effectSliders },
-		{ id: "detail" as const, label: "Detail", icon: "material-symbols:details", sliders: detailSliders },
-	];
-
-	function handleSliderChange(key: keyof ImageEditorState, value: number) {
-		onUpdate({ [key]: value });
-	}
-
-	function formatValue(value: number, config: SliderConfig): string {
-		if (config.key === "opacity") {
-			return `${Math.round(value * 100)}%`;
-		}
-		return `${Math.round(value)}${config.unit}`;
-	}
-
-	function isDefaultValue(value: number, defaultVal: number): boolean {
-		return Math.abs(value - defaultVal) < 0.01;
-	}
-
-	function getStateValue(key: keyof ImageEditorState): number {
-		const val = editorState[key];
-		return typeof val === "number" ? val : 0;
-	}
-
-	// Check if any slider in a section has been modified
-	function sectionHasChanges(sliders: SliderConfig[]): boolean {
-		return sliders.some((s) => !isDefaultValue(getStateValue(s.key), s.defaultValue));
-	}
+// Check if any slider in a section has been modified
+function sectionHasChanges(sliders: SliderConfig[]): boolean {
+	return sliders.some((s) => !isDefaultValue(getStateValue(s.key), s.defaultValue));
+}
 </script>
 
 <div class="space-y-4">

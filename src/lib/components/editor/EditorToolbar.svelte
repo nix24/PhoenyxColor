@@ -1,35 +1,55 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
 
-	export type EditorTool = "adjust" | "filters" | "crop" | "palette" | "effects" | "layers" | "export" | null;
+export type EditorTool =
+	| "adjust"
+	| "filters"
+	| "crop"
+	| "draw"
+	| "palette"
+	| "effects"
+	| "layers"
+	| "export"
+	| null;
 
-	let { activeTool = null, onToolSelect } = $props<{
-		activeTool: EditorTool;
-		onToolSelect: (tool: EditorTool) => void;
-	}>();
+let { activeTool = null, onToolSelect } = $props<{
+	activeTool: EditorTool;
+	onToolSelect: (tool: EditorTool) => void;
+}>();
 
-	const tools = [
-		{ id: "adjust" as const, label: "Adjust", icon: "material-symbols:tune", shortcut: "A" },
-		{ id: "filters" as const, label: "Filters", icon: "material-symbols:filter-vintage", shortcut: "F" },
-		{ id: "crop" as const, label: "Crop", icon: "material-symbols:crop", shortcut: "C" },
-		{ id: "palette" as const, label: "Palette", icon: "material-symbols:palette", shortcut: "P" },
-		{ id: "effects" as const, label: "Effects", icon: "material-symbols:auto-fix-high", shortcut: "E" },
-		{ id: "layers" as const, label: "Layers", icon: "material-symbols:layers", shortcut: "L" },
-		{ id: "export" as const, label: "Export", icon: "material-symbols:download", shortcut: "X" },
-	];
+const tools = [
+	{ id: "adjust" as const, label: "Adjust", icon: "material-symbols:tune", shortcut: "A" },
+	{
+		id: "filters" as const,
+		label: "Filters",
+		icon: "material-symbols:filter-vintage",
+		shortcut: "F",
+	},
+	{ id: "crop" as const, label: "Crop", icon: "material-symbols:crop", shortcut: "C" },
+	{ id: "draw" as const, label: "Draw", icon: "material-symbols:draw", shortcut: "D" },
+	{ id: "palette" as const, label: "Palette", icon: "material-symbols:palette", shortcut: "P" },
+	{
+		id: "effects" as const,
+		label: "Effects",
+		icon: "material-symbols:auto-fix-high",
+		shortcut: "E",
+	},
+	{ id: "layers" as const, label: "Layers", icon: "material-symbols:layers", shortcut: "L" },
+	{ id: "export" as const, label: "Export", icon: "material-symbols:download", shortcut: "X" },
+];
 
-	function handleToolClick(toolId: EditorTool) {
-		if (activeTool === toolId) {
-			onToolSelect(null);
-		} else {
-			onToolSelect(toolId);
-		}
+function handleToolClick(toolId: EditorTool) {
+	if (activeTool === toolId) {
+		onToolSelect(null);
+	} else {
+		onToolSelect(toolId);
 	}
+}
 </script>
 
 <div
-	class="flex items-center justify-around px-1 sm:px-2 py-1.5 sm:py-2 bg-black/70 backdrop-blur-xl border-t border-white/8 shrink-0"
+	class="flex items-center gap-1 overflow-x-auto px-1 sm:px-2 py-1.5 sm:py-2 bg-black/70 backdrop-blur-xl border-t border-white/8 shrink-0"
 >
 	{#each tools as tool}
 		<button

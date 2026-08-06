@@ -20,11 +20,11 @@ export type EffectType =
 /**
  * Apply posterize effect - reduces color levels
  */
-export function applyPosterize(
+function applyPosterize(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number
+	intensity: number,
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyPosterize(imageData.data, width, height, intensity);
@@ -34,11 +34,11 @@ export function applyPosterize(
 /**
  * Apply pixelate effect - block averaging for retro pixel look
  */
-export function applyPixelate(
+function applyPixelate(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number
+	intensity: number,
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyPixelate(imageData.data, width, height, intensity);
@@ -48,11 +48,11 @@ export function applyPixelate(
 /**
  * Apply solarize effect - partial inversion above threshold
  */
-export function applySolarize(
+function applySolarize(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number
+	intensity: number,
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applySolarize(imageData.data, width, height, intensity);
@@ -62,13 +62,13 @@ export function applySolarize(
 /**
  * Apply duotone effect - map grayscale to two colors
  */
-export function applyDuotone(
+function applyDuotone(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
 	intensity: number,
 	darkColor: string,
-	lightColor: string
+	lightColor: string,
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 
@@ -82,39 +82,53 @@ export function applyDuotone(
 /**
  * Apply emboss effect using WASM convolution kernel
  */
-export function applyEmboss(
+function applyEmboss(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number
+	intensity: number,
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
-	wasm.applyConvolution3x3(imageData.data, width, height, [-2, -1, 0, -1, 1, 1, 0, 1, 2], intensity, 128);
+	wasm.applyConvolution3x3(
+		imageData.data,
+		width,
+		height,
+		[-2, -1, 0, -1, 1, 1, 0, 1, 2],
+		intensity,
+		128,
+	);
 	ctx.putImageData(imageData, 0, 0);
 }
 
 /**
  * Apply sharpen effect using WASM convolution kernel
  */
-export function applySharpen(
+function applySharpen(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number
+	intensity: number,
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
-	wasm.applyConvolution3x3(imageData.data, width, height, [0, -1, 0, -1, 5, -1, 0, -1, 0], intensity, 0);
+	wasm.applyConvolution3x3(
+		imageData.data,
+		width,
+		height,
+		[0, -1, 0, -1, 5, -1, 0, -1, 0],
+		intensity,
+		0,
+	);
 	ctx.putImageData(imageData, 0, 0);
 }
 
 /**
  * Apply halftone effect using WASM
  */
-export function applyHalftone(
+function applyHalftone(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number
+	intensity: number,
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyHalftone(imageData.data, width, height, intensity);
@@ -124,11 +138,11 @@ export function applyHalftone(
 /**
  * Apply VHS effect using WASM
  */
-export function applyVHS(
+function applyVHS(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number
+	intensity: number,
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyVHS(imageData.data, width, height, intensity);
@@ -138,11 +152,11 @@ export function applyVHS(
 /**
  * Apply glitch effect using WASM
  */
-export function applyGlitch(
+function applyGlitch(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number
+	intensity: number,
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyGlitch(imageData.data, width, height, intensity);
@@ -158,7 +172,7 @@ export function applyEffect(
 	height: number,
 	effect: EffectType,
 	intensity: number,
-	duotoneColors?: [string, string]
+	duotoneColors?: [string, string],
 ): void {
 	switch (effect) {
 		case "posterize":
@@ -172,7 +186,14 @@ export function applyEffect(
 			break;
 		case "duotone":
 			if (duotoneColors) {
-				applyDuotone(ctx, width, height, intensity, duotoneColors[0] ?? "#000000", duotoneColors[1] ?? "#ffffff");
+				applyDuotone(
+					ctx,
+					width,
+					height,
+					intensity,
+					duotoneColors[0] ?? "#000000",
+					duotoneColors[1] ?? "#ffffff",
+				);
 			}
 			break;
 		case "halftone":
@@ -207,4 +228,3 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 		b: parseInt(result[3], 16),
 	};
 }
-

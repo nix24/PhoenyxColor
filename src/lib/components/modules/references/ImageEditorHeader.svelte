@@ -1,40 +1,40 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
 
-	interface Props {
-		imageName: string;
-		canUndo: boolean;
-		canRedo: boolean;
-		isComparing: boolean;
-		zoom: number;
-		onClose: () => void;
-		onUndo: () => void;
-		onRedo: () => void;
-		onCompareStart: () => void;
-		onCompareEnd: () => void;
-		onFitToScreen: () => void;
-		onZoomIn: () => void;
-		onZoomOut: () => void;
-		onShowShortcuts: () => void;
-	}
+interface Props {
+	imageName: string;
+	canUndo: boolean;
+	canRedo: boolean;
+	isComparing: boolean;
+	zoom: number;
+	onClose: () => void;
+	onUndo: () => void;
+	onRedo: () => void;
+	onCompareStart: () => void;
+	onCompareEnd: () => void;
+	onFitToScreen: () => void;
+	onZoomIn: () => void;
+	onZoomOut: () => void;
+	onShowShortcuts: () => void;
+}
 
-	const {
-		imageName,
-		canUndo,
-		canRedo,
-		isComparing,
-		zoom,
-		onClose,
-		onUndo,
-		onRedo,
-		onCompareStart,
-		onCompareEnd,
-		onFitToScreen,
-		onZoomIn,
-		onZoomOut,
-		onShowShortcuts,
-	}: Props = $props();
+const {
+	imageName,
+	canUndo,
+	canRedo,
+	isComparing,
+	zoom,
+	onClose,
+	onUndo,
+	onRedo,
+	onCompareStart,
+	onCompareEnd,
+	onFitToScreen,
+	onZoomIn,
+	onZoomOut,
+	onShowShortcuts,
+}: Props = $props();
 </script>
 
 <div

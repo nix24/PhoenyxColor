@@ -1,84 +1,99 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
-	import { toast } from "svelte-sonner";
-	import { cn } from "$lib/utils/cn";
-	import type { ValidatedGradient } from "$lib/schemas/validation";
-	import {
-		generateCSSGradient,
-		generateTailwindGradient,
-		generateCSSVariables,
-		gradientToSVG,
-		type InterpolationMode,
-	} from "../gradient-utils";
-	import pkg from "file-saver";
-	const { saveAs } = pkg;
+import Icon from "@iconify/svelte";
+import { toast } from "svelte-sonner";
+import { cn } from "$lib/utils/cn";
+import type { ValidatedGradient } from "$lib/schemas/validation";
+import {
+	generateCSSGradient,
+	generateTailwindGradient,
+	generateCSSVariables,
+	gradientToSVG,
+	type InterpolationMode,
+} from "../gradient-utils";
+import pkg from "file-saver";
+const { saveAs } = pkg;
 
-	interface Props {
-		open: boolean;
-		gradient: ValidatedGradient | null;
-		interpolationMode: InterpolationMode;
-		onClose: () => void;
+interface Props {
+	open: boolean;
+	gradient: ValidatedGradient | null;
+	interpolationMode: InterpolationMode;
+	onClose: () => void;
+}
+
+let { open, gradient, interpolationMode, onClose } = $props();
+
+let exportFormat = $state<"css" | "tailwind" | "variables" | "png" | "svg" | "json">("css");
+
+const exportOptions = [
+	{ id: "css", label: "CSS", icon: "material-symbols:code", desc: "Copy CSS background property" },
+	{
+		id: "tailwind",
+		label: "Tailwind CSS",
+		icon: "simple-icons:tailwindcss",
+		desc: "Copy Tailwind gradient classes",
+	},
+	{
+		id: "variables",
+		label: "CSS Variables",
+		icon: "material-symbols:variable-add",
+		desc: "Export as CSS custom properties",
+	},
+	{ id: "svg", label: "SVG File", icon: "material-symbols:shapes", desc: "Download as SVG vector" },
+	{
+		id: "json",
+		label: "JSON",
+		icon: "material-symbols:data-object",
+		desc: "Download gradient data",
+	},
+] as const;
+
+async function handleExport() {
+	if (!gradient) {
+		toast.error("No gradient selected");
+		return;
 	}
 
-	let { open, gradient, interpolationMode, onClose } = $props();
-
-	let exportFormat = $state<"css" | "tailwind" | "variables" | "png" | "svg" | "json">("css");
-
-	const exportOptions = [
-		{ id: "css", label: "CSS", icon: "material-symbols:code", desc: "Copy CSS background property" },
-		{ id: "tailwind", label: "Tailwind CSS", icon: "simple-icons:tailwindcss", desc: "Copy Tailwind gradient classes" },
-		{ id: "variables", label: "CSS Variables", icon: "material-symbols:variable-add", desc: "Export as CSS custom properties" },
-		{ id: "svg", label: "SVG File", icon: "material-symbols:shapes", desc: "Download as SVG vector" },
-		{ id: "json", label: "JSON", icon: "material-symbols:data-object", desc: "Download gradient data" },
-	] as const;
-
-	async function handleExport() {
-		if (!gradient) {
-			toast.error("No gradient selected");
-			return;
-		}
-
-		try {
-			switch (exportFormat) {
-				case "css": {
-					const css = `background: ${generateCSSGradient(gradient, interpolationMode)};`;
-					await navigator.clipboard.writeText(css);
-					toast.success("CSS copied to clipboard!");
-					break;
-				}
-				case "tailwind": {
-					const tailwind = generateTailwindGradient(gradient);
-					await navigator.clipboard.writeText(tailwind);
-					toast.success("Tailwind classes copied!");
-					break;
-				}
-				case "variables": {
-					const vars = generateCSSVariables(gradient);
-					await navigator.clipboard.writeText(vars);
-					toast.success("CSS Variables copied!");
-					break;
-				}
-				case "svg": {
-					const svg = gradientToSVG(gradient, 800, 400);
-					const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-					saveAs(blob, `${gradient.name}.svg`);
-					toast.success("SVG file saved!");
-					break;
-				}
-				case "json": {
-					const json = JSON.stringify(gradient, null, 2);
-					const blob = new Blob([json], { type: "application/json;charset=utf-8" });
-					saveAs(blob, `${gradient.name}.json`);
-					toast.success("JSON file saved!");
-					break;
-				}
+	try {
+		switch (exportFormat) {
+			case "css": {
+				const css = `background: ${generateCSSGradient(gradient, interpolationMode)};`;
+				await navigator.clipboard.writeText(css);
+				toast.success("CSS copied to clipboard!");
+				break;
 			}
-			onClose();
-		} catch (error) {
-			console.error("Export error:", error);
-			toast.error("Export failed");
+			case "tailwind": {
+				const tailwind = generateTailwindGradient(gradient);
+				await navigator.clipboard.writeText(tailwind);
+				toast.success("Tailwind classes copied!");
+				break;
+			}
+			case "variables": {
+				const vars = generateCSSVariables(gradient);
+				await navigator.clipboard.writeText(vars);
+				toast.success("CSS Variables copied!");
+				break;
+			}
+			case "svg": {
+				const svg = gradientToSVG(gradient, 800, 400);
+				const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+				saveAs(blob, `${gradient.name}.svg`);
+				toast.success("SVG file saved!");
+				break;
+			}
+			case "json": {
+				const json = JSON.stringify(gradient, null, 2);
+				const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+				saveAs(blob, `${gradient.name}.json`);
+				toast.success("JSON file saved!");
+				break;
+			}
 		}
+		onClose();
+	} catch (error) {
+		console.error("Export error:", error);
+		toast.error("Export failed");
 	}
+}
 </script>
 
 {#if open}

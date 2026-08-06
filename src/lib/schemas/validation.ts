@@ -18,7 +18,18 @@ const DimensionsSchema = z.object({
 
 // Applied Effect schema for stacked effects
 const AppliedEffectSchema = z.object({
-	type: z.enum(["none", "posterize", "pixelate", "solarize", "duotone", "halftone", "vhs", "glitch", "emboss", "sharpen"]),
+	type: z.enum([
+		"none",
+		"posterize",
+		"pixelate",
+		"solarize",
+		"duotone",
+		"halftone",
+		"vhs",
+		"glitch",
+		"emboss",
+		"sharpen",
+	]),
 	intensity: z.number().min(0).max(100),
 	duotoneColors: z.tuple([z.string(), z.string()]).optional(),
 });
@@ -45,9 +56,19 @@ const CropRectSchema = z.object({
 	height: z.number(),
 });
 
+const DrawStrokeSchema = z.object({
+	id: z.string().uuid(),
+	color: ColorSchema,
+	size: z.number().min(1).max(100),
+	points: z.array(z.object({ x: z.number(), y: z.number() })).min(1),
+});
+
 // Reference Image validation
 export const ReferenceImageSchema = z.object({
-	id: z.string().uuid().transform((val) => val as ReferenceId),
+	id: z
+		.string()
+		.uuid()
+		.transform((val) => val as ReferenceId),
 	src: z.string().url("Invalid image URL"),
 	thumbnailSrc: z.string().url("Invalid thumbnail URL").optional(),
 	name: z.string().min(1, "Image name is required").max(100, "Name too long"),
@@ -85,30 +106,36 @@ export const ReferenceImageSchema = z.object({
 	cropRect: CropRectSchema.nullable().optional(),
 	// Stacked effects
 	appliedEffects: z.array(AppliedEffectSchema).optional(),
+	// Drawing overlay
+	drawStrokes: z.array(DrawStrokeSchema).optional(),
 	// Layers
-	layers: z.array(z.object({
-		id: z.string().uuid(),
-		name: z.string().max(100),
-		type: z.enum(["image", "adjustment", "overlay"]),
-		src: z.string().optional(),
-		thumbnailSrc: z.string().optional(),
-		opacity: z.number().min(0).max(1),
-		blendMode: z.string(),
-		visible: z.boolean(),
-		locked: z.boolean(),
-	})).optional(),
+	layers: z
+		.array(
+			z.object({
+				id: z.string().uuid(),
+				name: z.string().max(100),
+				type: z.enum(["image", "adjustment", "overlay"]),
+				src: z.string().optional(),
+				thumbnailSrc: z.string().optional(),
+				opacity: z.number().min(0).max(1),
+				blendMode: z.string(),
+				visible: z.boolean(),
+				locked: z.boolean(),
+			}),
+		)
+		.optional(),
 	activeLayerId: z.string().uuid().nullable().optional(),
 });
 
 // Gradient validation
-export const GradientStopSchema = z.object({
+const GradientStopSchema = z.object({
 	color: ColorSchema,
 	position: z.number().min(0).max(100, "Position must be between 0 and 100"),
 	easing: z.enum(["linear", "ease-in", "ease-out", "ease-in-out"]).optional(),
 });
 
 // Mesh gradient point schema
-export const MeshPointSchema = z.object({
+const MeshPointSchema = z.object({
 	id: z.string().uuid(),
 	x: z.number().min(0).max(100),
 	y: z.number().min(0).max(100),
@@ -117,15 +144,18 @@ export const MeshPointSchema = z.object({
 });
 
 // Noise configuration schema
-export const NoiseConfigSchema = z.object({
+const NoiseConfigSchema = z.object({
 	enabled: z.boolean().default(false),
 	intensity: z.number().min(0).max(100).default(10),
 	scale: z.number().min(0.1).max(10).default(1),
 	type: z.enum(["perlin", "simplex", "grain"]).default("grain"),
 });
 
-export const GradientSchema = z.object({
-	id: z.string().uuid().transform((val) => val as GradientId),
+const GradientSchema = z.object({
+	id: z
+		.string()
+		.uuid()
+		.transform((val) => val as GradientId),
 	name: z.string().min(1, "Gradient name is required").max(50, "Name too long"),
 	type: z.enum(["linear", "radial", "conic", "mesh"]),
 	stops: z.array(GradientStopSchema).min(2, "Gradient must have at least 2 color stops"),
@@ -141,8 +171,11 @@ export const GradientSchema = z.object({
 });
 
 // Color Palette validation
-export const ColorPaletteSchema = z.object({
-	id: z.string().uuid().transform((val) => val as PaletteId),
+const ColorPaletteSchema = z.object({
+	id: z
+		.string()
+		.uuid()
+		.transform((val) => val as PaletteId),
 	name: z.string().min(1, "Palette name is required").max(50, "Name too long"),
 	colors: z.array(ColorSchema).max(50, "Too many colors in palette"),
 	maxSlots: z.number().min(3, "Minimum 3 slots").max(50, "Maximum 50 slots"),
@@ -151,7 +184,7 @@ export const ColorPaletteSchema = z.object({
 });
 
 // App Settings validation
-export const AppSettingsSchema = z.object({
+const AppSettingsSchema = z.object({
 	theme: z.enum(["light", "dark", "system"]),
 	defaultPaletteSlots: z.number().min(3).max(50),
 	alwaysOnTop: z.boolean(),
@@ -177,7 +210,7 @@ export const AppSettingsSchema = z.object({
 });
 
 // Tutorial state validation
-export const TutorialStateSchema = z.object({
+const TutorialStateSchema = z.object({
 	isActive: z.boolean(),
 	currentStep: z.number().min(0),
 	currentModule: z.string().nullable(),
@@ -186,7 +219,7 @@ export const TutorialStateSchema = z.object({
 });
 
 // File export validation
-export const ExportDataSchema = z.object({
+const ExportDataSchema = z.object({
 	version: z.string(),
 	timestamp: z.string().datetime(),
 	data: z.object({
@@ -259,11 +292,10 @@ export function validateAppData(data: unknown): {
 // Runtime type guards
 export type ValidatedReferenceImage = z.infer<typeof ReferenceImageSchema>;
 export type ValidatedGradientStop = z.infer<typeof GradientStopSchema>;
-export type ValidatedMeshPoint = z.infer<typeof MeshPointSchema>;
-export type ValidatedNoiseConfig = z.infer<typeof NoiseConfigSchema>;
+type ValidatedMeshPoint = z.infer<typeof MeshPointSchema>;
+type ValidatedNoiseConfig = z.infer<typeof NoiseConfigSchema>;
 export type ValidatedGradient = z.infer<typeof GradientSchema>;
 export type ValidatedColorPalette = z.infer<typeof ColorPaletteSchema>;
 export type ValidatedAppSettings = z.infer<typeof AppSettingsSchema>;
-export type ValidatedTutorialState = z.infer<typeof TutorialStateSchema>;
-export type ValidatedExportData = z.infer<typeof ExportDataSchema>;
-
+type ValidatedTutorialState = z.infer<typeof TutorialStateSchema>;
+type ValidatedExportData = z.infer<typeof ExportDataSchema>;

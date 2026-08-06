@@ -286,4 +286,4 @@ src/lib/
 ## Deprecation Notice
 
 > [!WARNING]
-> The file `src/lib/stores/app.svelte.ts` contains the legacy monolithic store architecture. It is preserved for reference but should NOT be used. All new code should use `src/lib/stores/root.svelte.ts` and the modular stores instead.
+> The application now uses `src/lib/stores/root.svelte.ts` and the modular stores. Keep new state in those capability-specific stores rather than introducing a monolithic application store.

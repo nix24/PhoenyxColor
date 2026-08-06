@@ -1,73 +1,73 @@
 <script lang="ts">
-	import { scale } from "svelte/transition";
-	import { cubicOut } from "svelte/easing";
-	import Icon from "@iconify/svelte";
-	import { toast } from "svelte-sonner";
-	import { sortPalette } from "$lib/utils/color-engine";
-	import type { ValidatedGradientStop } from "$lib/schemas/validation";
+import { scale } from "svelte/transition";
+import { cubicOut } from "svelte/easing";
+import Icon from "@iconify/svelte";
+import { toast } from "svelte-sonner";
+import { sortPalette } from "$lib/utils/color-engine";
+import type { ValidatedGradientStop } from "$lib/schemas/validation";
 
-	interface Props {
-		open: boolean;
-		onClose: () => void;
-		onExtract: (stops: ValidatedGradientStop[], name: string) => void;
+interface Props {
+	open: boolean;
+	onClose: () => void;
+	onExtract: (stops: ValidatedGradientStop[], name: string) => void;
+}
+
+let { open, onClose, onExtract } = $props();
+
+let file: File | null = $state(null);
+let preview = $state("");
+let colorCount = $state(5);
+let isExtracting = $state(false);
+
+function handleImageSelect(event: Event) {
+	const input = event.target as HTMLInputElement;
+	const selected = input.files?.[0];
+	if (!selected) return;
+
+	if (!selected.type.startsWith("image/")) {
+		toast.error("Please select an image file");
+		return;
 	}
 
-	let { open, onClose, onExtract } = $props();
+	file = selected;
+	preview = URL.createObjectURL(selected);
+}
 
-	let file: File | null = $state(null);
-	let preview = $state("");
-	let colorCount = $state(5);
-	let isExtracting = $state(false);
+function clearImage() {
+	if (preview) URL.revokeObjectURL(preview);
+	file = null;
+	preview = "";
+}
 
-	function handleImageSelect(event: Event) {
-		const input = event.target as HTMLInputElement;
-		const selected = input.files?.[0];
-		if (!selected) return;
-
-		if (!selected.type.startsWith("image/")) {
-			toast.error("Please select an image file");
-			return;
-		}
-
-		file = selected;
-		preview = URL.createObjectURL(selected);
+async function handleExtract() {
+	if (!file || !preview) {
+		toast.error("Please select an image first");
+		return;
 	}
 
-	function clearImage() {
-		if (preview) URL.revokeObjectURL(preview);
-		file = null;
-		preview = "";
+	isExtracting = true;
+	try {
+		const { extractPalette } = await import("$lib/utils/color-engine");
+		const colors = await extractPalette(preview, {
+			colorCount,
+			quality: "balanced",
+		});
+		const sortedColors = sortPalette(colors);
+		const stops: ValidatedGradientStop[] = sortedColors.map((color, index) => ({
+			color,
+			position: (index / (sortedColors.length - 1)) * 100,
+		}));
+
+		const baseName = file.name.replace(/\.[^/.]+$/, "");
+		onExtract(stops, `${baseName} Gradient`);
+		clearImage();
+	} catch (error) {
+		console.error("Error extracting colors:", error);
+		toast.error("Failed to extract colors from image");
+	} finally {
+		isExtracting = false;
 	}
-
-	async function handleExtract() {
-		if (!file || !preview) {
-			toast.error("Please select an image first");
-			return;
-		}
-
-		isExtracting = true;
-		try {
-			const { extractPalette } = await import("$lib/utils/color-engine");
-			const colors = await extractPalette(preview, {
-				colorCount,
-				quality: "balanced",
-			});
-			const sortedColors = sortPalette(colors);
-			const stops: ValidatedGradientStop[] = sortedColors.map((color, index) => ({
-				color,
-				position: (index / (sortedColors.length - 1)) * 100,
-			}));
-
-			const baseName = file.name.replace(/\.[^/.]+$/, "");
-			onExtract(stops, `${baseName} Gradient`);
-			clearImage();
-		} catch (error) {
-			console.error("Error extracting colors:", error);
-			toast.error("Failed to extract colors from image");
-		} finally {
-			isExtracting = false;
-		}
-	}
+}
 </script>
 
 {#if open}

@@ -1,157 +1,193 @@
 <script lang="ts">
-	import { cn } from "$lib/utils/cn";
-	import { app } from "$lib/stores/root.svelte";
-	import type { CropRect } from "$lib/components/editor/panels/CropPanel.svelte";
-	import type { CropGuideType, ImageLayer } from "$lib/types/image-editor";
-	import type { usePanZoom } from "$lib/hooks/usePanZoom.svelte";
-	import CropOverlay from "./CropOverlay.svelte";
-	import chroma from "chroma-js";
-	import tinycolor from "tinycolor2";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import { app } from "$lib/stores/root.svelte";
+import type { CropRect } from "$lib/components/editor/panels/CropPanel.svelte";
+import type { CropGuideType, ImageLayer } from "$lib/types/image-editor";
+import type { DrawStroke } from "$lib/components/editor/EditorHistory.svelte";
+import type { usePanZoom } from "$lib/hooks/usePanZoom.svelte";
+import CropOverlay from "./CropOverlay.svelte";
+import chroma from "chroma-js";
 
-	interface Props {
-		imageId: string;
-		imageSrc: string;
-		imageName: string;
-		// Display strings
-		filterString: string;
-		combinedFilterString: string;
-		transformString: string;
-		// State flags
-		isComparing: boolean;
-		needsCanvasPreview: boolean;
-		isRenderingPreview: boolean;
-		previewDataUrl: string | null;
-		colorAdjustActive: boolean;
-		curvesModified: boolean;
-		// Overlays
-		opacity: number;
-		vignette: number;
-		gradientMapOpacity: number;
-		gradientMapBlendMode: string;
-		appliedCrop: { x: number; y: number; width: number; height: number } | null;
-		cropClipPath: string;
-		// Quick effect for duotone overlay
-		quickEffect: string;
-		effectIntensity: number;
-		duotoneColors: [string, string];
-		// Layers
-		layers: ImageLayer[];
-		// Crop interaction
-		isCropping: boolean;
-		cropRect: CropRect | null;
-		cropGuideType: CropGuideType;
-		// SVG filter data
-		temperatureMatrix: string;
-		tintMatrix: string;
-		curveTableValues: {
-			rgb: string;
-			red: string;
-			green: string;
-			blue: string;
-		};
-		// Pan/zoom
-		panZoom: ReturnType<typeof usePanZoom>;
-		// Callbacks
-		onImageLoad: (width: number, height: number) => void;
-		onCropStart: (e: PointerEvent) => void;
-		onCropMove: (e: PointerEvent) => void;
-		onCropEnd: () => void;
-		onCropHandleDragStart: (handle: string, e: PointerEvent) => void;
-		onCropBodyDragStart: (e: PointerEvent) => void;
+interface Props {
+	imageId: string;
+	imageSrc: string;
+	imageName: string;
+	// Display strings
+	filterString: string;
+	combinedFilterString: string;
+	transformString: string;
+	// State flags
+	isComparing: boolean;
+	needsCanvasPreview: boolean;
+	isRenderingPreview: boolean;
+	previewDataUrl: string | null;
+	previewError: string | null;
+	colorAdjustActive: boolean;
+	curvesModified: boolean;
+	// Overlays
+	opacity: number;
+	vignette: number;
+	gradientMapOpacity: number;
+	gradientMapBlendMode: string;
+	appliedCrop: { x: number; y: number; width: number; height: number } | null;
+	cropClipPath: string;
+	// Quick effect for duotone overlay
+	quickEffect: string;
+	effectIntensity: number;
+	duotoneColors: [string, string];
+	// Layers
+	layers: ImageLayer[];
+	drawStrokes: DrawStroke[];
+	imageWidth: number;
+	imageHeight: number;
+	// Crop interaction
+	isCropping: boolean;
+	isDrawing: boolean;
+	cropRect: CropRect | null;
+	cropGuideType: CropGuideType;
+	// SVG filter data
+	temperatureMatrix: string;
+	tintMatrix: string;
+	curveTableValues: {
+		rgb: string;
+		red: string;
+		green: string;
+		blue: string;
+	};
+	// Pan/zoom
+	panZoom: ReturnType<typeof usePanZoom>;
+	// Callbacks
+	onImageLoad: (width: number, height: number) => void;
+	onCropStart: (e: PointerEvent) => void;
+	onCropMove: (e: PointerEvent) => void;
+	onCropEnd: () => void;
+	onCropHandleDragStart: (handle: string, e: PointerEvent) => void;
+	onCropBodyDragStart: (e: PointerEvent) => void;
+	onDrawStart: (e: PointerEvent) => void;
+	onDrawMove: (e: PointerEvent) => void;
+	onDrawEnd: () => void;
+	onRetryPreview: () => void;
+}
+
+const {
+	imageId,
+	imageSrc,
+	imageName,
+	filterString,
+	combinedFilterString,
+	transformString,
+	isComparing,
+	needsCanvasPreview,
+	isRenderingPreview,
+	previewDataUrl,
+	previewError,
+	colorAdjustActive,
+	curvesModified,
+	opacity,
+	vignette,
+	gradientMapOpacity,
+	gradientMapBlendMode,
+	appliedCrop,
+	cropClipPath,
+	quickEffect,
+	effectIntensity,
+	duotoneColors,
+	layers,
+	drawStrokes,
+	imageWidth,
+	imageHeight,
+	isCropping,
+	isDrawing,
+	cropRect,
+	cropGuideType,
+	temperatureMatrix,
+	tintMatrix,
+	curveTableValues,
+	panZoom,
+	onImageLoad,
+	onCropStart,
+	onCropMove,
+	onCropEnd,
+	onCropHandleDragStart,
+	onCropBodyDragStart,
+	onDrawStart,
+	onDrawMove,
+	onDrawEnd,
+	onRetryPreview,
+}: Props = $props();
+
+let canvasContainer: HTMLDivElement | null = $state(null);
+let imageElement: HTMLImageElement | null = $state(null);
+let imageLoadError = $state(false);
+
+function handleImageLoad(e: Event) {
+	const img = e.target as HTMLImageElement;
+	imageLoadError = false;
+	onImageLoad(img.naturalWidth, img.naturalHeight);
+}
+
+function handlePointerDown(e: PointerEvent) {
+	if (isDrawing) {
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		onDrawStart(e);
+		return;
 	}
-
-	const {
-		imageId,
-		imageSrc,
-		imageName,
-		filterString,
-		combinedFilterString,
-		transformString,
-		isComparing,
-		needsCanvasPreview,
-		isRenderingPreview,
-		previewDataUrl,
-		colorAdjustActive,
-		curvesModified,
-		opacity,
-		vignette,
-		gradientMapOpacity,
-		gradientMapBlendMode,
-		appliedCrop,
-		cropClipPath,
-		quickEffect,
-		effectIntensity,
-		duotoneColors,
-		layers,
-		isCropping,
-		cropRect,
-		cropGuideType,
-		temperatureMatrix,
-		tintMatrix,
-		curveTableValues,
-		panZoom,
-		onImageLoad,
-		onCropStart,
-		onCropMove,
-		onCropEnd,
-		onCropHandleDragStart,
-		onCropBodyDragStart,
-	}: Props = $props();
-
-	let canvasContainer: HTMLDivElement | null = $state(null);
-	let imageElement: HTMLImageElement | null = $state(null);
-
-	function handleImageLoad(e: Event) {
-		const img = e.target as HTMLImageElement;
-		onImageLoad(img.naturalWidth, img.naturalHeight);
+	if (isCropping) {
+		onCropStart(e);
+		return;
 	}
+	panZoom.handleMouseDown(e);
+}
 
-	function handlePointerDown(e: PointerEvent) {
-		if (isCropping) {
-			onCropStart(e);
-			return;
-		}
-		panZoom.handleMouseDown(e);
+function handlePointerMove(e: PointerEvent) {
+	if (isDrawing) {
+		onDrawMove(e);
+		return;
 	}
+	if (isCropping) {
+		onCropMove(e);
+		return;
+	}
+	panZoom.handleMouseMove(e);
+}
 
-	function handlePointerMove(e: PointerEvent) {
-		if (isCropping) {
-			onCropMove(e);
-			return;
-		}
-		panZoom.handleMouseMove(e);
+function handlePointerUp() {
+	if (isDrawing) {
+		onDrawEnd();
+		return;
 	}
+	if (isCropping) {
+		onCropEnd();
+		return;
+	}
+	panZoom.handleMouseUp();
+}
 
-	function handlePointerUp() {
-		if (isCropping) {
-			onCropEnd();
-			return;
-		}
-		panZoom.handleMouseUp();
+// Gradient map helpers
+function getGradientTableValues(channel: "r" | "g" | "b"): string {
+	let colors: string[] = [];
+	if (app.gradients.activeGradient) {
+		const sortedStops = [...app.gradients.activeGradient.stops].sort(
+			(a, b) => a.position - b.position,
+		);
+		const scale = chroma
+			.scale(sortedStops.map((s) => s.color))
+			.domain(sortedStops.map((s) => s.position / 100));
+		colors = Array.from({ length: 256 }, (_, i) => scale(i / 255).hex());
+	} else if (app.palettes.activePalette) {
+		const scale = chroma.scale(app.palettes.activePalette.colors).mode("lch");
+		colors = Array.from({ length: 256 }, (_, i) => scale(i / 255).hex());
+	} else {
+		return "0 1";
 	}
-
-	// Gradient map helpers
-	function getGradientTableValues(channel: "r" | "g" | "b"): string {
-		let colors: string[] = [];
-		if (app.gradients.activeGradient) {
-			const sortedStops = [...app.gradients.activeGradient.stops].sort(
-				(a, b) => a.position - b.position,
-			);
-			const scale = chroma
-				.scale(sortedStops.map((s) => s.color))
-				.domain(sortedStops.map((s) => s.position / 100));
-			colors = Array.from({ length: 256 }, (_, i) => scale(i / 255).hex());
-		} else if (app.palettes.activePalette) {
-			const scale = chroma.scale(app.palettes.activePalette.colors).mode("lch");
-			colors = Array.from({ length: 256 }, (_, i) => scale(i / 255).hex());
-		} else {
-			return "0 1";
-		}
-		return colors.map((c) => {
-			const rgb = tinycolor(c).toRgb();
-			return rgb[channel] / 255;
-		}).join(" ");
-	}
+	return colors
+		.map((c) => {
+			const [red, green, blue] = chroma(c).rgb();
+			return { r: red, g: green, b: blue }[channel] / 255;
+		})
+		.join(" ");
+}
 </script>
 
 <div
@@ -166,7 +202,7 @@
 	ontouchstart={panZoom.handleTouchStart}
 	ontouchmove={panZoom.handleTouchMove}
 	ontouchend={panZoom.handleTouchEnd}
-	style:cursor={isCropping ? "crosshair" : panZoom.isPanning ? "grabbing" : "grab"}
+	style:cursor={isCropping || isDrawing ? "crosshair" : panZoom.isPanning ? "grabbing" : "grab"}
 	role="presentation"
 >
 	<!-- Checkered Background -->
@@ -179,7 +215,7 @@
 		data-image-inner
 	>
 		<!-- Image Container with Crop -->
-		<div class="relative" style:clip-path={appliedCrop && !isComparing ? cropClipPath : "none"}>
+		<div class="relative" style:clip-path={appliedCrop && !isComparing && !(needsCanvasPreview && previewDataUrl) ? cropClipPath : "none"}>
 			{#if isComparing}
 				<img
 					bind:this={imageElement}
@@ -188,6 +224,7 @@
 					class="max-w-none shadow-2xl"
 					style:opacity={1}
 					onload={handleImageLoad}
+					onerror={() => (imageLoadError = true)}
 					draggable="false"
 				/>
 			{:else if needsCanvasPreview && previewDataUrl}
@@ -195,8 +232,8 @@
 					src={previewDataUrl}
 					alt={imageName}
 					class="max-w-none shadow-2xl"
-					style:transform={transformString}
 					style:opacity={opacity}
+					onerror={() => (imageLoadError = true)}
 					draggable="false"
 				/>
 				<img
@@ -205,6 +242,7 @@
 					alt=""
 					class="hidden"
 					onload={handleImageLoad}
+					onerror={() => (imageLoadError = true)}
 				/>
 			{:else}
 				<img
@@ -216,16 +254,44 @@
 					style:transform={transformString}
 					style:opacity={opacity}
 					onload={handleImageLoad}
+					onerror={() => (imageLoadError = true)}
 					draggable="false"
 				/>
 			{/if}
 
 			{#if needsCanvasPreview && isRenderingPreview && !previewDataUrl && !isComparing}
-				<div class="absolute inset-0 flex items-center justify-center bg-black/30">
-					<span class="loading loading-spinner loading-md text-phoenix-primary"></span>
+				<div class="absolute inset-0 flex items-center justify-center bg-black/30" aria-label="Rendering preview">
+					<div class="skeleton skeleton-glass w-28 h-2 rounded-full"></div>
 				</div>
 			{/if}
 		</div>
+
+		{#if drawStrokes.length > 0 && !isComparing && !(needsCanvasPreview && previewDataUrl)}
+			<svg
+				class="absolute inset-0 pointer-events-none overflow-visible"
+				width={imageWidth}
+				height={imageHeight}
+				viewBox="0 0 {imageWidth} {imageHeight}"
+				style:transform={transformString}
+				style:clip-path={appliedCrop ? cropClipPath : "none"}
+				aria-hidden="true"
+			>
+				{#each drawStrokes as stroke (stroke.id)}
+					{#if stroke.points.length === 1 && stroke.points[0]}
+						<circle cx={stroke.points[0].x} cy={stroke.points[0].y} r={stroke.size / 2} fill={stroke.color} />
+					{:else}
+						<polyline
+							points={stroke.points.map((point) => `${point.x},${point.y}`).join(" ")}
+							fill="none"
+							stroke={stroke.color}
+							stroke-width={stroke.size}
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					{/if}
+				{/each}
+			</svg>
+		{/if}
 
 		<!-- Layer Stack -->
 		{#if layers.length > 0 && !isComparing}
@@ -312,6 +378,14 @@
 		</div>
 		<div class="absolute top-6 left-0 bottom-0 w-6 bg-black/60 border-r border-white/10 z-10">
 			<span class="text-[10px] text-white/40 font-mono mt-2 ml-1 rotate-90 origin-top-left">0px</span>
+		</div>
+	{/if}
+
+	{#if imageLoadError || previewError}
+		<div role="alert" class="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 rounded-xl border border-red-400/20 bg-void-deep/95 px-4 py-3 text-sm text-red-200 shadow-xl">
+			<Icon icon="material-symbols:broken-image" class="w-5 h-5 shrink-0" />
+			<span>{imageLoadError ? "The image could not be loaded." : previewError}</span>
+			<button class="btn btn-xs btn-ghost text-white" type="button" onclick={onRetryPreview}>Retry</button>
 		</div>
 	{/if}
 </div>

@@ -1,109 +1,110 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import type { CropGuideType } from "$lib/types/image-editor";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import type { CropGuideType } from "$lib/types/image-editor";
 
-	export interface CropRect {
-		x: number;
-		y: number;
-		width: number;
-		height: number;
+export interface CropRect {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+export type AspectRatio = "free" | "1:1" | "4:3" | "3:4" | "16:9" | "9:16" | "3:2" | "2:3";
+
+let {
+	cropRect,
+	aspectRatio = "free",
+	guideType = "thirds",
+	onCropChange,
+	onAspectRatioChange,
+	onGuideTypeChange,
+	onApplyCrop,
+	onCancelCrop,
+	onExtractFromRegion,
+	imageWidth,
+	imageHeight,
+} = $props<{
+	cropRect: CropRect | null;
+	aspectRatio: AspectRatio;
+	guideType: CropGuideType;
+	onCropChange: (rect: CropRect) => void;
+	onAspectRatioChange: (ratio: AspectRatio) => void;
+	onGuideTypeChange: (guide: CropGuideType) => void;
+	onApplyCrop: () => void;
+	onCancelCrop: () => void;
+	onExtractFromRegion: () => void;
+	imageWidth: number;
+	imageHeight: number;
+}>();
+
+const aspectRatios: Array<{ id: AspectRatio; label: string; icon: string }> = [
+	{ id: "free", label: "Free", icon: "material-symbols:crop-free" },
+	{ id: "1:1", label: "1:1", icon: "material-symbols:crop-square" },
+	{ id: "4:3", label: "4:3", icon: "material-symbols:crop-landscape" },
+	{ id: "3:4", label: "3:4", icon: "material-symbols:crop-portrait" },
+	{ id: "16:9", label: "16:9", icon: "material-symbols:crop-16-9" },
+	{ id: "9:16", label: "9:16", icon: "material-symbols:crop-9-16" },
+	{ id: "3:2", label: "3:2", icon: "material-symbols:crop-3-2" },
+	{ id: "2:3", label: "2:3", icon: "material-symbols:crop-portrait" },
+];
+
+const guideTypes: Array<{ id: CropGuideType; label: string; icon: string }> = [
+	{ id: "none", label: "None", icon: "material-symbols:grid-off" },
+	{ id: "thirds", label: "Thirds", icon: "material-symbols:grid-on" },
+	{ id: "golden", label: "Golden", icon: "material-symbols:filter-hdr" },
+	{ id: "diagonal", label: "Diagonal", icon: "material-symbols:texture" },
+];
+
+function setFullCrop() {
+	onCropChange({ x: 0, y: 0, width: imageWidth, height: imageHeight });
+}
+
+function setCenterCrop() {
+	const size = Math.min(imageWidth, imageHeight) * 0.8;
+	onCropChange({
+		x: (imageWidth - size) / 2,
+		y: (imageHeight - size) / 2,
+		width: size,
+		height: size,
+	});
+}
+
+function flipCrop() {
+	if (!cropRect) return;
+	const centerX = cropRect.x + cropRect.width / 2;
+	const centerY = cropRect.y + cropRect.height / 2;
+	const newWidth = cropRect.height;
+	const newHeight = cropRect.width;
+	onCropChange({
+		x: Math.max(0, Math.min(centerX - newWidth / 2, imageWidth - newWidth)),
+		y: Math.max(0, Math.min(centerY - newHeight / 2, imageHeight - newHeight)),
+		width: Math.min(newWidth, imageWidth),
+		height: Math.min(newHeight, imageHeight),
+	});
+}
+
+function handleDimensionInput(field: "width" | "height", value: string) {
+	const num = parseInt(value, 10);
+	if (Number.isNaN(num) || num <= 0) return;
+	if (!cropRect) {
+		const w = field === "width" ? Math.min(num, imageWidth) : Math.min(num, imageWidth);
+		const h = field === "height" ? Math.min(num, imageHeight) : Math.min(num, imageHeight);
+		onCropChange({ x: 0, y: 0, width: w, height: h });
+		return;
 	}
-
-	export type AspectRatio = "free" | "1:1" | "4:3" | "3:4" | "16:9" | "9:16" | "3:2" | "2:3";
-
-	let {
-		cropRect,
-		aspectRatio = "free",
-		guideType = "thirds",
-		onCropChange,
-		onAspectRatioChange,
-		onGuideTypeChange,
-		onApplyCrop,
-		onCancelCrop,
-		onExtractFromRegion,
-		imageWidth,
-		imageHeight,
-	} = $props<{
-		cropRect: CropRect | null;
-		aspectRatio: AspectRatio;
-		guideType: CropGuideType;
-		onCropChange: (rect: CropRect) => void;
-		onAspectRatioChange: (ratio: AspectRatio) => void;
-		onGuideTypeChange: (guide: CropGuideType) => void;
-		onApplyCrop: () => void;
-		onCancelCrop: () => void;
-		onExtractFromRegion: () => void;
-		imageWidth: number;
-		imageHeight: number;
-	}>();
-
-	const aspectRatios: Array<{ id: AspectRatio; label: string; icon: string }> = [
-		{ id: "free", label: "Free", icon: "material-symbols:crop-free" },
-		{ id: "1:1", label: "1:1", icon: "material-symbols:crop-square" },
-		{ id: "4:3", label: "4:3", icon: "material-symbols:crop-landscape" },
-		{ id: "3:4", label: "3:4", icon: "material-symbols:crop-portrait" },
-		{ id: "16:9", label: "16:9", icon: "material-symbols:crop-16-9" },
-		{ id: "9:16", label: "9:16", icon: "material-symbols:crop-9-16" },
-		{ id: "3:2", label: "3:2", icon: "material-symbols:crop-3-2" },
-		{ id: "2:3", label: "2:3", icon: "material-symbols:crop-portrait" },
-	];
-
-	const guideTypes: Array<{ id: CropGuideType; label: string; icon: string }> = [
-		{ id: "none", label: "None", icon: "material-symbols:grid-off" },
-		{ id: "thirds", label: "Thirds", icon: "material-symbols:grid-on" },
-		{ id: "golden", label: "Golden", icon: "material-symbols:filter-hdr" },
-		{ id: "diagonal", label: "Diagonal", icon: "material-symbols:texture" },
-	];
-
-	function setFullCrop() {
-		onCropChange({ x: 0, y: 0, width: imageWidth, height: imageHeight });
-	}
-
-	function setCenterCrop() {
-		const size = Math.min(imageWidth, imageHeight) * 0.8;
-		onCropChange({
-			x: (imageWidth - size) / 2,
-			y: (imageHeight - size) / 2,
-			width: size,
-			height: size,
-		});
-	}
-
-	function flipCrop() {
-		if (!cropRect) return;
-		const centerX = cropRect.x + cropRect.width / 2;
-		const centerY = cropRect.y + cropRect.height / 2;
-		const newWidth = cropRect.height;
-		const newHeight = cropRect.width;
-		onCropChange({
-			x: Math.max(0, Math.min(centerX - newWidth / 2, imageWidth - newWidth)),
-			y: Math.max(0, Math.min(centerY - newHeight / 2, imageHeight - newHeight)),
-			width: Math.min(newWidth, imageWidth),
-			height: Math.min(newHeight, imageHeight),
-		});
-	}
-
-	function handleDimensionInput(field: "width" | "height", value: string) {
-		const num = parseInt(value, 10);
-		if (isNaN(num) || num <= 0) return;
-		if (!cropRect) {
-			const w = field === "width" ? Math.min(num, imageWidth) : Math.min(num, imageWidth);
-			const h = field === "height" ? Math.min(num, imageHeight) : Math.min(num, imageHeight);
-			onCropChange({ x: 0, y: 0, width: w, height: h });
-			return;
-		}
-		const clamped = field === "width"
+	const clamped =
+		field === "width"
 			? Math.min(num, imageWidth - cropRect.x)
 			: Math.min(num, imageHeight - cropRect.y);
-		onCropChange({ ...cropRect, [field]: Math.max(1, clamped) });
-	}
+	onCropChange({ ...cropRect, [field]: Math.max(1, clamped) });
+}
 
-	const cropDimensions = $derived(
-		cropRect
-			? { w: Math.round(cropRect.width), h: Math.round(cropRect.height) }
-			: { w: imageWidth, h: imageHeight }
-	);
+const cropDimensions = $derived(
+	cropRect
+		? { w: Math.round(cropRect.width), h: Math.round(cropRect.height) }
+		: { w: imageWidth, h: imageHeight },
+);
 </script>
 
 <div class="space-y-5">

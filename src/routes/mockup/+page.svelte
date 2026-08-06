@@ -1,27 +1,27 @@
 <script lang="ts">
-	import { app } from "$lib/stores/root.svelte";
-	import Icon from "@iconify/svelte";
+import { app } from "$lib/stores/root.svelte";
+import Icon from "@iconify/svelte";
 
-	let imageUrl = $state(
-		"https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=800&q=80"
-	);
-	let isLoading = $state(false);
+let imageUrl = $state(
+	"https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=800&q=80",
+);
+let isLoading = $state(false);
 
-	async function handleGenerate() {
-		if (!imageUrl) return;
-		isLoading = true;
-		try {
-			await app.theme.generateFromImage(imageUrl);
-		} catch (error) {
-			console.error("Failed to generate theme from image:", error);
-		} finally {
-			isLoading = false;
-		}
+async function handleGenerate() {
+	if (!imageUrl) return;
+	isLoading = true;
+	try {
+		await app.theme.generateFromImage(imageUrl);
+	} catch (error) {
+		console.error("Failed to generate theme from image:", error);
+	} finally {
+		isLoading = false;
 	}
+}
 
-	function handleReset() {
-		app.theme.resetToDefault();
-	}
+function handleReset() {
+	app.theme.resetToDefault();
+}
 </script>
 
 <div class="flex flex-col gap-8 p-4">

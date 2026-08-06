@@ -12,6 +12,20 @@ const { saveAs } = pkg;
 
 const STORAGE_VERSION = "1.1";
 
+function removeStorageKeys(storage: Storage, keys: string[], label: string): boolean {
+	let success = true;
+	for (const key of keys) {
+		try {
+			storage.removeItem(key);
+			console.log(`✅ Removed ${label} key: ${key}`);
+		} catch (keyError) {
+			console.warn(`⚠️ Failed to remove ${label} key ${key}:`, keyError);
+			success = false;
+		}
+	}
+	return success;
+}
+
 export interface StorageData {
 	version: string;
 	timestamp: string;
@@ -269,30 +283,15 @@ export class PersistenceService {
 				}
 			}
 
-			keysToRemove.forEach((key) => {
-				try {
-					localStorage.removeItem(key);
-					console.log(`✅ Removed localStorage key: ${key}`);
-				} catch (keyError) {
-					console.warn(`⚠️ Failed to remove localStorage key ${key}:`, keyError);
-					overallSuccess = false;
-				}
-			});
+			overallSuccess =
+				removeStorageKeys(localStorage, keysToRemove, "localStorage") && overallSuccess;
 
 			// After removing phoenyxcolor keys, also clear theme-related keys that may be left behind
 			const themeKeys: string[] = Object.keys(localStorage).filter(
 				(key) => key.includes("theme") || key.includes("daisy"),
 			);
 
-			themeKeys.forEach((key) => {
-				try {
-					localStorage.removeItem(key);
-					console.log(`✅ Removed theme key: ${key}`);
-				} catch (keyError) {
-					console.warn(`⚠️ Failed to remove theme key ${key}:`, keyError);
-					overallSuccess = false;
-				}
-			});
+			overallSuccess = removeStorageKeys(localStorage, themeKeys, "theme") && overallSuccess;
 
 			// Clear sessionStorage
 			const sessionKeysToRemove: string[] = [];
@@ -303,14 +302,7 @@ export class PersistenceService {
 				}
 			}
 
-			sessionKeysToRemove.forEach((key) => {
-				try {
-					sessionStorage.removeItem(key);
-					console.log(`✅ Removed sessionStorage key: ${key}`);
-				} catch (keyError) {
-					console.warn(`⚠️ Failed to remove sessionStorage key ${key}:`, keyError);
-				}
-			});
+			removeStorageKeys(sessionStorage, sessionKeysToRemove, "sessionStorage");
 
 			// Try to clear IndexedDB
 			try {
@@ -385,4 +377,5 @@ export class PersistenceService {
 	}
 }
 
-export const persistenceService = PersistenceService.getInstance();
+const persistenceService = PersistenceService.getInstance();
+// fallow-ignore-file unused-class-member

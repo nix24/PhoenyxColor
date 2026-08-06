@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { cn } from "$lib/utils/cn";
+import { cn } from "$lib/utils/cn";
 
-	type CardType = "palette" | "gradient" | "image" | "generic";
+type CardType = "palette" | "gradient" | "image" | "generic";
 
-	interface Props {
-		type?: CardType;
-		class?: string;
-	}
+interface Props {
+	type?: CardType;
+	class?: string;
+}
 
-	let { type = "generic", class: className = "" }: Props = $props();
+let { type = "generic", class: className = "" }: Props = $props();
 </script>
 
 {#if type === "palette"}

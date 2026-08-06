@@ -1,10 +1,16 @@
 import tailwindcss from "@tailwindcss/vite";
 import { sveltekit } from "@sveltejs/kit/vite";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import devtoolsJson from "vite-plugin-devtools-json";
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit(), devtoolsJson()],
+	resolve: {
+		conditions: ["browser"],
+	},
+	test: {
+		environment: "jsdom",
+	},
 	optimizeDeps: {
 		// Pre-bundle these dependencies for faster dev startup
 		include: ["svelte-sonner", "chroma-js", "colord", "culori", "file-saver", "idb"],
@@ -29,7 +35,7 @@ export default defineConfig({
 							return "vendor-color";
 						}
 						// Storage libraries
-						if (id.includes("idb") || id.includes("localforage")) {
+						if (id.includes("idb")) {
 							return "vendor-storage";
 						}
 						// File handling
@@ -64,7 +70,6 @@ export default defineConfig({
 			clientFiles: [
 				"./src/routes/+layout.svelte",
 				"./src/lib/stores/root.svelte.ts",
-				"./src/lib/components/layout/Sidebar.svelte",
 			],
 		},
 	},

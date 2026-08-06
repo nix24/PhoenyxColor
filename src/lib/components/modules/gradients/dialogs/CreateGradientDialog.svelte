@@ -1,27 +1,27 @@
 <script lang="ts">
-	import { scale } from "svelte/transition";
-	import { cubicOut } from "svelte/easing";
-	import Icon from "@iconify/svelte";
+import { scale } from "svelte/transition";
+import { cubicOut } from "svelte/easing";
+import Icon from "@iconify/svelte";
 
-	interface Props {
-		open: boolean;
-		onClose: () => void;
-		onCreate: (data: { name: string; type: "linear" | "radial" | "conic"; angle: number }) => void;
-	}
+interface Props {
+	open: boolean;
+	onClose: () => void;
+	onCreate: (data: { name: string; type: "linear" | "radial" | "conic"; angle: number }) => void;
+}
 
-	let { open, onClose, onCreate } = $props();
+let { open, onClose, onCreate } = $props();
 
-	let name = $state("");
-	let gradientType = $state<"linear" | "radial" | "conic">("linear");
-	let angle = $state(45);
+let name = $state("");
+let gradientType = $state<"linear" | "radial" | "conic">("linear");
+let angle = $state(45);
 
-	function handleCreate() {
-		if (!name.trim()) return;
-		onCreate({ name: name.trim(), type: gradientType, angle });
-		name = "";
-		gradientType = "linear";
-		angle = 45;
-	}
+function handleCreate() {
+	if (!name.trim()) return;
+	onCreate({ name: name.trim(), type: gradientType, angle });
+	name = "";
+	gradientType = "linear";
+	angle = 45;
+}
 </script>
 
 {#if open}

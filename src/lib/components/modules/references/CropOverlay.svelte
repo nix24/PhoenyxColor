@@ -1,63 +1,67 @@
 <script lang="ts">
-	import { cn } from "$lib/utils/cn";
-	import type { CropRect } from "$lib/components/editor/panels/CropPanel.svelte";
-	import type { CropGuideType } from "$lib/types/image-editor";
+import { cn } from "$lib/utils/cn";
+import type { CropRect } from "$lib/components/editor/panels/CropPanel.svelte";
+import type { CropGuideType } from "$lib/types/image-editor";
 
-	interface Props {
-		cropRect: CropRect;
-		guideType: CropGuideType;
-		imageWidth: number;
-		imageHeight: number;
-		onHandleDragStart: (handle: string, e: PointerEvent) => void;
-		onBodyDragStart: (e: PointerEvent) => void;
-	}
+interface Props {
+	cropRect: CropRect;
+	guideType: CropGuideType;
+	imageWidth: number;
+	imageHeight: number;
+	onHandleDragStart: (handle: string, e: PointerEvent) => void;
+	onBodyDragStart: (e: PointerEvent) => void;
+}
 
-	const {
-		cropRect,
-		guideType,
-		imageWidth,
-		imageHeight,
-		onHandleDragStart,
-		onBodyDragStart,
-	}: Props = $props();
+const { cropRect, guideType, imageWidth, imageHeight, onHandleDragStart, onBodyDragStart }: Props =
+	$props();
 
-	const HANDLE_SIZE = 16;
-	const HANDLE_HIT_AREA = 24;
+const HANDLE_SIZE = 16;
+const HANDLE_HIT_AREA = 24;
 
-	type HandleId =
-		| "top-left"
-		| "top"
-		| "top-right"
-		| "right"
-		| "bottom-right"
-		| "bottom"
-		| "bottom-left"
-		| "left";
+type HandleId =
+	| "top-left"
+	| "top"
+	| "top-right"
+	| "right"
+	| "bottom-right"
+	| "bottom"
+	| "bottom-left"
+	| "left";
 
-	const handles: Array<{
-		id: HandleId;
-		cursor: string;
-		getPos: (r: CropRect) => { x: number; y: number };
-	}> = [
-		{ id: "top-left", cursor: "nwse-resize", getPos: (r) => ({ x: r.x, y: r.y }) },
-		{ id: "top", cursor: "ns-resize", getPos: (r) => ({ x: r.x + r.width / 2, y: r.y }) },
-		{ id: "top-right", cursor: "nesw-resize", getPos: (r) => ({ x: r.x + r.width, y: r.y }) },
-		{ id: "right", cursor: "ew-resize", getPos: (r) => ({ x: r.x + r.width, y: r.y + r.height / 2 }) },
-		{ id: "bottom-right", cursor: "nwse-resize", getPos: (r) => ({ x: r.x + r.width, y: r.y + r.height }) },
-		{ id: "bottom", cursor: "ns-resize", getPos: (r) => ({ x: r.x + r.width / 2, y: r.y + r.height }) },
-		{ id: "bottom-left", cursor: "nesw-resize", getPos: (r) => ({ x: r.x, y: r.y + r.height }) },
-		{ id: "left", cursor: "ew-resize", getPos: (r) => ({ x: r.x, y: r.y + r.height / 2 }) },
-	];
+const handles: Array<{
+	id: HandleId;
+	cursor: string;
+	getPos: (r: CropRect) => { x: number; y: number };
+}> = [
+	{ id: "top-left", cursor: "nwse-resize", getPos: (r) => ({ x: r.x, y: r.y }) },
+	{ id: "top", cursor: "ns-resize", getPos: (r) => ({ x: r.x + r.width / 2, y: r.y }) },
+	{ id: "top-right", cursor: "nesw-resize", getPos: (r) => ({ x: r.x + r.width, y: r.y }) },
+	{
+		id: "right",
+		cursor: "ew-resize",
+		getPos: (r) => ({ x: r.x + r.width, y: r.y + r.height / 2 }),
+	},
+	{
+		id: "bottom-right",
+		cursor: "nwse-resize",
+		getPos: (r) => ({ x: r.x + r.width, y: r.y + r.height }),
+	},
+	{
+		id: "bottom",
+		cursor: "ns-resize",
+		getPos: (r) => ({ x: r.x + r.width / 2, y: r.y + r.height }),
+	},
+	{ id: "bottom-left", cursor: "nesw-resize", getPos: (r) => ({ x: r.x, y: r.y + r.height }) },
+	{ id: "left", cursor: "ew-resize", getPos: (r) => ({ x: r.x, y: r.y + r.height / 2 }) },
+];
 
-	const isCorner = (id: string) =>
-		id === "top-left" || id === "top-right" || id === "bottom-left" || id === "bottom-right";
+const isCorner = (id: string) =>
+	id === "top-left" || id === "top-right" || id === "bottom-left" || id === "bottom-right";
 
-	// Golden ratio = 1 / phi ≈ 0.618
-	const PHI = 0.618;
+// Golden ratio = 1 / phi ≈ 0.618
+const PHI = 0.618;
 
-	const dimensionLabel = $derived(
-		`${Math.round(cropRect.width)} × ${Math.round(cropRect.height)}`
-	);
+const dimensionLabel = $derived(`${Math.round(cropRect.width)} × ${Math.round(cropRect.height)}`);
 </script>
 
 <!-- Full-image dark overlay with crop region cut out via box-shadow -->

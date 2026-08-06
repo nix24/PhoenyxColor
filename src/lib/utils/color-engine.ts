@@ -8,7 +8,7 @@ export interface PaletteOptions {
 	quality: "fast" | "balanced" | "best"; // Controls downsampling size and iterations
 }
 
-export interface ColorStop {
+interface ColorStop {
 	color: string; // CSS string
 	position?: number; // 0-100
 }
@@ -45,7 +45,7 @@ export async function extractPalette(
 	const pixelData = await getDownsampledPixelData(imageSrc, DOWNSAMPLE_SIZES[options.quality]);
 
 	// 2. K-Means Clustering (WASM)
-	let centroids: { l: number, a: number, b: number }[] = [];
+	let centroids: { l: number; a: number; b: number }[] = [];
 	try {
 		centroids = wasm.runKMeans(pixelData, options.colorCount, KMEANS_ITERATIONS[options.quality]);
 	} catch (e) {
@@ -58,7 +58,7 @@ export async function extractPalette(
 		const color = { mode: "oklab", l: c.l, a: c.a, b: c.b } as Oklab;
 		const rgb = toRgb(color);
 		// Validate RGB values to prevent NaN in CSS output
-		if (!rgb || isNaN(rgb.r) || isNaN(rgb.g) || isNaN(rgb.b)) {
+		if (!rgb || Number.isNaN(rgb.r) || Number.isNaN(rgb.g) || Number.isNaN(rgb.b)) {
 			return "#000000";
 		}
 		const hex = formatHex(rgb);
@@ -137,7 +137,7 @@ export function sortPalette(colors: string[]): string[] {
 /**
  * Generates a CSS linear gradient string using Oklch interpolation.
  */
-export function generateGradient(colors: string[], direction: string = "to right"): string {
+function generateGradient(colors: string[], direction: string = "to right"): string {
 	// We use 'in oklch' for the interpolation space, which is the key for modern smooth gradients
 	const stops = colors.join(", ");
 	return `linear-gradient(${direction} in oklch, ${stops})`;

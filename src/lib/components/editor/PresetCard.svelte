@@ -1,20 +1,20 @@
 <script lang="ts">
-	import type { FilterPreset } from "$lib/types/image-editor";
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import { buildReferenceFilterString } from "$lib/utils/image-filters";
+import type { FilterPreset } from "$lib/types/image-editor";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import { buildReferenceFilterString } from "$lib/utils/image-filters";
 
-	interface Props {
-		preset: FilterPreset;
-		imageSrc: string;
-		isActive: boolean;
-		onApply: (preset: FilterPreset) => void;
-		onDelete: (id: string) => void;
-	}
+interface Props {
+	preset: FilterPreset;
+	imageSrc: string;
+	isActive: boolean;
+	onApply: (preset: FilterPreset) => void;
+	onDelete: (id: string) => void;
+}
 
-	const { preset, imageSrc, isActive, onApply, onDelete }: Props = $props();
+const { preset, imageSrc, isActive, onApply, onDelete }: Props = $props();
 
-	const previewFilter = $derived(buildReferenceFilterString(preset.settings));
+const previewFilter = $derived(buildReferenceFilterString(preset.settings));
 </script>
 
 <div class="relative group">

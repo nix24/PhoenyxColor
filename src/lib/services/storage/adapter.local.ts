@@ -34,3 +34,4 @@ export class LocalStorageAdapter implements StorageAdapter {
 		localStorage.clear();
 	}
 }
+// fallow-ignore-file unused-class-member

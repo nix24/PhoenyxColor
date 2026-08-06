@@ -1,10 +1,10 @@
 <script lang="ts">
-	import ReferencesModule from "$lib/components/modules/ReferencesModule.svelte";
-	import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
+import ReferencesModule from "$lib/components/modules/ReferencesModule.svelte";
+import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
 
-	const meta = PAGE_METADATA.references!;
-	const canonicalUrl = getFullUrl(meta.path);
-	const ogImage = getOgImageUrl();
+const meta = PAGE_METADATA.references!;
+const canonicalUrl = getFullUrl(meta.path);
+const ogImage = getOgImageUrl();
 </script>
 
 <svelte:head>

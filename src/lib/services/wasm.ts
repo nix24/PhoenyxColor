@@ -3,358 +3,409 @@ import { toast } from "svelte-sonner";
 
 // Define the shape of our WASM exports
 interface WasmExports {
-    memory: WebAssembly.Memory;
-    alloc: (len: number) => number;
-    dealloc: (ptr: number, len: number) => void;
+	memory: WebAssembly.Memory;
+	alloc: (len: number) => number;
+	dealloc: (ptr: number, len: number) => void;
 
-    // Image Adjustments
-    applyTemperature: (ptr: number, len: number, temp: number) => void;
-    applyTint: (ptr: number, len: number, tint: number) => void;
-    applyShadowsHighlights: (ptr: number, len: number, shadows: number, highlights: number) => void;
-    applyVibrance: (ptr: number, len: number, vibrance: number) => void;
+	// Image Adjustments
+	applyTemperature: (ptr: number, len: number, temp: number) => void;
+	applyTint: (ptr: number, len: number, tint: number) => void;
+	applyShadowsHighlights: (ptr: number, len: number, shadows: number, highlights: number) => void;
+	applyVibrance: (ptr: number, len: number, vibrance: number) => void;
 
-    // Effects
-    applyPosterize: (ptr: number, len: number, intensity: number) => void;
-    applySolarize: (ptr: number, len: number, intensity: number) => void;
-    applyDuotone: (ptr: number, len: number, intensity: number, dr: number, dg: number, db: number, lr: number, lg: number, lb: number) => void;
-    applyPixelate: (ptr: number, width: number, height: number, intensity: number) => void;
+	// Effects
+	applyPosterize: (ptr: number, len: number, intensity: number) => void;
+	applySolarize: (ptr: number, len: number, intensity: number) => void;
+	applyDuotone: (
+		ptr: number,
+		len: number,
+		intensity: number,
+		dr: number,
+		dg: number,
+		db: number,
+		lr: number,
+		lg: number,
+		lb: number,
+	) => void;
+	applyPixelate: (ptr: number, width: number, height: number, intensity: number) => void;
 
-    // Convolution
-    applyConvolution3x3: (ptr: number, width: number, height: number, k0: number, k1: number, k2: number, k3: number, k4: number, k5: number, k6: number, k7: number, k8: number, intensity: number, bias: number) => void;
-    applyClarity: (ptr: number, width: number, height: number, clarity: number) => void;
+	// Convolution
+	applyConvolution3x3: (
+		ptr: number,
+		width: number,
+		height: number,
+		k0: number,
+		k1: number,
+		k2: number,
+		k3: number,
+		k4: number,
+		k5: number,
+		k6: number,
+		k7: number,
+		k8: number,
+		intensity: number,
+		bias: number,
+	) => void;
+	applyClarity: (ptr: number, width: number, height: number, clarity: number) => void;
 
-    // Stylize
-    applyHalftone: (ptr: number, width: number, height: number, intensity: number) => void;
-    applyVHS: (ptr: number, width: number, height: number, intensity: number, seed: number) => void;
-    applyGlitch: (ptr: number, width: number, height: number, intensity: number, seed: number) => void;
+	// Stylize
+	applyHalftone: (ptr: number, width: number, height: number, intensity: number) => void;
+	applyVHS: (ptr: number, width: number, height: number, intensity: number, seed: number) => void;
+	applyGlitch: (
+		ptr: number,
+		width: number,
+		height: number,
+		intensity: number,
+		seed: number,
+	) => void;
 
-    // Clustering
-    runKMeans: (imgPtr: number, len: number, k: number, iterations: number, seed: number) => number;
+	// Clustering
+	runKMeans: (imgPtr: number, len: number, k: number, iterations: number, seed: number) => number;
 }
 
 class WasmService {
-    private instance: WebAssembly.Instance | null = null;
-    private memory: WebAssembly.Memory | null = null;
-    private loadingPromise: Promise<void> | null = null;
+	private instance: WebAssembly.Instance | null = null;
+	private memory: WebAssembly.Memory | null = null;
+	private loadingPromise: Promise<void> | null = null;
 
-    get isAvailable(): boolean {
-        return this.instance !== null;
-    }
+	get isAvailable(): boolean {
+		return this.instance !== null;
+	}
 
-    async init() {
-        if (this.instance) return;
-        if (this.loadingPromise) return this.loadingPromise;
+	async init() {
+		if (this.instance) return;
+		if (this.loadingPromise) return this.loadingPromise;
 
-        this.loadingPromise = (async () => {
-            if (!browser) return;
+		this.loadingPromise = (async () => {
+			if (!browser) return;
 
-            try {
-                const response = await fetch("/phoenyx-color.wasm");
-                if (!response.ok) throw new Error("Failed to load WASM module");
+			try {
+				const response = await fetch("/phoenyx-color.wasm");
+				if (!response.ok) throw new Error("Failed to load WASM module");
 
-                const buffer = await response.arrayBuffer();
-                const module = await WebAssembly.instantiate(buffer, {
-                    env: {
-                        // Add any imported functions here if main.zig requires them
-                        // print: (ptr: number, len: number) => console.log(...)
-                    }
-                });
+				const buffer = await response.arrayBuffer();
+				const module = await WebAssembly.instantiate(buffer, {
+					env: {
+						// Add any imported functions here if main.zig requires them
+						// print: (ptr: number, len: number) => console.log(...)
+					},
+				});
 
-                this.instance = module.instance;
-                this.memory = this.instance.exports.memory as WebAssembly.Memory;
+				this.instance = module.instance;
+				this.memory = this.instance.exports.memory as WebAssembly.Memory;
 
-                console.log("PhoenyxColor WASM initialized successfully");
-            } catch (err) {
-                console.error("Failed to initialize WASM:", err);
-                throw err;
-            }
-        })();
+				console.log("PhoenyxColor WASM initialized successfully");
+			} catch (err) {
+				console.error("Failed to initialize WASM:", err);
+				throw err;
+			}
+		})();
 
-        return this.loadingPromise;
-    }
+		return this.loadingPromise;
+	}
 
-    private get exports(): WasmExports {
-        if (!this.instance) throw new Error("WASM not initialized");
-        return this.instance.exports as unknown as WasmExports;
-    }
+	private get exports(): WasmExports {
+		if (!this.instance) throw new Error("WASM not initialized");
+		return this.instance.exports as unknown as WasmExports;
+	}
 
-    // --- Helpers ---
+	// --- Helpers ---
 
-    private alloc(len: number): number {
-        const ptr = this.exports.alloc(len);
-        if (ptr === 0) throw new Error("WASM allocation failed (OOM)");
-        return ptr;
-    }
+	private alloc(len: number): number {
+		const ptr = this.exports.alloc(len);
+		if (ptr === 0) throw new Error("WASM allocation failed (OOM)");
+		return ptr;
+	}
 
-    private dealloc(ptr: number, len: number) {
-        this.exports.dealloc(ptr, len);
-    }
+	private dealloc(ptr: number, len: number) {
+		this.exports.dealloc(ptr, len);
+	}
 
-    // Process a canvas-like Uint8ClampedArray in place
-    processImage(
-        data: Uint8ClampedArray | Uint8Array,
-        width: number,
-        height: number,
-        operation: (ptr: number, len: number) => void
-    ) {
-        if (!this.instance) {
-            toast.error("WASM module not loaded. Image processing unavailable.");
-            throw new Error("WASM not loaded");
-        }
+	// Process a canvas-like Uint8ClampedArray in place
+	processImage(
+		data: Uint8ClampedArray | Uint8Array,
+		_width: number,
+		_height: number,
+		operation: (ptr: number, len: number) => void,
+	) {
+		if (!this.instance) {
+			toast.error("WASM module not loaded. Image processing unavailable.");
+			throw new Error("WASM not loaded");
+		}
 
-        const len = data.length;
-        const ptr = this.alloc(len);
+		const len = data.length;
+		const ptr = this.alloc(len);
 
-        try {
-            // Copy data to WASM memory
-            const heap = new Uint8Array(this.memory!.buffer);
-            heap.set(data, ptr);
+		try {
+			// Copy data to WASM memory
+			const heap = new Uint8Array(this.memory!.buffer);
+			heap.set(data, ptr);
 
-            // Run operation
-            operation(ptr, len);
+			// Run operation
+			operation(ptr, len);
 
-            // Copy back
-            // Accessing buffer again because WASM might have grown memory (detached buffer)
-            const newHeap = new Uint8Array(this.memory!.buffer);
-            const resultSlice = newHeap.subarray(ptr, ptr + len);
-            data.set(resultSlice);
+			// Copy back
+			// Accessing buffer again because WASM might have grown memory (detached buffer)
+			const newHeap = new Uint8Array(this.memory!.buffer);
+			const resultSlice = newHeap.subarray(ptr, ptr + len);
+			data.set(resultSlice);
+		} catch (err) {
+			toast.error("Image processing failed. Please try again.");
+			throw err;
+		} finally {
+			this.dealloc(ptr, len);
+		}
+	}
 
-        } catch (err) {
-            toast.error("Image processing failed. Please try again.");
-            throw err;
-        } finally {
-            this.dealloc(ptr, len);
-        }
-    }
+	private processImageWithDimensions(
+		data: Uint8ClampedArray,
+		width: number,
+		height: number,
+		operation: (ptr: number, width: number, height: number) => void,
+		errorMessage?: string,
+	) {
+		if (!this.instance) throw new Error("WASM not loaded");
+		const len = data.length;
+		const ptr = this.alloc(len);
 
-    // --- Public API ---
+		try {
+			const heap = new Uint8Array(this.memory!.buffer);
+			heap.set(data, ptr);
+			operation(ptr, width, height);
+			const newHeap = new Uint8Array(this.memory!.buffer);
+			data.set(newHeap.subarray(ptr, ptr + len));
+		} catch (err) {
+			if (errorMessage) toast.error(`${errorMessage} effect failed.`);
+			throw err;
+		} finally {
+			this.dealloc(ptr, len);
+		}
+	}
 
-    applyTemperature(data: Uint8ClampedArray, width: number, height: number, temp: number) {
-        this.processImage(data, width, height, (ptr, len) => {
-            this.exports.applyTemperature(ptr, len, temp);
-        });
-    }
+	// --- Public API ---
 
-    applyTint(data: Uint8ClampedArray, width: number, height: number, tint: number) {
-        this.processImage(data, width, height, (ptr, len) => {
-            this.exports.applyTint(ptr, len, tint);
-        });
-    }
+	applyTemperature(data: Uint8ClampedArray, width: number, height: number, temp: number) {
+		this.processImage(data, width, height, (ptr, len) => {
+			this.exports.applyTemperature(ptr, len, temp);
+		});
+	}
 
-    applyShadowsHighlights(data: Uint8ClampedArray, width: number, height: number, shadows: number, highlights: number) {
-        this.processImage(data, width, height, (ptr, len) => {
-            this.exports.applyShadowsHighlights(ptr, len, shadows, highlights);
-        });
-    }
+	applyTint(data: Uint8ClampedArray, width: number, height: number, tint: number) {
+		this.processImage(data, width, height, (ptr, len) => {
+			this.exports.applyTint(ptr, len, tint);
+		});
+	}
 
-    applyVibrance(data: Uint8ClampedArray, width: number, height: number, vibrance: number) {
-        this.processImage(data, width, height, (ptr, len) => {
-            this.exports.applyVibrance(ptr, len, vibrance);
-        });
-    }
+	applyShadowsHighlights(
+		data: Uint8ClampedArray,
+		width: number,
+		height: number,
+		shadows: number,
+		highlights: number,
+	) {
+		this.processImage(data, width, height, (ptr, len) => {
+			this.exports.applyShadowsHighlights(ptr, len, shadows, highlights);
+		});
+	}
 
-    applyPosterize(data: Uint8ClampedArray, width: number, height: number, intensity: number) {
-        this.processImage(data, width, height, (ptr, len) => {
-            this.exports.applyPosterize(ptr, len, intensity);
-        });
-    }
+	applyVibrance(data: Uint8ClampedArray, width: number, height: number, vibrance: number) {
+		this.processImage(data, width, height, (ptr, len) => {
+			this.exports.applyVibrance(ptr, len, vibrance);
+		});
+	}
 
-    applySolarize(data: Uint8ClampedArray, width: number, height: number, intensity: number) {
-        this.processImage(data, width, height, (ptr, len) => {
-            this.exports.applySolarize(ptr, len, intensity);
-        });
-    }
+	applyPosterize(data: Uint8ClampedArray, width: number, height: number, intensity: number) {
+		this.processImage(data, width, height, (ptr, len) => {
+			this.exports.applyPosterize(ptr, len, intensity);
+		});
+	}
 
-    applyDuotone(data: Uint8ClampedArray, width: number, height: number, intensity: number, dark: { r: number, g: number, b: number }, light: { r: number, g: number, b: number }) {
-        this.processImage(data, width, height, (ptr, len) => {
-            this.exports.applyDuotone(ptr, len, intensity, dark.r, dark.g, dark.b, light.r, light.g, light.b);
-        });
-    }
+	applySolarize(data: Uint8ClampedArray, width: number, height: number, intensity: number) {
+		this.processImage(data, width, height, (ptr, len) => {
+			this.exports.applySolarize(ptr, len, intensity);
+		});
+	}
 
-    applyPixelate(data: Uint8ClampedArray, width: number, height: number, intensity: number) {
-        // Pixelate needs width/height
-        if (!this.instance) throw new Error("WASM not loaded");
-        const len = data.length;
-        const ptr = this.alloc(len);
+	applyDuotone(
+		data: Uint8ClampedArray,
+		width: number,
+		height: number,
+		intensity: number,
+		dark: { r: number; g: number; b: number },
+		light: { r: number; g: number; b: number },
+	) {
+		this.processImage(data, width, height, (ptr, len) => {
+			this.exports.applyDuotone(
+				ptr,
+				len,
+				intensity,
+				dark.r,
+				dark.g,
+				dark.b,
+				light.r,
+				light.g,
+				light.b,
+			);
+		});
+	}
 
-        try {
-            const heap = new Uint8Array(this.memory!.buffer);
-            heap.set(data, ptr);
+	applyPixelate(data: Uint8ClampedArray, width: number, height: number, intensity: number) {
+		this.processImageWithDimensions(data, width, height, (ptr, w, h) => {
+			this.exports.applyPixelate(ptr, w, h, intensity);
+		});
+	}
 
-            this.exports.applyPixelate(ptr, width, height, intensity);
+	// --- Convolution ---
 
-            const newHeap = new Uint8Array(this.memory!.buffer);
-            data.set(newHeap.subarray(ptr, ptr + len));
-        } finally {
-            this.dealloc(ptr, len);
-        }
-    }
+	applyConvolution3x3(
+		data: Uint8ClampedArray,
+		width: number,
+		height: number,
+		kernel: number[],
+		intensity: number,
+		bias: number,
+	) {
+		this.processImageWithDimensions(
+			data,
+			width,
+			height,
+			(ptr, w, h) => {
+				this.exports.applyConvolution3x3(
+					ptr,
+					w,
+					h,
+					kernel[0]!,
+					kernel[1]!,
+					kernel[2]!,
+					kernel[3]!,
+					kernel[4]!,
+					kernel[5]!,
+					kernel[6]!,
+					kernel[7]!,
+					kernel[8]!,
+					intensity,
+					bias,
+				);
+			},
+			"Convolution",
+		);
+	}
 
-    // --- Convolution ---
+	applyClarity(data: Uint8ClampedArray, width: number, height: number, clarity: number) {
+		this.processImageWithDimensions(
+			data,
+			width,
+			height,
+			(ptr, w, h) => {
+				this.exports.applyClarity(ptr, w, h, clarity);
+			},
+			"Clarity",
+		);
+	}
 
-    applyConvolution3x3(data: Uint8ClampedArray, width: number, height: number, kernel: number[], intensity: number, bias: number) {
-        if (!this.instance) throw new Error("WASM not loaded");
-        const len = data.length;
-        const ptr = this.alloc(len);
+	// --- Stylize ---
 
-        try {
-            const heap = new Uint8Array(this.memory!.buffer);
-            heap.set(data, ptr);
+	applyHalftone(data: Uint8ClampedArray, width: number, height: number, intensity: number) {
+		this.processImageWithDimensions(
+			data,
+			width,
+			height,
+			(ptr, w, h) => {
+				this.exports.applyHalftone(ptr, w, h, intensity);
+			},
+			"Halftone",
+		);
+	}
 
-            this.exports.applyConvolution3x3(
-                ptr, width, height,
-                kernel[0]!, kernel[1]!, kernel[2]!,
-                kernel[3]!, kernel[4]!, kernel[5]!,
-                kernel[6]!, kernel[7]!, kernel[8]!,
-                intensity, bias
-            );
+	applyVHS(
+		data: Uint8ClampedArray,
+		width: number,
+		height: number,
+		intensity: number,
+		seed?: number,
+	) {
+		this.processImageWithDimensions(
+			data,
+			width,
+			height,
+			(ptr, w, h) => {
+				this.exports.applyVHS(ptr, w, h, intensity, seed ?? Date.now() & 0xffffffff);
+			},
+			"VHS",
+		);
+	}
 
-            const newHeap = new Uint8Array(this.memory!.buffer);
-            data.set(newHeap.subarray(ptr, ptr + len));
-        } catch (err) {
-            toast.error("Convolution effect failed.");
-            throw err;
-        } finally {
-            this.dealloc(ptr, len);
-        }
-    }
+	applyGlitch(
+		data: Uint8ClampedArray,
+		width: number,
+		height: number,
+		intensity: number,
+		seed?: number,
+	) {
+		this.processImageWithDimensions(
+			data,
+			width,
+			height,
+			(ptr, w, h) => {
+				this.exports.applyGlitch(ptr, w, h, intensity, seed ?? Date.now() & 0xffffffff);
+			},
+			"Glitch",
+		);
+	}
 
-    applyClarity(data: Uint8ClampedArray, width: number, height: number, clarity: number) {
-        if (!this.instance) throw new Error("WASM not loaded");
-        const len = data.length;
-        const ptr = this.alloc(len);
+	// --- K-Means ---
 
-        try {
-            const heap = new Uint8Array(this.memory!.buffer);
-            heap.set(data, ptr);
+	runKMeans(
+		data: Uint8ClampedArray,
+		k: number,
+		iterations: number = 10,
+	): { l: number; a: number; b: number }[] {
+		if (!this.instance) {
+			toast.error("WASM module not loaded. Palette extraction unavailable.");
+			throw new Error("WASM not loaded");
+		}
 
-            this.exports.applyClarity(ptr, width, height, clarity);
+		const len = data.length;
+		const imgPtr = this.alloc(len);
+		let resultPtr = 0;
 
-            const newHeap = new Uint8Array(this.memory!.buffer);
-            data.set(newHeap.subarray(ptr, ptr + len));
-        } catch (err) {
-            toast.error("Clarity effect failed.");
-            throw err;
-        } finally {
-            this.dealloc(ptr, len);
-        }
-    }
+		try {
+			// Copy image
+			const heap = new Uint8Array(this.memory!.buffer);
+			heap.set(data, imgPtr);
 
-    // --- Stylize ---
+			// Run
+			const seed = Date.now() & 0xffffffff;
+			resultPtr = this.exports.runKMeans(imgPtr, len, k, iterations, seed);
 
-    applyHalftone(data: Uint8ClampedArray, width: number, height: number, intensity: number) {
-        if (!this.instance) throw new Error("WASM not loaded");
-        const len = data.length;
-        const ptr = this.alloc(len);
+			if (resultPtr === 0) throw new Error("WASM K-Means failed");
 
-        try {
-            const heap = new Uint8Array(this.memory!.buffer);
-            heap.set(data, ptr);
+			// Read results
+			// Output is [l, a, b, l, a, b...] floats (f32)
+			// Memory view must be DataView or Float32Array
+			const resultHeap = new Float32Array(this.memory!.buffer);
+			// resultPtr is byte offset. Float32Array index = byte offset / 4.
+			const startIdx = resultPtr / 4;
+			const floatCount = k * 3;
 
-            this.exports.applyHalftone(ptr, width, height, intensity);
+			const results: { l: number; a: number; b: number }[] = [];
+			for (let i = 0; i < k; i++) {
+				results.push({
+					l: resultHeap[startIdx + i * 3] ?? 0,
+					a: resultHeap[startIdx + i * 3 + 1] ?? 0,
+					b: resultHeap[startIdx + i * 3 + 2] ?? 0,
+				});
+			}
 
-            const newHeap = new Uint8Array(this.memory!.buffer);
-            data.set(newHeap.subarray(ptr, ptr + len));
-        } catch (err) {
-            toast.error("Halftone effect failed.");
-            throw err;
-        } finally {
-            this.dealloc(ptr, len);
-        }
-    }
-
-    applyVHS(data: Uint8ClampedArray, width: number, height: number, intensity: number, seed?: number) {
-        if (!this.instance) throw new Error("WASM not loaded");
-        const len = data.length;
-        const ptr = this.alloc(len);
-
-        try {
-            const heap = new Uint8Array(this.memory!.buffer);
-            heap.set(data, ptr);
-
-            this.exports.applyVHS(ptr, width, height, intensity, seed ?? (Date.now() & 0xFFFFFFFF));
-
-            const newHeap = new Uint8Array(this.memory!.buffer);
-            data.set(newHeap.subarray(ptr, ptr + len));
-        } catch (err) {
-            toast.error("VHS effect failed.");
-            throw err;
-        } finally {
-            this.dealloc(ptr, len);
-        }
-    }
-
-    applyGlitch(data: Uint8ClampedArray, width: number, height: number, intensity: number, seed?: number) {
-        if (!this.instance) throw new Error("WASM not loaded");
-        const len = data.length;
-        const ptr = this.alloc(len);
-
-        try {
-            const heap = new Uint8Array(this.memory!.buffer);
-            heap.set(data, ptr);
-
-            this.exports.applyGlitch(ptr, width, height, intensity, seed ?? (Date.now() & 0xFFFFFFFF));
-
-            const newHeap = new Uint8Array(this.memory!.buffer);
-            data.set(newHeap.subarray(ptr, ptr + len));
-        } catch (err) {
-            toast.error("Glitch effect failed.");
-            throw err;
-        } finally {
-            this.dealloc(ptr, len);
-        }
-    }
-
-    // --- K-Means ---
-
-    runKMeans(data: Uint8ClampedArray, k: number, iterations: number = 10): { l: number, a: number, b: number }[] {
-        if (!this.instance) {
-            toast.error("WASM module not loaded. Palette extraction unavailable.");
-            throw new Error("WASM not loaded");
-        }
-
-        const len = data.length;
-        const imgPtr = this.alloc(len);
-        let resultPtr = 0;
-
-        try {
-            // Copy image
-            const heap = new Uint8Array(this.memory!.buffer);
-            heap.set(data, imgPtr);
-
-            // Run
-            const seed = Date.now() & 0xFFFFFFFF;
-            resultPtr = this.exports.runKMeans(imgPtr, len, k, iterations, seed);
-
-            if (resultPtr === 0) throw new Error("WASM K-Means failed");
-
-            // Read results
-            // Output is [l, a, b, l, a, b...] floats (f32)
-            // Memory view must be DataView or Float32Array
-            const resultHeap = new Float32Array(this.memory!.buffer);
-            // resultPtr is byte offset. Float32Array index = byte offset / 4.
-            const startIdx = resultPtr / 4;
-            const floatCount = k * 3;
-
-            const results: { l: number, a: number, b: number }[] = [];
-            for (let i = 0; i < k; i++) {
-                results.push({
-                    l: resultHeap[startIdx + i * 3] ?? 0,
-                    a: resultHeap[startIdx + i * 3 + 1] ?? 0,
-                    b: resultHeap[startIdx + i * 3 + 2] ?? 0
-                });
-            }
-
-            return results;
-
-        } finally {
-            this.dealloc(imgPtr, len);
-            if (resultPtr !== 0) {
-                // Free result buffer (k * 3 * 4 bytes)
-                this.dealloc(resultPtr, k * 3 * 4);
-            }
-        }
-    }
+			return results;
+		} finally {
+			this.dealloc(imgPtr, len);
+			if (resultPtr !== 0) {
+				// Free result buffer (k * 3 * 4 bytes)
+				this.dealloc(resultPtr, k * 3 * 4);
+			}
+		}
+	}
 }
 
 export const wasm = new WasmService();

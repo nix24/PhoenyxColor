@@ -1,5 +1,5 @@
 import { storage } from "$lib/services/storage";
-import { HistoryStore } from "./history.svelte";
+import { HistoryStore, recordCollectionUpdate } from "./history.svelte";
 import type { FilterPreset, PresetCategory, FilterPresetSettings } from "$lib/types/image-editor";
 
 const STORAGE_KEY = "phoenyx_filter_presets";
@@ -39,7 +39,12 @@ export class FilterPresetStore {
 		await storage.db.set(STORAGE_KEY, $state.snapshot(this.presets));
 	}
 
-	add(preset: { name: string; category: PresetCategory; settings: Partial<FilterPresetSettings>; thumbnail?: string }) {
+	add(preset: {
+		name: string;
+		category: PresetCategory;
+		settings: Partial<FilterPresetSettings>;
+		thumbnail?: string;
+	}) {
 		const newPreset: FilterPreset = {
 			id: crypto.randomUUID(),
 			name: preset.name,
@@ -97,24 +102,16 @@ export class FilterPresetStore {
 
 		const item = this.presets[index];
 		if (item) {
-			const prevState = $state.snapshot(this.presets);
-			const nextState = prevState.map((p, i) =>
-				i === index ? { ...p, ...updates } : p
+			recordCollectionUpdate(
+				this.presets,
+				index,
+				updates,
+				() => Object.assign(item, updates),
+				(state) => (this.presets = state),
+				() => this.save(),
+				this.history,
+				"Update Preset",
 			);
-			Object.assign(item, updates);
-			this.save();
-
-			this.history.push({
-				label: "Update Preset",
-				undo: () => {
-					this.presets = prevState;
-					this.save();
-				},
-				redo: () => {
-					this.presets = nextState;
-					this.save();
-				},
-			});
 		}
 	}
 
@@ -122,3 +119,4 @@ export class FilterPresetStore {
 		return this.presets.filter((p) => p.category === category);
 	}
 }
+// fallow-ignore-file unused-class-member

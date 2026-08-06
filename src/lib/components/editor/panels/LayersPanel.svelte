@@ -1,88 +1,87 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import { BLEND_MODES, type ImageLayer, type BlendMode } from "$lib/types/image-editor";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import { BLEND_MODES, type ImageLayer, type BlendMode } from "$lib/types/image-editor";
 
-	let {
-		layers = [],
-		activeLayerId = null,
-		onAddImageLayer,
-		onRemoveLayer,
-		onUpdateLayer,
-		onDuplicateLayer,
-		onReorderLayer,
-		onSetActiveLayer,
-		onMergeDown,
-		onFlattenAll,
-	} = $props<{
-		layers: ImageLayer[];
-		activeLayerId: string | null;
-		onAddImageLayer: () => void;
-		onRemoveLayer: (id: string) => void;
-		onUpdateLayer: (id: string, updates: Partial<ImageLayer>) => void;
-		onDuplicateLayer: (id: string) => void;
-		onReorderLayer: (fromIndex: number, toIndex: number) => void;
-		onSetActiveLayer: (id: string | null) => void;
-		onMergeDown: (id: string) => void;
-		onFlattenAll: () => void;
-	}>();
+let {
+	layers = [],
+	activeLayerId = null,
+	onAddImageLayer,
+	onRemoveLayer,
+	onUpdateLayer,
+	onDuplicateLayer,
+	onReorderLayer,
+	onSetActiveLayer,
+	onMergeDown,
+	onFlattenAll,
+} = $props<{
+	layers: ImageLayer[];
+	activeLayerId: string | null;
+	onAddImageLayer: () => void;
+	onRemoveLayer: (id: string) => void;
+	onUpdateLayer: (id: string, updates: Partial<ImageLayer>) => void;
+	onDuplicateLayer: (id: string) => void;
+	onReorderLayer: (fromIndex: number, toIndex: number) => void;
+	onSetActiveLayer: (id: string | null) => void;
+	onMergeDown: (id: string) => void;
+	onFlattenAll: () => void;
+}>();
 
-	let dragIndex = $state<number | null>(null);
-	let dropIndex = $state<number | null>(null);
-	let editingNameId = $state<string | null>(null);
-	let editingNameValue = $state("");
+let dragIndex = $state<number | null>(null);
+let dropIndex = $state<number | null>(null);
+let editingNameId = $state<string | null>(null);
+let editingNameValue = $state("");
 
-	// Layers are displayed top-to-bottom (last layer = top of stack = first in list)
-	const displayLayers = $derived([...layers].reverse());
+// Layers are displayed top-to-bottom (last layer = top of stack = first in list)
+const displayLayers = $derived([...layers].reverse());
 
-	function handleDragStart(index: number) {
-		dragIndex = index;
-	}
+function handleDragStart(index: number) {
+	dragIndex = index;
+}
 
-	function handleDragOver(e: DragEvent, index: number) {
-		e.preventDefault();
-		dropIndex = index;
-	}
+function handleDragOver(e: DragEvent, index: number) {
+	e.preventDefault();
+	dropIndex = index;
+}
 
-	function handleDrop(index: number) {
-		if (dragIndex === null || dragIndex === index) {
-			dragIndex = null;
-			dropIndex = null;
-			return;
-		}
-		// Convert display indices back to layers array indices
-		const fromActual = layers.length - 1 - dragIndex;
-		const toActual = layers.length - 1 - index;
-		onReorderLayer(fromActual, toActual);
+function handleDrop(index: number) {
+	if (dragIndex === null || dragIndex === index) {
 		dragIndex = null;
 		dropIndex = null;
+		return;
 	}
+	// Convert display indices back to layers array indices
+	const fromActual = layers.length - 1 - dragIndex;
+	const toActual = layers.length - 1 - index;
+	onReorderLayer(fromActual, toActual);
+	dragIndex = null;
+	dropIndex = null;
+}
 
-	function handleDragEnd() {
-		dragIndex = null;
-		dropIndex = null;
+function handleDragEnd() {
+	dragIndex = null;
+	dropIndex = null;
+}
+
+function startRename(layer: ImageLayer) {
+	editingNameId = layer.id;
+	editingNameValue = layer.name;
+}
+
+function commitRename(layerId: string) {
+	if (editingNameValue.trim()) {
+		onUpdateLayer(layerId, { name: editingNameValue.trim() });
 	}
+	editingNameId = null;
+}
 
-	function startRename(layer: ImageLayer) {
-		editingNameId = layer.id;
-		editingNameValue = layer.name;
-	}
+function handleOpacityChange(layerId: string, value: number) {
+	onUpdateLayer(layerId, { opacity: value / 100 });
+}
 
-	function commitRename(layerId: string) {
-		if (editingNameValue.trim()) {
-			onUpdateLayer(layerId, { name: editingNameValue.trim() });
-		}
-		editingNameId = null;
-	}
-
-	function handleOpacityChange(layerId: string, value: number) {
-		onUpdateLayer(layerId, { opacity: value / 100 });
-	}
-
-	function handleBlendModeChange(layerId: string, value: string) {
-		onUpdateLayer(layerId, { blendMode: value as BlendMode });
-	}
-
+function handleBlendModeChange(layerId: string, value: string) {
+	onUpdateLayer(layerId, { blendMode: value as BlendMode });
+}
 </script>
 
 <!-- Layer Actions Bar -->

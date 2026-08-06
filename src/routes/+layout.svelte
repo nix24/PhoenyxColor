@@ -1,108 +1,108 @@
 <script lang="ts">
-	import "../app.css";
-	import Header from "$lib/components/layout/Header.svelte";
-	import ProceduralBackground from "$lib/components/visuals/ProceduralBackground.svelte";
-	import { Toaster } from "svelte-sonner";
-	import { keyboardShortcuts } from "$lib/services/keyboardShortcuts";
-	import { app } from "$lib/stores/root.svelte";
-	import { onMount, onDestroy } from "svelte";
-	import { browser } from "$app/environment";
-	import { page } from "$app/state";
-	import { wasm } from "$lib/services/wasm";
-	import { SITE_CONFIG, getStructuredData } from "$lib/config/seo";
+import "../app.css";
+import Header from "$lib/components/layout/Header.svelte";
+import ProceduralBackground from "$lib/components/visuals/ProceduralBackground.svelte";
+import { Toaster } from "svelte-sonner";
+import { keyboardShortcuts } from "$lib/services/keyboardShortcuts";
+import { app } from "$lib/stores/root.svelte";
+import { onMount, onDestroy } from "svelte";
+import { browser } from "$app/environment";
+import { page } from "$app/state";
+import { wasm } from "$lib/services/wasm";
+import { SITE_CONFIG, getStructuredData } from "$lib/config/seo";
 
-	import { fly, fade } from "svelte/transition";
-	import { backOut } from "svelte/easing";
+import { fly, fade } from "svelte/transition";
+import { backOut } from "svelte/easing";
 
-	// Generate structured data for JSON-LD
-	const structuredData = JSON.stringify(getStructuredData());
+// Generate structured data for JSON-LD
+const structuredData = JSON.stringify(getStructuredData());
 
-	let { children } = $props();
+let { children } = $props();
 
-	// Track previous path for directional transitions
-	let previousPath = $state("");
-	let transitionDirection = $state<"up" | "down" | "left" | "right">("up");
+// Track previous path for directional transitions
+let previousPath = $state("");
+let transitionDirection = $state<"up" | "down" | "left" | "right">("up");
 
-	// Route hierarchy for spatial awareness
-	const routeOrder = ["/references", "/palettes", "/gradients", "/settings"];
+// Route hierarchy for spatial awareness
+const routeOrder = ["/references", "/palettes", "/gradients", "/settings"];
 
-	$effect(() => {
-		const currentPath = page.url.pathname;
-		const prevIndex = routeOrder.findIndex((r) => previousPath.includes(r.slice(1)));
-		const currIndex = routeOrder.findIndex((r) => currentPath.includes(r.slice(1)));
+$effect(() => {
+	const currentPath = page.url.pathname;
+	const prevIndex = routeOrder.findIndex((r) => previousPath.includes(r.slice(1)));
+	const currIndex = routeOrder.findIndex((r) => currentPath.includes(r.slice(1)));
 
-		if (currIndex > prevIndex) {
-			transitionDirection = "up";
-		} else if (currIndex < prevIndex) {
-			transitionDirection = "down";
-		}
-
-		previousPath = currentPath;
-
-		// Close mobile menu on route change
-		if (browser) {
-			app.closeMobileMenu();
-		}
-	});
-
-	// Derived title based on current route
-	let pageTitle = $derived.by(() => {
-		const path = page.url.pathname;
-		if (path.includes("references")) return "Reference Images";
-		if (path.includes("palettes")) return "Color Palettes";
-		if (path.includes("gradients")) return "Gradient Generator";
-		if (path.includes("settings")) return "Settings";
-		return "PhoenyxColor";
-	});
-
-	function applyTheme(theme: string) {
-		let effective = theme;
-		if (theme === "system") {
-			effective = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-		}
-		document.documentElement.setAttribute("data-theme", effective);
+	if (currIndex > prevIndex) {
+		transitionDirection = "up";
+	} else if (currIndex < prevIndex) {
+		transitionDirection = "down";
 	}
 
-	function handleMediaChange() {
-		applyTheme(app.settings.state.theme);
+	previousPath = currentPath;
+
+	// Close mobile menu on route change
+	if (browser) {
+		app.closeMobileMenu();
 	}
+});
 
-	let mediaQuery: MediaQueryList | undefined;
-	let mobileMediaQuery: MediaQueryList | undefined;
+// Derived title based on current route
+let pageTitle = $derived.by(() => {
+	const path = page.url.pathname;
+	if (path.includes("references")) return "Reference Images";
+	if (path.includes("palettes")) return "Color Palettes";
+	if (path.includes("gradients")) return "Gradient Generator";
+	if (path.includes("settings")) return "Settings";
+	return "PhoenyxColor";
+});
 
-	// Responsive toast position - bottom-center on mobile, bottom-right on desktop
-	let isMobile = $state(false);
-	let toastPosition = $derived<"bottom-center" | "bottom-right">(
-		isMobile ? "bottom-center" : "bottom-right"
-	);
-
-	function handleMobileChange(e: MediaQueryListEvent) {
-		isMobile = !e.matches;
+function applyTheme(theme: string) {
+	let effective = theme;
+	if (theme === "system") {
+		effective = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 	}
+	document.documentElement.setAttribute("data-theme", effective);
+}
 
-	$effect(() => {
-		if (!browser) return;
-		applyTheme(app.settings.state.theme);
-	});
+function handleMediaChange() {
+	applyTheme(app.settings.state.theme);
+}
 
-	// Initialize keyboard shortcuts and theme
-	onMount(async () => {
-		wasm.init().catch((err) => console.error("WASM failed to load", err));
-		keyboardShortcuts.startListening();
-		mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-		mediaQuery.addEventListener("change", handleMediaChange);
+let mediaQuery: MediaQueryList | undefined;
+let mobileMediaQuery: MediaQueryList | undefined;
 
-		// Track mobile viewport for responsive toast position
-		mobileMediaQuery = window.matchMedia("(min-width: 768px)");
-		isMobile = !mobileMediaQuery.matches;
-		mobileMediaQuery.addEventListener("change", handleMobileChange);
-	});
+// Responsive toast position - bottom-center on mobile, bottom-right on desktop
+let isMobile = $state(false);
+let toastPosition = $derived<"bottom-center" | "bottom-right">(
+	isMobile ? "bottom-center" : "bottom-right",
+);
 
-	onDestroy(() => {
-		mediaQuery?.removeEventListener("change", handleMediaChange);
-		mobileMediaQuery?.removeEventListener("change", handleMobileChange);
-		keyboardShortcuts.stopListening();
-	});
+function handleMobileChange(e: MediaQueryListEvent) {
+	isMobile = !e.matches;
+}
+
+$effect(() => {
+	if (!browser) return;
+	applyTheme(app.settings.state.theme);
+});
+
+// Initialize keyboard shortcuts and theme
+onMount(async () => {
+	wasm.init().catch((err) => console.error("WASM failed to load", err));
+	keyboardShortcuts.startListening();
+	mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+	mediaQuery.addEventListener("change", handleMediaChange);
+
+	// Track mobile viewport for responsive toast position
+	mobileMediaQuery = window.matchMedia("(min-width: 768px)");
+	isMobile = !mobileMediaQuery.matches;
+	mobileMediaQuery.addEventListener("change", handleMobileChange);
+});
+
+onDestroy(() => {
+	mediaQuery?.removeEventListener("change", handleMediaChange);
+	mobileMediaQuery?.removeEventListener("change", handleMobileChange);
+	keyboardShortcuts.stopListening();
+});
 </script>
 
 <!-- Base SEO metadata and structured data -->

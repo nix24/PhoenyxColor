@@ -17,18 +17,26 @@ import { renderCanvasImage, loadImage } from "$lib/utils/canvas-renderer";
 import {
 	getTemperatureColorMatrix,
 	getTintColorMatrix,
-	interpolateCurvePoints,
+	isDefaultCurvePoints,
+	createCurveLookupTable,
 } from "$lib/utils/image-processing";
 import { buildCSSFilterString, buildTransformString } from "$lib/utils/image-filters";
 import { generateLayerThumbnail } from "$lib/utils/layer-compositor";
 import type { ImageLayer } from "$lib/types/image-editor";
-import type { QuickEffect } from "$lib/components/editor/panels/EffectsPanel.svelte";
+import type { QuickEffect } from "$lib/types/effects";
 
 const CANVAS_REQUIRED_EFFECTS: QuickEffect[] = [
-	"posterize", "pixelate", "solarize", "halftone", "vhs", "glitch", "emboss", "sharpen",
+	"posterize",
+	"pixelate",
+	"solarize",
+	"halftone",
+	"vhs",
+	"glitch",
+	"emboss",
+	"sharpen",
 ];
 
-export function useImageEditor(imageId: string) {
+export function useImageEditor(getImageId: () => string) {
 	const history = createEditorHistory();
 
 	let quickEffect = $state<QuickEffect>("none");
@@ -36,15 +44,16 @@ export function useImageEditor(imageId: string) {
 	let duotoneColors = $state<[string, string]>(["#000000", "#ffffff"]);
 
 	let previewDataUrl = $state<string | null>(null);
-	let previousPreviewUrl: string | null = null;
 	let isRenderingPreview = $state(false);
+	let previewError = $state<string | null>(null);
 	let renderTimeout: ReturnType<typeof setTimeout> | null = null;
+	let renderGeneration = 0;
 
 	let extractedPalette = $state<string[] | null>(null);
 	let imageWidth = $state(0);
 	let imageHeight = $state(0);
 
-	const image = $derived(app.references.references.find((r) => r.id === imageId));
+	const image = $derived(app.references.references.find((r) => r.id === getImageId()));
 
 	const needsCanvasPreview = $derived(
 		CANVAS_REQUIRED_EFFECTS.includes(quickEffect) ||
@@ -74,30 +83,38 @@ export function useImageEditor(imageId: string) {
 
 	const curvesModified = $derived.by(() => {
 		const curves = history.currentState.curves ?? DEFAULT_EDITOR_STATE.curves;
-		const isDefault = (points: Array<{ x: number; y: number }> | undefined) =>
-			!points ||
-			points.length < 2 ||
-			(points.length === 2 &&
-				points[0]?.x === 0 && points[0]?.y === 0 &&
-				points[1]?.x === 255 && points[1]?.y === 255);
-		return !isDefault(curves.rgb) || !isDefault(curves.red) ||
-			!isDefault(curves.green) || !isDefault(curves.blue);
+		return (
+			!isDefaultCurvePoints(curves.rgb) ||
+			!isDefaultCurvePoints(curves.red) ||
+			!isDefaultCurvePoints(curves.green) ||
+			!isDefaultCurvePoints(curves.blue)
+		);
 	});
 
 	const quickEffectFilter = $derived.by(() => {
 		if (quickEffect === "none") return "";
 		const intensity = effectIntensity / 100;
 		switch (quickEffect) {
-			case "posterize": return `contrast(${100 + intensity * 100}%) saturate(${100 + intensity * 50}%)`;
-			case "solarize": return `invert(${intensity * 50}%)`;
-			case "emboss": return `contrast(${100 + intensity * 80}%) saturate(${100 - intensity * 60}%)`;
-			case "sharpen": return `contrast(${100 + intensity * 30}%)`;
-			case "vhs": return `blur(${intensity * 0.5}px) saturate(${100 + intensity * 40}%) contrast(${100 - intensity * 15}%)`;
-			case "glitch": return `hue-rotate(${intensity * 10}deg) contrast(${100 + intensity * 40}%)`;
-			case "duotone": return "grayscale(100%)";
-			case "halftone": return `contrast(${100 + intensity * 60}%)`;
-			case "pixelate": return `contrast(${100 + intensity * 50}%)`;
-			default: return "";
+			case "posterize":
+				return `contrast(${100 + intensity * 100}%) saturate(${100 + intensity * 50}%)`;
+			case "solarize":
+				return `invert(${intensity * 50}%)`;
+			case "emboss":
+				return `contrast(${100 + intensity * 80}%) saturate(${100 - intensity * 60}%)`;
+			case "sharpen":
+				return `contrast(${100 + intensity * 30}%)`;
+			case "vhs":
+				return `blur(${intensity * 0.5}px) saturate(${100 + intensity * 40}%) contrast(${100 - intensity * 15}%)`;
+			case "glitch":
+				return `hue-rotate(${intensity * 10}deg) contrast(${100 + intensity * 40}%)`;
+			case "duotone":
+				return "grayscale(100%)";
+			case "halftone":
+				return `contrast(${100 + intensity * 60}%)`;
+			case "pixelate":
+				return `contrast(${100 + intensity * 50}%)`;
+			default:
+				return "";
 		}
 	});
 
@@ -113,28 +130,40 @@ export function useImageEditor(imageId: string) {
 	// --- Actions ---
 
 	function initializeFromImage() {
-		const currentId = imageId;
+		const currentId = getImageId();
 		untrack(() => {
 			const img = app.references.references.find((r) => r.id === currentId);
 			if (!img) return;
 			history.initialize({
-				brightness: img.brightness ?? 100, contrast: img.contrast ?? 100,
-				saturation: img.saturation ?? 100, hueRotate: img.hueRotate ?? 0,
-				blur: img.blur ?? 0, opacity: img.opacity ?? 1,
-				sepia: img.sepia ?? 0, invert: img.invert ?? 0,
+				brightness: img.brightness ?? 100,
+				contrast: img.contrast ?? 100,
+				saturation: img.saturation ?? 100,
+				hueRotate: img.hueRotate ?? 0,
+				blur: img.blur ?? 0,
+				opacity: img.opacity ?? 1,
+				sepia: img.sepia ?? 0,
+				invert: img.invert ?? 0,
 				isGrayscale: img.isGrayscale ?? false,
-				scale: img.scale ?? 1, rotation: img.rotation ?? 0,
-				flipX: img.flipX ?? false, flipY: img.flipY ?? false,
+				scale: img.scale ?? 1,
+				rotation: img.rotation ?? 0,
+				flipX: img.flipX ?? false,
+				flipY: img.flipY ?? false,
 				gradientMapOpacity: img.gradientMapOpacity ?? 0,
 				gradientMapBlendMode: img.gradientMapBlendMode ?? "normal",
-				shadows: img.shadows ?? 0, highlights: img.highlights ?? 0,
-				vibrance: img.vibrance ?? 0, temperature: img.temperature ?? 0,
-				tint: img.tint ?? 0, clarity: img.clarity ?? 0, vignette: img.vignette ?? 0,
+				shadows: img.shadows ?? 0,
+				highlights: img.highlights ?? 0,
+				vibrance: img.vibrance ?? 0,
+				temperature: img.temperature ?? 0,
+				tint: img.tint ?? 0,
+				clarity: img.clarity ?? 0,
+				vignette: img.vignette ?? 0,
 				curves: img.curves ?? DEFAULT_EDITOR_STATE.curves,
 				cropRect: img.cropRect ?? null,
 				appliedEffects: (img.appliedEffects ?? []) as AppliedEffect[],
+				drawStrokes: img.drawStrokes ?? [],
 				layers: ((img as Record<string, unknown>).layers as ImageLayer[] | undefined) ?? [],
-				activeLayerId: ((img as Record<string, unknown>).activeLayerId as string | null | undefined) ?? null,
+				activeLayerId:
+					((img as Record<string, unknown>).activeLayerId as string | null | undefined) ?? null,
 			});
 		});
 	}
@@ -142,16 +171,35 @@ export function useImageEditor(imageId: string) {
 	function syncToStore() {
 		if (!image) return;
 		const s = history.currentState;
-		app.references.update(imageId, {
-			brightness: s.brightness, contrast: s.contrast, saturation: s.saturation,
-			hueRotate: s.hueRotate, blur: s.blur, opacity: s.opacity,
-			sepia: s.sepia, invert: s.invert, isGrayscale: s.isGrayscale,
-			scale: s.scale, rotation: s.rotation, flipX: s.flipX, flipY: s.flipY,
-			gradientMapOpacity: s.gradientMapOpacity, gradientMapBlendMode: s.gradientMapBlendMode,
-			shadows: s.shadows, highlights: s.highlights, vibrance: s.vibrance,
-			temperature: s.temperature, tint: s.tint, clarity: s.clarity, vignette: s.vignette,
-			curves: s.curves, cropRect: s.cropRect, appliedEffects: s.appliedEffects,
-			layers: s.layers, activeLayerId: s.activeLayerId,
+		app.references.update(getImageId(), {
+			brightness: s.brightness,
+			contrast: s.contrast,
+			saturation: s.saturation,
+			hueRotate: s.hueRotate,
+			blur: s.blur,
+			opacity: s.opacity,
+			sepia: s.sepia,
+			invert: s.invert,
+			isGrayscale: s.isGrayscale,
+			scale: s.scale,
+			rotation: s.rotation,
+			flipX: s.flipX,
+			flipY: s.flipY,
+			gradientMapOpacity: s.gradientMapOpacity,
+			gradientMapBlendMode: s.gradientMapBlendMode,
+			shadows: s.shadows,
+			highlights: s.highlights,
+			vibrance: s.vibrance,
+			temperature: s.temperature,
+			tint: s.tint,
+			clarity: s.clarity,
+			vignette: s.vignette,
+			curves: s.curves,
+			cropRect: s.cropRect,
+			appliedEffects: s.appliedEffects,
+			drawStrokes: s.drawStrokes,
+			layers: s.layers,
+			activeLayerId: s.activeLayerId,
 		} as Record<string, unknown>);
 	}
 
@@ -164,14 +212,21 @@ export function useImageEditor(imageId: string) {
 		const current = history.currentState;
 		const baseState: Partial<ImageEditorState> = {
 			...current,
-			brightness: DEFAULT_EDITOR_STATE.brightness, contrast: DEFAULT_EDITOR_STATE.contrast,
-			saturation: DEFAULT_EDITOR_STATE.saturation, hueRotate: DEFAULT_EDITOR_STATE.hueRotate,
-			blur: DEFAULT_EDITOR_STATE.blur, opacity: DEFAULT_EDITOR_STATE.opacity,
-			sepia: DEFAULT_EDITOR_STATE.sepia, invert: DEFAULT_EDITOR_STATE.invert,
+			brightness: DEFAULT_EDITOR_STATE.brightness,
+			contrast: DEFAULT_EDITOR_STATE.contrast,
+			saturation: DEFAULT_EDITOR_STATE.saturation,
+			hueRotate: DEFAULT_EDITOR_STATE.hueRotate,
+			blur: DEFAULT_EDITOR_STATE.blur,
+			opacity: DEFAULT_EDITOR_STATE.opacity,
+			sepia: DEFAULT_EDITOR_STATE.sepia,
+			invert: DEFAULT_EDITOR_STATE.invert,
 			isGrayscale: DEFAULT_EDITOR_STATE.isGrayscale,
-			shadows: DEFAULT_EDITOR_STATE.shadows, highlights: DEFAULT_EDITOR_STATE.highlights,
-			vibrance: DEFAULT_EDITOR_STATE.vibrance, temperature: DEFAULT_EDITOR_STATE.temperature,
-			tint: DEFAULT_EDITOR_STATE.tint, clarity: DEFAULT_EDITOR_STATE.clarity,
+			shadows: DEFAULT_EDITOR_STATE.shadows,
+			highlights: DEFAULT_EDITOR_STATE.highlights,
+			vibrance: DEFAULT_EDITOR_STATE.vibrance,
+			temperature: DEFAULT_EDITOR_STATE.temperature,
+			tint: DEFAULT_EDITOR_STATE.tint,
+			clarity: DEFAULT_EDITOR_STATE.clarity,
 			vignette: DEFAULT_EDITOR_STATE.vignette,
 			curves: DEFAULT_EDITOR_STATE.curves,
 			gradientMapOpacity: DEFAULT_EDITOR_STATE.gradientMapOpacity,
@@ -232,31 +287,38 @@ export function useImageEditor(imageId: string) {
 	// --- Canvas preview ---
 
 	async function renderCanvasPreview(): Promise<void> {
+		const generation = ++renderGeneration;
 		if (!image || !needsCanvasPreview) {
 			previewDataUrl = null;
+			previewError = null;
 			return;
 		}
 		isRenderingPreview = true;
+		previewError = null;
 		try {
 			const canvas = document.createElement("canvas");
 			const img = await loadImage(image.src);
 			await renderCanvasImage(canvas, img, history.currentState, {
 				maxSize: 800,
-				previewEffect: quickEffect !== "none"
-					? { type: quickEffect, intensity: effectIntensity,
-						duotoneColors: quickEffect === "duotone" ? duotoneColors : undefined }
-					: undefined,
+				previewEffect:
+					quickEffect !== "none"
+						? {
+								type: quickEffect,
+								intensity: effectIntensity,
+								duotoneColors: quickEffect === "duotone" ? duotoneColors : undefined,
+							}
+						: undefined,
 			});
-			if (previousPreviewUrl?.startsWith("blob:")) {
-				URL.revokeObjectURL(previousPreviewUrl);
-			}
-			previousPreviewUrl = previewDataUrl;
+			if (generation !== renderGeneration) return;
 			previewDataUrl = canvas.toDataURL("image/jpeg", 0.85);
 		} catch (error) {
 			console.error("Preview render failed:", error);
-			previewDataUrl = null;
+			if (generation === renderGeneration) {
+				previewDataUrl = null;
+				previewError = "The processed preview could not be rendered.";
+			}
 		} finally {
-			isRenderingPreview = false;
+			if (generation === renderGeneration) isRenderingPreview = false;
 		}
 	}
 
@@ -268,11 +330,6 @@ export function useImageEditor(imageId: string) {
 	async function generateThumbnailWithEffects(): Promise<string | null> {
 		if (!image) return null;
 		const s = history.currentState;
-		const hasEffects =
-			(s.appliedEffects && s.appliedEffects.length > 0) ||
-			s.shadows !== 0 || s.highlights !== 0 || s.vibrance !== 0 ||
-			s.clarity !== 0 || s.temperature !== 0 || s.tint !== 0;
-		if (!hasEffects) return null;
 		try {
 			const canvas = document.createElement("canvas");
 			const img = await loadImage(image.src);
@@ -287,70 +344,29 @@ export function useImageEditor(imageId: string) {
 	async function getEditedImageData(): Promise<string> {
 		if (!image) throw new Error("No image");
 		const canvas = document.createElement("canvas");
-		const ctx = canvas.getContext("2d");
-		if (!ctx) throw new Error("Could not get canvas context");
-
-		const img = new Image();
-		img.crossOrigin = "anonymous";
-		await new Promise<void>((resolve, reject) => {
-			img.onload = () => resolve();
-			img.onerror = reject;
-			img.src = image.src;
+		const img = await loadImage(image.src);
+		await renderCanvasImage(canvas, img, history.currentState, {
+			previewEffect:
+				quickEffect !== "none"
+					? {
+							type: quickEffect,
+							intensity: effectIntensity,
+							duotoneColors: quickEffect === "duotone" ? duotoneColors : undefined,
+						}
+					: undefined,
 		});
-
-		canvas.width = img.naturalWidth;
-		canvas.height = img.naturalHeight;
-		const filterStr = combinedFilterString.replace("none", "");
-		if (filterStr) ctx.filter = filterStr;
-
-		ctx.save();
-		const s = history.currentState;
-		ctx.translate(canvas.width / 2, canvas.height / 2);
-		if (s.flipX) ctx.scale(-1, 1);
-		if (s.flipY) ctx.scale(1, -1);
-		ctx.rotate((s.rotation * Math.PI) / 180);
-		ctx.translate(-canvas.width / 2, -canvas.height / 2);
-		ctx.drawImage(img, 0, 0);
-		ctx.restore();
-
-		if (quickEffect === "duotone") {
-			ctx.globalAlpha = effectIntensity / 100;
-			ctx.globalCompositeOperation = "color";
-			const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-			gradient.addColorStop(0, duotoneColors[1]);
-			gradient.addColorStop(1, duotoneColors[0]);
-			ctx.fillStyle = gradient;
-			ctx.fillRect(0, 0, canvas.width, canvas.height);
-			ctx.globalAlpha = 1;
-			ctx.globalCompositeOperation = "source-over";
-		}
 		return canvas.toDataURL("image/png");
 	}
 
 	function getCurveTableValues(channel: "rgb" | "red" | "green" | "blue"): string {
 		const curves = history.currentState.curves ?? DEFAULT_EDITOR_STATE.curves;
 		const points = curves[channel];
-		if (!points || points.length < 2 ||
-			(points.length === 2 && points[0]?.x === 0 && points[0]?.y === 0 &&
-				points[1]?.x === 255 && points[1]?.y === 255)) {
+		if (isDefaultCurvePoints(points)) {
 			return Array.from({ length: 256 }, (_, i) => (i / 255).toFixed(4)).join(" ");
 		}
-		const interpolated = interpolateCurvePoints(points);
-		const lut = new Array<number>(256).fill(0);
-		for (let x = 0; x < 256; x++) {
-			let y = x;
-			for (let i = 0; i < interpolated.length - 1; i++) {
-				const p1 = interpolated[i];
-				const p2 = interpolated[i + 1];
-				if (p1 && p2 && p1.x <= x && p2.x >= x) {
-					const t = p2.x !== p1.x ? (x - p1.x) / (p2.x - p1.x) : 0;
-					y = p1.y + t * (p2.y - p1.y);
-					break;
-				}
-			}
-			lut[x] = Math.max(0, Math.min(255, y)) / 255;
-		}
-		return lut.map((v) => v.toFixed(4)).join(" ");
+		return Array.from(createCurveLookupTable(points), (value) => (value / 255).toFixed(4)).join(
+			" ",
+		);
 	}
 
 	function setImageDimensions(width: number, height: number) {
@@ -387,9 +403,10 @@ export function useImageEditor(imageId: string) {
 	function removeLayer(layerId: string) {
 		const currentLayers = history.currentState.layers;
 		const filtered = currentLayers.filter((l) => l.id !== layerId);
-		const newActiveId = history.currentState.activeLayerId === layerId
-			? (filtered[filtered.length - 1]?.id ?? null)
-			: history.currentState.activeLayerId;
+		const newActiveId =
+			history.currentState.activeLayerId === layerId
+				? (filtered[filtered.length - 1]?.id ?? null)
+				: history.currentState.activeLayerId;
 		handleStateUpdate({ layers: filtered, activeLayerId: newActiveId });
 	}
 
@@ -441,6 +458,7 @@ export function useImageEditor(imageId: string) {
 	}
 
 	function cleanup() {
+		renderGeneration += 1;
 		if (renderTimeout) clearTimeout(renderTimeout);
 		// Revoke blob URLs from layers to prevent memory leaks
 		for (const layer of history.currentState.layers) {
@@ -451,37 +469,84 @@ export function useImageEditor(imageId: string) {
 
 	return {
 		history,
-		get image() { return image; },
-		get imageWidth() { return imageWidth; },
-		get imageHeight() { return imageHeight; },
+		get image() {
+			return image;
+		},
+		get imageWidth() {
+			return imageWidth;
+		},
+		get imageHeight() {
+			return imageHeight;
+		},
 		setImageDimensions,
 		// Effects
-		get quickEffect() { return quickEffect; },
-		set quickEffect(v: QuickEffect) { quickEffect = v; },
-		get effectIntensity() { return effectIntensity; },
-		set effectIntensity(v: number) { effectIntensity = v; },
-		get duotoneColors() { return duotoneColors; },
-		set duotoneColors(v: [string, string]) { duotoneColors = v; },
+		get quickEffect() {
+			return quickEffect;
+		},
+		set quickEffect(v: QuickEffect) {
+			quickEffect = v;
+		},
+		get effectIntensity() {
+			return effectIntensity;
+		},
+		set effectIntensity(v: number) {
+			effectIntensity = v;
+		},
+		get duotoneColors() {
+			return duotoneColors;
+		},
+		set duotoneColors(v: [string, string]) {
+			duotoneColors = v;
+		},
 		handleApplyEffect,
 		handleRemoveEffect,
 		handleClearEffects,
 		// Preview
-		get previewDataUrl() { return previewDataUrl; },
-		get isRenderingPreview() { return isRenderingPreview; },
-		get needsCanvasPreview() { return needsCanvasPreview; },
+		get previewDataUrl() {
+			return previewDataUrl;
+		},
+		get isRenderingPreview() {
+			return isRenderingPreview;
+		},
+		get previewError() {
+			return previewError;
+		},
+		get needsCanvasPreview() {
+			return needsCanvasPreview;
+		},
 		schedulePreviewRender,
 		// Palette
-		get extractedPalette() { return extractedPalette; },
-		set extractedPalette(v: string[] | null) { extractedPalette = v; },
+		get extractedPalette() {
+			return extractedPalette;
+		},
+		set extractedPalette(v: string[] | null) {
+			extractedPalette = v;
+		},
 		// Derived strings
-		get filterString() { return filterString; },
-		get transformString() { return transformString; },
-		get combinedFilterString() { return combinedFilterString; },
-		get quickEffectFilter() { return quickEffectFilter; },
-		get colorAdjustActive() { return colorAdjustActive; },
-		get curvesModified() { return curvesModified; },
-		get appliedCrop() { return appliedCrop; },
-		get cropClipPath() { return cropClipPath; },
+		get filterString() {
+			return filterString;
+		},
+		get transformString() {
+			return transformString;
+		},
+		get combinedFilterString() {
+			return combinedFilterString;
+		},
+		get quickEffectFilter() {
+			return quickEffectFilter;
+		},
+		get colorAdjustActive() {
+			return colorAdjustActive;
+		},
+		get curvesModified() {
+			return curvesModified;
+		},
+		get appliedCrop() {
+			return appliedCrop;
+		},
+		get cropClipPath() {
+			return cropClipPath;
+		},
 		// Actions
 		initializeFromImage,
 		handleStateUpdate,

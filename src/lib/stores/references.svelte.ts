@@ -1,15 +1,18 @@
 import { storage } from "$lib/services/storage";
 import { HistoryStore } from "./history.svelte";
-import type { ValidatedReferenceImage } from "$lib/schemas/validation";
+import { ReferenceImageSchema, type ValidatedReferenceImage } from "$lib/schemas/validation";
 import type { ReferenceId } from "$lib/types/brands";
 
 export class ReferenceStore {
 	references = $state<ValidatedReferenceImage[]>([]);
 	isReady = $state(false);
+	loadError = $state<string | null>(null);
+	saveError = $state<string | null>(null);
 	history = new HistoryStore<ValidatedReferenceImage[]>();
 
 	private STORAGE_KEY = "phoenyx_references";
 	private loadPromise: Promise<void>;
+	private saveQueue: Promise<void> = Promise.resolve();
 
 	constructor() {
 		// Non-blocking initialization - store the promise but don't await
@@ -24,19 +27,37 @@ export class ReferenceStore {
 	}
 
 	async load() {
+		this.isReady = false;
+		this.loadError = null;
 		try {
 			const saved = await storage.db.get<ValidatedReferenceImage[]>(this.STORAGE_KEY);
 			if (saved) {
-				this.references = saved.map((r) => ({
-					...r,
-					createdAt: new Date(r.createdAt),
-				}));
+				const references: ValidatedReferenceImage[] = [];
+				let invalidCount = 0;
+				for (const stored of saved) {
+					const result = ReferenceImageSchema.safeParse({
+						...stored,
+						createdAt: new Date(stored.createdAt),
+					});
+					if (result.success) references.push(result.data);
+					else invalidCount += 1;
+				}
+				this.references = references;
+				if (invalidCount > 0) {
+					this.loadError = `${invalidCount} saved reference ${invalidCount === 1 ? "was" : "were"} invalid and could not be restored.`;
+				}
 			}
 		} catch (error) {
-			console.warn("Failed to load references:", error);
+			console.error("Failed to load references:", error);
+			this.loadError = "Reference images could not be loaded from this device.";
 		} finally {
 			this.isReady = true;
 		}
+	}
+
+	reload(): Promise<void> {
+		this.loadPromise = this.load();
+		return this.loadPromise;
 	}
 
 	async save() {
@@ -44,6 +65,16 @@ export class ReferenceStore {
 		// and only keep metadata here. For now, we store the whole array in IDB which is
 		// much better than LocalStorage.
 		await storage.db.set(this.STORAGE_KEY, $state.snapshot(this.references));
+		this.saveError = null;
+	}
+
+	private queueSave() {
+		this.saveQueue = this.saveQueue
+			.then(() => this.save())
+			.catch((error: unknown) => {
+				console.error("Failed to save references:", error);
+				this.saveError = "Changes are visible, but could not be saved on this device.";
+			});
 	}
 
 	add(ref: Omit<ValidatedReferenceImage, "id" | "createdAt">) {
@@ -55,17 +86,17 @@ export class ReferenceStore {
 
 		const prevState = $state.snapshot(this.references);
 		this.references.push(newRef);
-		this.save();
+		this.queueSave();
 
 		this.history.push({
 			label: "Add Reference",
 			undo: () => {
 				this.references = prevState;
-				this.save();
+				this.queueSave();
 			},
 			redo: () => {
 				this.references = [...prevState, newRef];
-				this.save();
+				this.queueSave();
 			},
 		});
 	}
@@ -76,19 +107,19 @@ export class ReferenceStore {
 
 		const prevState = $state.snapshot(this.references);
 		this.references.splice(index, 1);
-		this.save();
+		this.queueSave();
 
 		this.history.push({
 			label: "Remove Reference",
 			undo: () => {
 				this.references = prevState;
-				this.save();
+				this.queueSave();
 			},
 			redo: () => {
 				const nextState = [...prevState];
 				nextState.splice(index, 1);
 				this.references = nextState;
-				this.save();
+				this.queueSave();
 			},
 		});
 	}
@@ -101,23 +132,22 @@ export class ReferenceStore {
 		if (item) {
 			const prevState = $state.snapshot(this.references);
 			// Create next state before applying updates
-			const nextState = prevState.map((r, i) =>
-				i === index ? { ...r, ...updates } : r
-			);
+			const nextState = prevState.map((r, i) => (i === index ? { ...r, ...updates } : r));
 			Object.assign(item, updates);
-			this.save();
+			this.queueSave();
 
 			this.history.push({
 				label: "Update Reference",
 				undo: () => {
 					this.references = prevState;
-					this.save();
+					this.queueSave();
 				},
 				redo: () => {
 					this.references = nextState;
-					this.save();
+					this.queueSave();
 				},
 			});
 		}
 	}
 }
+// fallow-ignore-file unused-class-member

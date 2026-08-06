@@ -1,184 +1,188 @@
 <script lang="ts">
-	import { scale } from "svelte/transition";
-	import { cubicOut } from "svelte/easing";
-	import { app } from "$lib/stores/root.svelte";
-	import type { ValidatedGradientStop } from "$lib/schemas/validation";
-	import { validateGradient } from "$lib/schemas/validation";
-	import Icon from "@iconify/svelte";
-	import { toast } from "svelte-sonner";
+import { scale } from "svelte/transition";
+import { cubicOut } from "svelte/easing";
+import { app } from "$lib/stores/root.svelte";
+import type { ValidatedGradientStop } from "$lib/schemas/validation";
+import { validateGradient } from "$lib/schemas/validation";
+import Icon from "@iconify/svelte";
+import { toast } from "svelte-sonner";
 
-	import GradientLibrary from "./gradients/GradientLibrary.svelte";
-	import GradientForge from "./gradients/GradientForge.svelte";
-	import GradientProperties from "./gradients/GradientProperties.svelte";
+import GradientLibrary from "./gradients/GradientLibrary.svelte";
+import GradientForge from "./gradients/GradientForge.svelte";
+import GradientProperties from "./gradients/GradientProperties.svelte";
 
-	import CreateGradientDialog from "./gradients/dialogs/CreateGradientDialog.svelte";
-	import SmartGeneratorDialog from "./gradients/dialogs/SmartGeneratorDialog.svelte";
-	import ImageExtractDialog from "./gradients/dialogs/ImageExtractDialog.svelte";
-	import ExportDialog from "./gradients/dialogs/ExportDialog.svelte";
+import CreateGradientDialog from "./gradients/dialogs/CreateGradientDialog.svelte";
+import SmartGeneratorDialog from "./gradients/dialogs/SmartGeneratorDialog.svelte";
+import ImageExtractDialog from "./gradients/dialogs/ImageExtractDialog.svelte";
+import ExportDialog from "./gradients/dialogs/ExportDialog.svelte";
 
-	import type { InterpolationMode, GradientPreset } from "./gradients/gradient-utils";
+import type { InterpolationMode, GradientPreset } from "./gradients/gradient-utils";
 
-	// Dialog visibility
-	let showCreateDialog = $state(false);
-	let showSmartGeneratorDialog = $state(false);
-	let showImageExtractDialog = $state(false);
-	let showPalettePickerDialog = $state(false);
-	let showExportDialog = $state(false);
+// Dialog visibility
+let showCreateDialog = $state(false);
+let showSmartGeneratorDialog = $state(false);
+let showImageExtractDialog = $state(false);
+let showPalettePickerDialog = $state(false);
+let showExportDialog = $state(false);
 
-	// Editor state
-	let interpolationMode = $state<InterpolationMode>("oklch");
-	let searchTerm = $state("");
+// Editor state
+let interpolationMode = $state<InterpolationMode>("oklch");
+let searchTerm = $state("");
 
-	// Mobile view management (follows PalettesModule pattern)
-	type MobileView = "library" | "editor" | "properties";
-	let mobileView = $state<MobileView>("library");
+// Mobile view management (follows PalettesModule pattern)
+type MobileView = "library" | "editor" | "properties";
+let mobileView = $state<MobileView>("library");
 
-	// Handlers
-	function handleStopPositionChange(index: number, position: number) {
-		const gradient = app.gradients.activeGradient;
-		if (!gradient) return;
-		const stops = [...gradient.stops];
-		if (stops[index]) stops[index].position = position;
-		app.gradients.update(gradient.id, { stops });
+// Handlers
+function handleStopPositionChange(index: number, position: number) {
+	const gradient = app.gradients.activeGradient;
+	if (!gradient) return;
+	const stops = [...gradient.stops];
+	if (stops[index]) stops[index].position = position;
+	app.gradients.update(gradient.id, { stops });
+}
+
+function handleAngleChange(angle: number) {
+	const gradient = app.gradients.activeGradient;
+	if (gradient) app.gradients.update(gradient.id, { angle });
+}
+
+function handleCenterChange(x: number, y: number) {
+	const gradient = app.gradients.activeGradient;
+	if (gradient) app.gradients.update(gradient.id, { centerX: x, centerY: y });
+}
+
+function handleDeleteGradient() {
+	const gradient = app.gradients.activeGradient;
+	if (gradient && confirm(`Delete "${gradient.name}"?`)) {
+		app.gradients.remove(gradient.id);
+		toast.info("Gradient deleted");
+		mobileView = "library";
+	}
+}
+
+function handleGradientSelect() {
+	mobileView = "editor";
+}
+
+function addGradientFromStops(stops: ValidatedGradientStop[], name: string) {
+	let uniqueName = name;
+	let counter = 1;
+	while (app.gradients.gradients.some((g) => g.name === uniqueName)) {
+		uniqueName = `${name} ${counter++}`;
 	}
 
-	function handleAngleChange(angle: number) {
-		const gradient = app.gradients.activeGradient;
-		if (gradient) app.gradients.update(gradient.id, { angle });
-	}
-
-	function handleCenterChange(x: number, y: number) {
-		const gradient = app.gradients.activeGradient;
-		if (gradient) app.gradients.update(gradient.id, { centerX: x, centerY: y });
-	}
-
-	function handleDeleteGradient() {
-		const gradient = app.gradients.activeGradient;
-		if (gradient && confirm(`Delete "${gradient.name}"?`)) {
-			app.gradients.remove(gradient.id);
-			toast.info("Gradient deleted");
-			mobileView = "library";
-		}
-	}
-
-	function handleGradientSelect() {
-		mobileView = "editor";
-	}
-
-	function addGradientFromStops(stops: ValidatedGradientStop[], name: string) {
-		let uniqueName = name;
-		let counter = 1;
-		while (app.gradients.gradients.some((g) => g.name === uniqueName)) {
-			uniqueName = `${name} ${counter++}`;
-		}
-
-		app.gradients.add({
-			name: uniqueName,
-			type: "linear",
-			stops,
-			angle: 45,
-			centerX: 50,
-			centerY: 50,
-		});
-		toast.success(`Created "${uniqueName}"!`);
-	}
-
-	function handleCreateGradient(data: { name: string; type: "linear" | "radial" | "conic"; angle: number }) {
-		const defaultStops: ValidatedGradientStop[] = [
-			{ color: "#3b82f6", position: 0 },
-			{ color: "#8b5cf6", position: 100 },
-		];
-
-		const gradientData = {
-			id: crypto.randomUUID(),
-			name: data.name,
-			type: data.type,
-			stops: defaultStops,
-			angle: data.type === "linear" ? data.angle : 0,
-			centerX: 50,
-			centerY: 50,
-			createdAt: new Date(),
-		};
-
-		const validation = validateGradient(gradientData);
-		if (!validation.valid) {
-			toast.error(`Invalid gradient: ${validation.error}`);
-			return;
-		}
-
-		app.gradients.add(gradientData);
-		showCreateDialog = false;
-		toast.success("Gradient created!");
-		mobileView = "editor";
-	}
-
-	function handleApplyPreset(preset: GradientPreset) {
-		const stops: ValidatedGradientStop[] = preset.colors.map((color, i) => ({
-			color,
-			position: (i / (preset.colors.length - 1)) * 100,
-		}));
-
-		let uniqueName = preset.name;
-		let counter = 1;
-		while (app.gradients.gradients.some((g) => g.name === uniqueName)) {
-			uniqueName = `${preset.name} ${counter++}`;
-		}
-
-		app.gradients.add({
-			name: uniqueName,
-			type: preset.type === "mesh" ? "linear" : preset.type,
-			stops,
-			angle: preset.angle ?? 45,
-			centerX: 50,
-			centerY: 50,
-		});
-		toast.success(`Applied "${preset.name}" preset!`);
-		mobileView = "editor";
-	}
-
-	function handlePaletteSelect(palette: { name: string; colors: string[] }) {
-		const stops: ValidatedGradientStop[] = palette.colors.map((color, i) => ({
-			color,
-			position: (i / Math.max(1, palette.colors.length - 1)) * 100,
-		}));
-
-		app.gradients.add({
-			name: `From ${palette.name}`,
-			type: "linear",
-			stops,
-			angle: 90,
-			centerX: 50,
-			centerY: 50,
-		});
-		toast.success(`Created gradient from "${palette.name}"`);
-		showPalettePickerDialog = false;
-		mobileView = "editor";
-	}
-
-	// Shared library props
-	const libraryProps = $derived({
-		searchTerm,
-		onCreateNew: () => (showCreateDialog = true),
-		onGenerate: () => (showSmartGeneratorDialog = true),
-		onFromImage: () => (showImageExtractDialog = true),
-		onFromPalette: () => (showPalettePickerDialog = true),
-		onApplyPreset: handleApplyPreset,
-		onSelect: handleGradientSelect,
+	app.gradients.add({
+		name: uniqueName,
+		type: "linear",
+		stops,
+		angle: 45,
+		centerX: 50,
+		centerY: 50,
 	});
+	toast.success(`Created "${uniqueName}"!`);
+}
 
-	const forgeProps = $derived({
-		interpolationMode,
-		onStopPositionChange: handleStopPositionChange,
-		onAngleChange: handleAngleChange,
-		onCenterChange: handleCenterChange,
-	});
+function handleCreateGradient(data: {
+	name: string;
+	type: "linear" | "radial" | "conic";
+	angle: number;
+}) {
+	const defaultStops: ValidatedGradientStop[] = [
+		{ color: "#3b82f6", position: 0 },
+		{ color: "#8b5cf6", position: 100 },
+	];
 
-	const propertiesProps = $derived({
-		interpolationMode,
-		onInterpolationModeChange: (mode: InterpolationMode) => (interpolationMode = mode),
-		onExport: () => (showExportDialog = true),
-		onDelete: handleDeleteGradient,
+	const gradientData = {
+		id: crypto.randomUUID(),
+		name: data.name,
+		type: data.type,
+		stops: defaultStops,
+		angle: data.type === "linear" ? data.angle : 0,
+		centerX: 50,
+		centerY: 50,
+		createdAt: new Date(),
+	};
+
+	const validation = validateGradient(gradientData);
+	if (!validation.valid) {
+		toast.error(`Invalid gradient: ${validation.error}`);
+		return;
+	}
+
+	app.gradients.add(gradientData);
+	showCreateDialog = false;
+	toast.success("Gradient created!");
+	mobileView = "editor";
+}
+
+function handleApplyPreset(preset: GradientPreset) {
+	const stops: ValidatedGradientStop[] = preset.colors.map((color, i) => ({
+		color,
+		position: (i / (preset.colors.length - 1)) * 100,
+	}));
+
+	let uniqueName = preset.name;
+	let counter = 1;
+	while (app.gradients.gradients.some((g) => g.name === uniqueName)) {
+		uniqueName = `${preset.name} ${counter++}`;
+	}
+
+	app.gradients.add({
+		name: uniqueName,
+		type: preset.type === "mesh" ? "linear" : preset.type,
+		stops,
+		angle: preset.angle ?? 45,
+		centerX: 50,
+		centerY: 50,
 	});
+	toast.success(`Applied "${preset.name}" preset!`);
+	mobileView = "editor";
+}
+
+function handlePaletteSelect(palette: { name: string; colors: string[] }) {
+	const stops: ValidatedGradientStop[] = palette.colors.map((color, i) => ({
+		color,
+		position: (i / Math.max(1, palette.colors.length - 1)) * 100,
+	}));
+
+	app.gradients.add({
+		name: `From ${palette.name}`,
+		type: "linear",
+		stops,
+		angle: 90,
+		centerX: 50,
+		centerY: 50,
+	});
+	toast.success(`Created gradient from "${palette.name}"`);
+	showPalettePickerDialog = false;
+	mobileView = "editor";
+}
+
+// Shared library props
+const libraryProps = $derived({
+	searchTerm,
+	onCreateNew: () => (showCreateDialog = true),
+	onGenerate: () => (showSmartGeneratorDialog = true),
+	onFromImage: () => (showImageExtractDialog = true),
+	onFromPalette: () => (showPalettePickerDialog = true),
+	onApplyPreset: handleApplyPreset,
+	onSelect: handleGradientSelect,
+});
+
+const forgeProps = $derived({
+	interpolationMode,
+	onStopPositionChange: handleStopPositionChange,
+	onAngleChange: handleAngleChange,
+	onCenterChange: handleCenterChange,
+});
+
+const propertiesProps = $derived({
+	interpolationMode,
+	onInterpolationModeChange: (mode: InterpolationMode) => (interpolationMode = mode),
+	onExport: () => (showExportDialog = true),
+	onDelete: handleDeleteGradient,
+});
 </script>
 
 <div class="h-full w-full p-4 overflow-hidden @container">

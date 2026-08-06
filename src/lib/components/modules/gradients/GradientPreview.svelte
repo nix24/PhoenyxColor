@@ -1,133 +1,133 @@
 <script lang="ts">
-	import type { ValidatedGradient } from "$lib/schemas/validation";
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import {
-		generateCSSGradient,
-		type InterpolationMode,
-		type MeshPoint,
-		generateMeshGradientCSS,
-	} from "./gradient-utils";
+import type { ValidatedGradient } from "$lib/schemas/validation";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import {
+	generateCSSGradient,
+	type InterpolationMode,
+	type MeshPoint,
+	generateMeshGradientCSS,
+} from "./gradient-utils";
 
-	interface Props {
-		gradient: ValidatedGradient | null;
-		meshPoints?: MeshPoint[];
-		interpolationMode?: InterpolationMode;
-		previewSize?: { width: number; height: number };
-		showInteractiveHandles?: boolean;
-		onAngleChange?: (angle: number) => void;
-		onCenterChange?: (x: number, y: number) => void;
-		onStopPositionChange?: (index: number, position: number) => void;
-		onMeshPointMove?: (id: string, x: number, y: number) => void;
+interface Props {
+	gradient: ValidatedGradient | null;
+	meshPoints?: MeshPoint[];
+	interpolationMode?: InterpolationMode;
+	previewSize?: { width: number; height: number };
+	showInteractiveHandles?: boolean;
+	onAngleChange?: (angle: number) => void;
+	onCenterChange?: (x: number, y: number) => void;
+	onStopPositionChange?: (index: number, position: number) => void;
+	onMeshPointMove?: (id: string, x: number, y: number) => void;
+}
+
+let {
+	gradient,
+	meshPoints = [],
+	interpolationMode = "oklch",
+	previewSize = { width: 400, height: 200 },
+	showInteractiveHandles = false,
+	onAngleChange,
+	onCenterChange,
+	onStopPositionChange,
+	onMeshPointMove,
+}: Props = $props();
+
+let previewContainer: HTMLDivElement;
+let isDragging = $state(false);
+let dragTarget = $state<"angle" | "center" | "stop" | "mesh" | null>(null);
+let dragIndex = $state(-1);
+let dragMeshId = $state<string | null>(null);
+
+// Track actual container dimensions for accurate handle positioning
+let containerWidth = $state(0);
+let containerHeight = $state(0);
+let actualSize = $derived({
+	width: containerWidth || previewSize.width,
+	height: containerHeight || previewSize.height,
+});
+
+// Calculate gradient CSS
+let gradientCSS = $derived(
+	meshPoints.length > 0
+		? generateMeshGradientCSS(meshPoints)
+		: generateCSSGradient(gradient, interpolationMode),
+);
+
+// Calculate handle positions for linear gradient
+let angleHandlePosition = $derived.by(() => {
+	if (!gradient || gradient.type !== "linear") return null;
+	const angle = gradient.angle || 45;
+	const rad = (angle * Math.PI) / 180;
+	const radius = Math.min(actualSize.width, actualSize.height) * 0.4;
+	return {
+		x: actualSize.width / 2 + Math.cos(rad) * radius,
+		y: actualSize.height / 2 + Math.sin(rad) * radius,
+	};
+});
+
+// Calculate center handle position for radial/conic
+let centerHandlePosition = $derived.by(() => {
+	if (!gradient || (gradient.type !== "radial" && gradient.type !== "conic")) return null;
+	return {
+		x: ((gradient.centerX || 50) / 100) * actualSize.width,
+		y: ((gradient.centerY || 50) / 100) * actualSize.height,
+	};
+});
+
+function handleMouseDown(
+	e: MouseEvent,
+	target: "angle" | "center" | "stop" | "mesh",
+	index = -1,
+	meshId?: string,
+) {
+	if (!showInteractiveHandles) return;
+	e.preventDefault();
+	e.stopPropagation();
+	isDragging = true;
+	dragTarget = target;
+	dragIndex = index;
+	dragMeshId = meshId || null;
+}
+
+function handleMouseMove(e: MouseEvent) {
+	if (!isDragging || !previewContainer) return;
+
+	const rect = previewContainer.getBoundingClientRect();
+	const x = e.clientX - rect.left;
+	const y = e.clientY - rect.top;
+	const w = actualSize.width;
+	const h = actualSize.height;
+
+	if (dragTarget === "angle" && gradient?.type === "linear" && onAngleChange) {
+		const centerX = w / 2;
+		const centerY = h / 2;
+		const angle = Math.atan2(y - centerY, x - centerX) * (180 / Math.PI);
+		onAngleChange(Math.round((angle + 360) % 360));
+	} else if (dragTarget === "center" && onCenterChange) {
+		const percentX = Math.max(0, Math.min(100, (x / w) * 100));
+		const percentY = Math.max(0, Math.min(100, (y / h) * 100));
+		onCenterChange(Math.round(percentX), Math.round(percentY));
+	} else if (dragTarget === "stop" && dragIndex >= 0 && onStopPositionChange) {
+		const position = Math.max(0, Math.min(100, (x / w) * 100));
+		onStopPositionChange(dragIndex, Math.round(position));
+	} else if (dragTarget === "mesh" && dragMeshId && onMeshPointMove) {
+		const percentX = Math.max(0, Math.min(100, (x / w) * 100));
+		const percentY = Math.max(0, Math.min(100, (y / h) * 100));
+		onMeshPointMove(dragMeshId, Math.round(percentX), Math.round(percentY));
 	}
+}
 
-	let {
-		gradient,
-		meshPoints = [],
-		interpolationMode = "oklch",
-		previewSize = { width: 400, height: 200 },
-		showInteractiveHandles = false,
-		onAngleChange,
-		onCenterChange,
-		onStopPositionChange,
-		onMeshPointMove,
-	}: Props = $props();
+function handleMouseUp() {
+	isDragging = false;
+	dragTarget = null;
+	dragIndex = -1;
+	dragMeshId = null;
+}
 
-	let previewContainer: HTMLDivElement;
-	let isDragging = $state(false);
-	let dragTarget = $state<"angle" | "center" | "stop" | "mesh" | null>(null);
-	let dragIndex = $state(-1);
-	let dragMeshId = $state<string | null>(null);
-
-	// Track actual container dimensions for accurate handle positioning
-	let containerWidth = $state(0);
-	let containerHeight = $state(0);
-	let actualSize = $derived({
-		width: containerWidth || previewSize.width,
-		height: containerHeight || previewSize.height,
-	});
-
-	// Calculate gradient CSS
-	let gradientCSS = $derived(
-		meshPoints.length > 0
-			? generateMeshGradientCSS(meshPoints)
-			: generateCSSGradient(gradient, interpolationMode)
-	);
-
-	// Calculate handle positions for linear gradient
-	let angleHandlePosition = $derived.by(() => {
-		if (!gradient || gradient.type !== "linear") return null;
-		const angle = gradient.angle || 45;
-		const rad = (angle * Math.PI) / 180;
-		const radius = Math.min(actualSize.width, actualSize.height) * 0.4;
-		return {
-			x: actualSize.width / 2 + Math.cos(rad) * radius,
-			y: actualSize.height / 2 + Math.sin(rad) * radius,
-		};
-	});
-
-	// Calculate center handle position for radial/conic
-	let centerHandlePosition = $derived.by(() => {
-		if (!gradient || (gradient.type !== "radial" && gradient.type !== "conic")) return null;
-		return {
-			x: ((gradient.centerX || 50) / 100) * actualSize.width,
-			y: ((gradient.centerY || 50) / 100) * actualSize.height,
-		};
-	});
-
-	function handleMouseDown(
-		e: MouseEvent,
-		target: "angle" | "center" | "stop" | "mesh",
-		index = -1,
-		meshId?: string
-	) {
-		if (!showInteractiveHandles) return;
-		e.preventDefault();
-		e.stopPropagation();
-		isDragging = true;
-		dragTarget = target;
-		dragIndex = index;
-		dragMeshId = meshId || null;
-	}
-
-	function handleMouseMove(e: MouseEvent) {
-		if (!isDragging || !previewContainer) return;
-
-		const rect = previewContainer.getBoundingClientRect();
-		const x = e.clientX - rect.left;
-		const y = e.clientY - rect.top;
-		const w = actualSize.width;
-		const h = actualSize.height;
-
-		if (dragTarget === "angle" && gradient?.type === "linear" && onAngleChange) {
-			const centerX = w / 2;
-			const centerY = h / 2;
-			const angle = Math.atan2(y - centerY, x - centerX) * (180 / Math.PI);
-			onAngleChange(Math.round((angle + 360) % 360));
-		} else if (dragTarget === "center" && onCenterChange) {
-			const percentX = Math.max(0, Math.min(100, (x / w) * 100));
-			const percentY = Math.max(0, Math.min(100, (y / h) * 100));
-			onCenterChange(Math.round(percentX), Math.round(percentY));
-		} else if (dragTarget === "stop" && dragIndex >= 0 && onStopPositionChange) {
-			const position = Math.max(0, Math.min(100, (x / w) * 100));
-			onStopPositionChange(dragIndex, Math.round(position));
-		} else if (dragTarget === "mesh" && dragMeshId && onMeshPointMove) {
-			const percentX = Math.max(0, Math.min(100, (x / w) * 100));
-			const percentY = Math.max(0, Math.min(100, (y / h) * 100));
-			onMeshPointMove(dragMeshId, Math.round(percentX), Math.round(percentY));
-		}
-	}
-
-	function handleMouseUp() {
-		isDragging = false;
-		dragTarget = null;
-		dragIndex = -1;
-		dragMeshId = null;
-	}
-
-	function getStopHandleX(position: number): number {
-		return (position / 100) * actualSize.width;
-	}
+function getStopHandleX(position: number): number {
+	return (position / 100) * actualSize.width;
+}
 </script>
 
 <svelte:window onmousemove={handleMouseMove} onmouseup={handleMouseUp} />

@@ -1,43 +1,43 @@
 <script lang="ts">
-	import { fly, fade } from "svelte/transition";
-	import { cubicOut } from "svelte/easing";
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
+import { fly, fade } from "svelte/transition";
+import { cubicOut } from "svelte/easing";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
 
-	let {
-		title,
-		icon,
-		isOpen = false,
-		onClose,
-		children,
-		class: className = "",
-		size = "md",
-	} = $props<{
-		title: string;
-		icon?: string;
-		isOpen: boolean;
-		onClose: () => void;
-		children: import("svelte").Snippet;
-		class?: string;
-		size?: "sm" | "md" | "lg";
-	}>();
+let {
+	title,
+	icon,
+	isOpen = false,
+	onClose,
+	children,
+	class: className = "",
+	size = "md",
+} = $props<{
+	title: string;
+	icon?: string;
+	isOpen: boolean;
+	onClose: () => void;
+	children: import("svelte").Snippet;
+	class?: string;
+	size?: "sm" | "md" | "lg";
+}>();
 
-	const sizeClasses = {
-		sm: "md:w-80",
-		md: "md:w-[22rem]",
-		lg: "md:w-[28rem]",
-	};
+const sizeClasses = {
+	sm: "md:w-80",
+	md: "md:w-[22rem]",
+	lg: "md:w-[28rem]",
+};
 
-	// Detect mobile for transition direction
-	let isMobile = $state(false);
+// Detect mobile for transition direction
+let isMobile = $state(false);
 
-	$effect(() => {
-		const mq = window.matchMedia("(max-width: 767px)");
-		isMobile = mq.matches;
-		const handler = (e: MediaQueryListEvent) => (isMobile = e.matches);
-		mq.addEventListener("change", handler);
-		return () => mq.removeEventListener("change", handler);
-	});
+$effect(() => {
+	const mq = window.matchMedia("(max-width: 767px)");
+	isMobile = mq.matches;
+	const handler = (e: MediaQueryListEvent) => (isMobile = e.matches);
+	mq.addEventListener("change", handler);
+	return () => mq.removeEventListener("change", handler);
+});
 </script>
 
 {#if isOpen}

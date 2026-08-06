@@ -3,7 +3,7 @@
  * Handles mouse drag panning, scroll wheel zoom, and touch pinch zoom.
  */
 
-export interface PanZoomState {
+interface PanZoomState {
 	zoom: number;
 	panX: number;
 	panY: number;
@@ -115,13 +115,27 @@ export function usePanZoom(options: PanZoomOptions = {}) {
 	}
 
 	return {
-		get zoom() { return zoom; },
-		set zoom(v: number) { zoom = v; },
-		get panX() { return panX; },
-		set panX(v: number) { panX = v; },
-		get panY() { return panY; },
-		set panY(v: number) { panY = v; },
-		get isPanning() { return isPanning; },
+		get zoom() {
+			return zoom;
+		},
+		set zoom(v: number) {
+			zoom = v;
+		},
+		get panX() {
+			return panX;
+		},
+		set panX(v: number) {
+			panX = v;
+		},
+		get panY() {
+			return panY;
+		},
+		set panY(v: number) {
+			panY = v;
+		},
+		get isPanning() {
+			return isPanning;
+		},
 		fitToScreen,
 		zoomIn,
 		zoomOut,

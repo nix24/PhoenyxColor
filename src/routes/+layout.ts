@@ -9,4 +9,3 @@ export const ssr = true;
 
 // Enable trailing slashes for consistent URLs
 export const trailingSlash = "never";
-

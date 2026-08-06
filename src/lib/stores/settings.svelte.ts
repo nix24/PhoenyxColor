@@ -72,3 +72,4 @@ export class SettingsStore {
 		this.update({ theme });
 	}
 }
+// fallow-ignore-file unused-class-member

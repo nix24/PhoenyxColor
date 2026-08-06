@@ -1,50 +1,50 @@
 <script lang="ts">
-	import { fly } from "svelte/transition";
-	import { onMount } from "svelte";
-	import { app } from "$lib/stores/root.svelte";
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
+import { fly } from "svelte/transition";
+import { onMount } from "svelte";
+import { app } from "$lib/stores/root.svelte";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
 
-	interface Props {
-		searchTerm?: string;
-		onCreateNew?: () => void;
-		onExtract?: () => void;
-		onDelete?: () => void;
-		onSelect?: () => void;
-	}
+interface Props {
+	searchTerm?: string;
+	onCreateNew?: () => void;
+	onExtract?: () => void;
+	onDelete?: () => void;
+	onSelect?: () => void;
+}
 
-	let { searchTerm = "", onCreateNew, onExtract, onDelete, onSelect }: Props = $props();
+let { searchTerm = "", onCreateNew, onExtract, onDelete, onSelect }: Props = $props();
 
-	// Initial loading state for skeleton display
-	let isLoading = $state(true);
+// Initial loading state for skeleton display
+let isLoading = $state(true);
 
-	onMount(() => {
-		const timer = setTimeout(() => {
-			isLoading = false;
-		}, 300);
-		return () => clearTimeout(timer);
-	});
+onMount(() => {
+	const timer = setTimeout(() => {
+		isLoading = false;
+	}, 300);
+	return () => clearTimeout(timer);
+});
 
-	let filteredPalettes = $derived(
-		app.palettes.palettes.filter(
-			(palette) =>
-				palette.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				palette.colors.some((color) => color.toLowerCase().includes(searchTerm.toLowerCase()))
-		)
-	);
+let filteredPalettes = $derived(
+	app.palettes.palettes.filter(
+		(palette) =>
+			palette.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+			palette.colors.some((color) => color.toLowerCase().includes(searchTerm.toLowerCase())),
+	),
+);
 
-	function timeAgo(date: Date) {
-		if (!date) return "";
-		const now = new Date();
-		const diffInSeconds = Math.floor((now.getTime() - new Date(date).getTime()) / 1000);
+function timeAgo(date: Date) {
+	if (!date) return "";
+	const now = new Date();
+	const diffInSeconds = Math.floor((now.getTime() - new Date(date).getTime()) / 1000);
 
-		const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+	const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
-		if (diffInSeconds < 60) return "just now";
-		if (diffInSeconds < 3600) return rtf.format(-Math.floor(diffInSeconds / 60), "minute");
-		if (diffInSeconds < 86400) return rtf.format(-Math.floor(diffInSeconds / 3600), "hour");
-		return rtf.format(-Math.floor(diffInSeconds / 86400), "day");
-	}
+	if (diffInSeconds < 60) return "just now";
+	if (diffInSeconds < 3600) return rtf.format(-Math.floor(diffInSeconds / 60), "minute");
+	if (diffInSeconds < 86400) return rtf.format(-Math.floor(diffInSeconds / 3600), "hour");
+	return rtf.format(-Math.floor(diffInSeconds / 86400), "day");
+}
 </script>
 
 <div class="w-full h-full flex flex-col gap-4 p-4">

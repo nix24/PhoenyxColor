@@ -1,289 +1,286 @@
 <script lang="ts">
-	import Icon from "@iconify/svelte";
-	import { cn } from "$lib/utils/cn";
-	import { app } from "$lib/stores/root.svelte";
-	import { extractPalette, sortPalette } from "$lib/utils/color-engine";
-	import { toast } from "svelte-sonner";
-	import type { ValidatedGradient, ValidatedColorPalette } from "$lib/schemas/validation";
-	import tinycolor from "tinycolor2";
-	import chroma from "chroma-js";
+import Icon from "@iconify/svelte";
+import { cn } from "$lib/utils/cn";
+import { app } from "$lib/stores/root.svelte";
+import { extractPalette, sortPalette } from "$lib/utils/color-engine";
+import { toast } from "svelte-sonner";
+import type { ValidatedGradient, ValidatedColorPalette } from "$lib/schemas/validation";
+import chroma from "chroma-js";
 
-	let {
-		imageSrc,
-		getEditedImageData,
-		onGradientMapChange,
-		gradientMapOpacity,
-		gradientMapBlendMode,
-	} = $props<{
-		imageSrc: string;
-		getEditedImageData: () => Promise<string>;
-		onGradientMapChange: (opacity: number, blendMode: string) => void;
-		gradientMapOpacity: number;
-		gradientMapBlendMode: string;
-	}>();
+let {
+	imageSrc,
+	getEditedImageData,
+	onGradientMapChange,
+	gradientMapOpacity,
+	gradientMapBlendMode,
+} = $props<{
+	imageSrc: string;
+	getEditedImageData: () => Promise<string>;
+	onGradientMapChange: (opacity: number, blendMode: string) => void;
+	gradientMapOpacity: number;
+	gradientMapBlendMode: string;
+}>();
 
-	// Extraction state
-	let isExtracting = $state(false);
-	let extractedPalette = $state<string[] | null>(null);
-	let extractColorCount = $state(8);
-	let paletteNames = $state<string[]>([]);
-	let paletteName = $state("Extracted Palette");
-	let showSaveDialog = $state(false);
+// Extraction state
+let isExtracting = $state(false);
+let extractedPalette = $state<string[] | null>(null);
+let extractColorCount = $state(8);
+let paletteNames = $state<string[]>([]);
+let paletteName = $state("Extracted Palette");
+let showSaveDialog = $state(false);
 
-	// Export formats
-	type ExportFormat = "css" | "tailwind" | "json" | "scss" | "less" | "ase" | "gpl";
+// Export formats
+type ExportFormat = "css" | "tailwind" | "json" | "scss" | "less" | "ase" | "gpl";
 
-	const exportFormats: Array<{ id: ExportFormat; label: string; icon: string }> = [
-		{ id: "css", label: "CSS", icon: "material-symbols:css" },
-		{ id: "tailwind", label: "Tailwind", icon: "simple-icons:tailwindcss" },
-		{ id: "json", label: "JSON", icon: "material-symbols:data-object" },
-		{ id: "scss", label: "SCSS", icon: "simple-icons:sass" },
-		{ id: "less", label: "Less", icon: "simple-icons:less" },
-		{ id: "ase", label: "ASE", icon: "material-symbols:palette" },
-		{ id: "gpl", label: "GIMP", icon: "simple-icons:gimp" },
-	];
+const exportFormats: Array<{ id: ExportFormat; label: string; icon: string }> = [
+	{ id: "css", label: "CSS", icon: "material-symbols:css" },
+	{ id: "tailwind", label: "Tailwind", icon: "simple-icons:tailwindcss" },
+	{ id: "json", label: "JSON", icon: "material-symbols:data-object" },
+	{ id: "scss", label: "SCSS", icon: "simple-icons:sass" },
+	{ id: "less", label: "Less", icon: "simple-icons:less" },
+	{ id: "ase", label: "ASE", icon: "material-symbols:palette" },
+	{ id: "gpl", label: "GIMP", icon: "simple-icons:gimp" },
+];
 
-	const blendModes = [
-		"normal",
-		"multiply",
-		"screen",
-		"overlay",
-		"soft-light",
-		"hard-light",
-		"color-dodge",
-		"color-burn",
-		"darken",
-		"lighten",
-		"difference",
-		"exclusion",
-		"hue",
-		"saturation",
-		"color",
-		"luminosity",
-	];
+const blendModes = [
+	"normal",
+	"multiply",
+	"screen",
+	"overlay",
+	"soft-light",
+	"hard-light",
+	"color-dodge",
+	"color-burn",
+	"darken",
+	"lighten",
+	"difference",
+	"exclusion",
+	"hue",
+	"saturation",
+	"color",
+	"luminosity",
+];
 
-	async function handleExtractPalette() {
-		isExtracting = true;
-		try {
-			// Get the edited image data (with filters applied)
-			const editedSrc = await getEditedImageData();
-			const colors = await extractPalette(editedSrc, {
-				colorCount: extractColorCount,
-				quality: "balanced",
-			});
-			extractedPalette = colors;
-			// Generate default color names
-			paletteNames = colors.map((_, i) => `Color ${i + 1}`);
-		} catch (e) {
-			console.error("Failed to extract palette", e);
-			toast.error("Failed to extract palette");
-		} finally {
-			isExtracting = false;
-		}
-	}
-
-	function handleSortPalette() {
-		if (!extractedPalette) return;
-		extractedPalette = sortPalette(extractedPalette);
-	}
-
-	function openSaveDialog() {
-		showSaveDialog = true;
-	}
-
-	function handleSavePalette() {
-		if (!extractedPalette) return;
-		app.palettes.add({
-			name: paletteName.trim() || "Extracted Palette",
-			colors: extractedPalette,
-			maxSlots: Math.max(extractColorCount, extractedPalette.length),
-			tags: ["extracted", "image"],
+async function handleExtractPalette() {
+	isExtracting = true;
+	try {
+		// Get the edited image data (with filters applied)
+		const editedSrc = await getEditedImageData();
+		const colors = await extractPalette(editedSrc, {
+			colorCount: extractColorCount,
+			quality: "balanced",
 		});
-		toast.success("Palette saved to library!");
-		showSaveDialog = false;
-		paletteName = "Extracted Palette";
+		extractedPalette = colors;
+		// Generate default color names
+		paletteNames = colors.map((_, i) => `Color ${i + 1}`);
+	} catch (e) {
+		console.error("Failed to extract palette", e);
+		toast.error("Failed to extract palette");
+	} finally {
+		isExtracting = false;
+	}
+}
+
+function handleSortPalette() {
+	if (!extractedPalette) return;
+	extractedPalette = sortPalette(extractedPalette);
+}
+
+function openSaveDialog() {
+	showSaveDialog = true;
+}
+
+function handleSavePalette() {
+	if (!extractedPalette) return;
+	app.palettes.add({
+		name: paletteName.trim() || "Extracted Palette",
+		colors: extractedPalette,
+		maxSlots: Math.max(extractColorCount, extractedPalette.length),
+		tags: ["extracted", "image"],
+	});
+	toast.success("Palette saved to library!");
+	showSaveDialog = false;
+	paletteName = "Extracted Palette";
+}
+
+function generateColorName(hex: string): string {
+	const [hue, colorSaturation, colorLightness] = chroma(hex).hsl();
+
+	// Determine lightness descriptor
+	let lightness = "";
+	if (colorLightness < 0.2) lightness = "Dark ";
+	else if (colorLightness > 0.8) lightness = "Light ";
+
+	// Determine saturation descriptor
+	let saturation = "";
+	if (colorSaturation < 0.1 || Number.isNaN(hue)) return `${lightness}Gray`;
+	if (colorSaturation < 0.3) saturation = "Muted ";
+	else if (colorSaturation > 0.7) saturation = "Vivid ";
+
+	// Determine hue name
+	let hueName = "";
+	if (hue < 15) hueName = "Red";
+	else if (hue < 45) hueName = "Orange";
+	else if (hue < 75) hueName = "Yellow";
+	else if (hue < 150) hueName = "Green";
+	else if (hue < 210) hueName = "Cyan";
+	else if (hue < 270) hueName = "Blue";
+	else if (hue < 330) hueName = "Purple";
+	else hueName = "Red";
+
+	return (lightness + saturation + hueName).trim();
+}
+
+function exportPalette(format: ExportFormat) {
+	if (!extractedPalette) {
+		toast.error("No palette to export");
+		return;
 	}
 
-	function generateColorName(hex: string): string {
-		const color = tinycolor(hex);
-		const hsl = color.toHsl();
+	let content = "";
+	let filename = `palette.${format}`;
+	let mimeType = "text/plain";
 
-		// Determine lightness descriptor
-		let lightness = "";
-		if (hsl.l < 0.2) lightness = "Dark ";
-		else if (hsl.l > 0.8) lightness = "Light ";
+	const colorNames = extractedPalette.map((c, i) => {
+		const name = paletteNames[i];
+		return name?.trim() ? name : generateColorName(c);
+	});
+	const cssVarNames = colorNames.map((name) =>
+		name
+			.toLowerCase()
+			.replace(/\s+/g, "-")
+			.replace(/[^a-z0-9-]/g, ""),
+	);
 
-		// Determine saturation descriptor
-		let saturation = "";
-		if (hsl.s < 0.1) return `${lightness}Gray`;
-		if (hsl.s < 0.3) saturation = "Muted ";
-		else if (hsl.s > 0.7) saturation = "Vivid ";
+	switch (format) {
+		case "css":
+			content = `:root {\n${extractedPalette
+				.map((color, i) => `  --color-${cssVarNames[i]}: ${color};`)
+				.join("\n")}\n}`;
+			filename = "palette.css";
+			mimeType = "text/css";
+			break;
 
-		// Determine hue name
-		const hue = hsl.h;
-		let hueName = "";
-		if (hue < 15) hueName = "Red";
-		else if (hue < 45) hueName = "Orange";
-		else if (hue < 75) hueName = "Yellow";
-		else if (hue < 150) hueName = "Green";
-		else if (hue < 210) hueName = "Cyan";
-		else if (hue < 270) hueName = "Blue";
-		else if (hue < 330) hueName = "Purple";
-		else hueName = "Red";
-
-		return (lightness + saturation + hueName).trim();
-	}
-
-	function exportPalette(format: ExportFormat) {
-		if (!extractedPalette) {
-			toast.error("No palette to export");
-			return;
+		case "tailwind": {
+			const tailwindColors = extractedPalette.reduce(
+				(acc, color, i) => {
+					const varName = cssVarNames[i] ?? `color-${i}`;
+					acc[varName] = color;
+					return acc;
+				},
+				{} as Record<string, string>,
+			);
+			content = `// tailwind.config.js colors\nmodule.exports = {\n  theme: {\n    extend: {\n      colors: ${JSON.stringify(tailwindColors, null, 8).replace(/"/g, "'")}\n    }\n  }\n}`;
+			filename = "tailwind-colors.js";
+			mimeType = "text/javascript";
+			break;
 		}
 
-		let content = "";
-		let filename = `palette.${format}`;
-		let mimeType = "text/plain";
-
-		const colorNames = extractedPalette.map((c, i) => {
-			const name = paletteNames[i];
-			return name?.trim() ? name : generateColorName(c);
-		});
-		const cssVarNames = colorNames.map((name) =>
-			name
-				.toLowerCase()
-				.replace(/\s+/g, "-")
-				.replace(/[^a-z0-9-]/g, "")
-		);
-
-		switch (format) {
-			case "css":
-				content = `:root {\n${extractedPalette
-					.map((color, i) => `  --color-${cssVarNames[i]}: ${color};`)
-					.join("\n")}\n}`;
-				filename = "palette.css";
-				mimeType = "text/css";
-				break;
-
-			case "tailwind": {
-				const tailwindColors = extractedPalette.reduce(
-					(acc, color, i) => {
-						const varName = cssVarNames[i] ?? `color-${i}`;
-						acc[varName] = color;
-						return acc;
-					},
-					{} as Record<string, string>
-				);
-				content = `// tailwind.config.js colors\nmodule.exports = {\n  theme: {\n    extend: {\n      colors: ${JSON.stringify(tailwindColors, null, 8).replace(/"/g, "'")}\n    }\n  }\n}`;
-				filename = "tailwind-colors.js";
-				mimeType = "text/javascript";
-				break;
-			}
-
-			case "json": {
-				const jsonData = extractedPalette.map((color, i) => ({
-					name: colorNames[i],
-					hex: color,
-					rgb: tinycolor(color).toRgbString(),
-					hsl: tinycolor(color).toHslString(),
-				}));
-				content = JSON.stringify({ palette: jsonData }, null, 2);
-				filename = "palette.json";
-				mimeType = "application/json";
-				break;
-			}
-
-			case "scss":
-				content = extractedPalette
-					.map((color, i) => `$color-${cssVarNames[i]}: ${color};`)
-					.join("\n");
-				filename = "palette.scss";
-				mimeType = "text/x-scss";
-				break;
-
-			case "less":
-				content = extractedPalette
-					.map((color, i) => `@color-${cssVarNames[i]}: ${color};`)
-					.join("\n");
-				filename = "palette.less";
-				mimeType = "text/x-less";
-				break;
-
-			case "ase":
-				// Adobe Swatch Exchange format (simplified text representation)
-				// For actual ASE binary, we'd need a more complex implementation
-				content = `SWATCHEXCHANGE\nVersion: 1.0\n\n${extractedPalette
-					.map((color, i) => {
-						const rgb = tinycolor(color).toRgb();
-						return `${colorNames[i]}\tRGB\t${rgb.r / 255}\t${rgb.g / 255}\t${rgb.b / 255}`;
-					})
-					.join("\n")}`;
-				filename = "palette.ase.txt";
-				break;
-
-			case "gpl":
-				// GIMP Palette format
-				content = `GIMP Palette\nName: Extracted Palette\nColumns: ${extractedPalette.length}\n#\n${extractedPalette
-					.map((color, i) => {
-						const rgb = tinycolor(color).toRgb();
-						return `${rgb.r}\t${rgb.g}\t${rgb.b}\t${colorNames[i]}`;
-					})
-					.join("\n")}`;
-				filename = "palette.gpl";
-				break;
+		case "json": {
+			const jsonData = extractedPalette.map((color, i) => ({
+				name: colorNames[i],
+				hex: color,
+				rgb: chroma(color).css("rgb"),
+				hsl: chroma(color).css("hsl"),
+			}));
+			content = JSON.stringify({ palette: jsonData }, null, 2);
+			filename = "palette.json";
+			mimeType = "application/json";
+			break;
 		}
 
-		downloadFile(content, filename, mimeType);
-		toast.success(`Exported as ${format.toUpperCase()}`);
+		case "scss":
+			content = extractedPalette
+				.map((color, i) => `$color-${cssVarNames[i]}: ${color};`)
+				.join("\n");
+			filename = "palette.scss";
+			mimeType = "text/x-scss";
+			break;
+
+		case "less":
+			content = extractedPalette
+				.map((color, i) => `@color-${cssVarNames[i]}: ${color};`)
+				.join("\n");
+			filename = "palette.less";
+			mimeType = "text/x-less";
+			break;
+
+		case "ase":
+			// Adobe Swatch Exchange format (simplified text representation)
+			// For actual ASE binary, we'd need a more complex implementation
+			content = `SWATCHEXCHANGE\nVersion: 1.0\n\n${extractedPalette
+				.map((color, i) => {
+					const [red, green, blue] = chroma(color).rgb();
+					return `${colorNames[i]}\tRGB\t${red / 255}\t${green / 255}\t${blue / 255}`;
+				})
+				.join("\n")}`;
+			filename = "palette.ase.txt";
+			break;
+
+		case "gpl":
+			// GIMP Palette format
+			content = `GIMP Palette\nName: Extracted Palette\nColumns: ${extractedPalette.length}\n#\n${extractedPalette
+				.map((color, i) => {
+					const [red, green, blue] = chroma(color).rgb();
+					return `${red}\t${green}\t${blue}\t${colorNames[i]}`;
+				})
+				.join("\n")}`;
+			filename = "palette.gpl";
+			break;
 	}
 
-	function copyToClipboard(format: ExportFormat) {
-		if (!extractedPalette) return;
+	downloadFile(content, filename, mimeType);
+	toast.success(`Exported as ${format.toUpperCase()}`);
+}
 
-		let content = "";
-		const cssVarNames = extractedPalette.map((c, i) => {
-			const name = paletteNames[i];
-			const finalName = name?.trim() ? name : generateColorName(c);
-			return finalName
-				.toLowerCase()
-				.replace(/\s+/g, "-")
-				.replace(/[^a-z0-9-]/g, "");
-		});
+function copyToClipboard(format: ExportFormat) {
+	if (!extractedPalette) return;
 
-		switch (format) {
-			case "css":
-				content = extractedPalette
-					.map((color, i) => `--color-${cssVarNames[i]}: ${color};`)
-					.join("\n");
-				break;
-			case "json":
-				content = JSON.stringify(extractedPalette);
-				break;
-			default:
-				content = extractedPalette.join(", ");
-		}
+	let content = "";
+	const cssVarNames = extractedPalette.map((c, i) => {
+		const name = paletteNames[i];
+		const finalName = name?.trim() ? name : generateColorName(c);
+		return finalName
+			.toLowerCase()
+			.replace(/\s+/g, "-")
+			.replace(/[^a-z0-9-]/g, "");
+	});
 
-		navigator.clipboard.writeText(content);
-		toast.success("Copied to clipboard!");
+	switch (format) {
+		case "css":
+			content = extractedPalette
+				.map((color, i) => `--color-${cssVarNames[i]}: ${color};`)
+				.join("\n");
+			break;
+		case "json":
+			content = JSON.stringify(extractedPalette);
+			break;
+		default:
+			content = extractedPalette.join(", ");
 	}
 
-	function downloadFile(content: string, filename: string, mimeType: string) {
-		const blob = new Blob([content], { type: mimeType });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = filename;
-		a.click();
-		URL.revokeObjectURL(url);
-	}
+	navigator.clipboard.writeText(content);
+	toast.success("Copied to clipboard!");
+}
 
-	function getGradientBackground(gradient: ValidatedGradient) {
-		const stops = gradient.stops.map((s) => `${s.color} ${s.position}%`).join(", ");
-		// Only include angle for linear gradients; radial and conic don't support it
-		if (gradient.type === "linear") {
-			return `${gradient.type}-gradient(${gradient.angle || 90}deg, ${stops})`;
-		}
-		return `${gradient.type}-gradient(${stops})`;
+function downloadFile(content: string, filename: string, mimeType: string) {
+	const blob = new Blob([content], { type: mimeType });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename;
+	a.click();
+	URL.revokeObjectURL(url);
+}
+
+function getGradientBackground(gradient: ValidatedGradient) {
+	const stops = gradient.stops.map((s) => `${s.color} ${s.position}%`).join(", ");
+	// Only include angle for linear gradients; radial and conic don't support it
+	if (gradient.type === "linear") {
+		return `${gradient.type}-gradient(${gradient.angle || 90}deg, ${stops})`;
 	}
+	return `${gradient.type}-gradient(${stops})`;
+}
 </script>
 
 <div class="space-y-6">

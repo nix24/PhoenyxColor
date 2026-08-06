@@ -2,7 +2,7 @@ import { LocalStorageAdapter } from "./adapter.local";
 import { IndexedDBAdapter } from "./adapter.idb";
 import type { StorageAdapter } from "./adapter.interface";
 
-export class StorageService {
+class StorageService {
 	private static instance: StorageService;
 
 	// Separate adapters for different data types

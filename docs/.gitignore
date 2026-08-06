@@ -5,6 +5,7 @@ dist/
 
 # dependencies
 node_modules/
+src/content/docs/reference/api/
 
 # logs
 npm-debug.log*

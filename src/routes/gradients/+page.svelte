@@ -1,10 +1,10 @@
 <script lang="ts">
-	import GradientsModule from "$lib/components/modules/GradientsModule.svelte";
-	import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
+import GradientsModule from "$lib/components/modules/GradientsModule.svelte";
+import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
 
-	const meta = PAGE_METADATA.gradients!;
-	const canonicalUrl = getFullUrl(meta.path);
-	const ogImage = getOgImageUrl();
+const meta = PAGE_METADATA.gradients!;
+const canonicalUrl = getFullUrl(meta.path);
+const ogImage = getOgImageUrl();
 </script>
 
 <svelte:head>

@@ -8,7 +8,14 @@ import type { ImageEditorState } from "$lib/components/editor/EditorHistory.svel
 export function buildCSSFilterString(
 	state: Pick<
 		ImageEditorState,
-		"isGrayscale" | "sepia" | "invert" | "brightness" | "contrast" | "saturation" | "hueRotate" | "blur"
+		| "isGrayscale"
+		| "sepia"
+		| "invert"
+		| "brightness"
+		| "contrast"
+		| "saturation"
+		| "hueRotate"
+		| "blur"
 	>,
 	isComparing = false,
 ): string {
