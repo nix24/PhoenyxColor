@@ -80,12 +80,6 @@ export class IndexedDBAdapter {
 		await db.put(this.storeName, value, key);
 	}
 
-	async remove(key: string): Promise<void> {
-		const db = await this.getDB();
-		if (!db) return;
-		await db.delete(this.storeName, key);
-	}
-
 	async clear(): Promise<void> {
 		const db = await this.getDB();
 		if (!db) return;

@@ -8,7 +8,7 @@
 > log it here, and get the maintainer's sign-off. Only then start the next stage. Never start work
 > from a later stage "while you're in there".
 
-Last updated: 2026-09-24 · Current stage: **Stage 1 (not started)** · Stage 0: done except the items listed under Stage 0
+Last updated: 2026-09-24 · Current stage: **Stage 1 (step 1 of 8 done)** · Stage 0: done except the items listed under Stage 0
 
 ---
 
@@ -25,11 +25,11 @@ goal is a tool artists actually use: fast, reliable, and pleasant to use.
 
 The app has three modules. Each gets rewritten in its own stage, in this order:
 
-| # | Module (route) | Job it must do |
-|---|---|---|
-| 1 | **References** (`/references`) | Picsart-style photo editor. Import images, apply non-destructive edits (crop/rotate/flip, tone, color, curves, effects, layers, drawing), export. **The main product. Top priority.** |
-| 2 | **Palettes** (`/palettes`) | (a) Artist palettes: extract from an image, harmonies, color-blind preview, lock + regenerate. (b) UI scheme builder: map colors to roles (background/surface/text/accent), check WCAG + APCA contrast, generate OKLCH tonal scales, export as CSS variables / Tailwind / JSON tokens. |
-| 3 | **Gradients** (`/gradients`) | Linear, radial, conic, and mesh gradients in OKLCH. The preview must match the export exactly. |
+| #   | Module (route)                 | Job it must do                                                                                                                                                                                                                                                                         |
+| --- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **References** (`/references`) | Picsart-style photo editor. Import images, apply non-destructive edits (crop/rotate/flip, tone, color, curves, effects, layers, drawing), export. **The main product. Top priority.**                                                                                                  |
+| 2   | **Palettes** (`/palettes`)     | (a) Artist palettes: extract from an image, harmonies, color-blind preview, lock + regenerate. (b) UI scheme builder: map colors to roles (background/surface/text/accent), check WCAG + APCA contrast, generate OKLCH tonal scales, export as CSS variables / Tailwind / JSON tokens. |
+| 3   | **Gradients** (`/gradients`)   | Linear, radial, conic, and mesh gradients in OKLCH. The preview must match the export exactly.                                                                                                                                                                                         |
 
 "References" is the existing domain name for the image editor tab. Keep that name in code. Do not
 introduce synonyms like "photos", "images module" or "editor module" for the same concept.
@@ -37,8 +37,8 @@ introduce synonyms like "photos", "images module" or "editor module" for the sam
 ## 2. Hard constraints (non-negotiable)
 
 1. **Backend/architecture phase only. No UI changes.** Markup, styling, layout, copy and visual
-   design stay exactly as they are. You may change what a component *reads from or calls*
-   (rewiring). You may not change what it *looks like*. The UI redesign is a separate, later phase
+   design stay exactly as they are. You may change what a component _reads from or calls_
+   (rewiring). You may not change what it _looks like_. The UI redesign is a separate, later phase
    and is not planned yet.
 2. **Local-first, client-only.** No server, no accounts, no network sync. All data lives in the
    browser (IndexedDB + localStorage). The app builds as a static SPA (`@sveltejs/adapter-static`,
@@ -113,8 +113,8 @@ Rules:
 
 - New IndexedDB database `phoenyx` with object stores: `references` (keyPath `id`, index
   `createdAt`), `blobs` (id → `Blob`: originals and thumbnails), `recipes` (keyPath `referenceId`),
-  `presets`, `palettes`, `gradients`, `meta` (schema version, per-collection migration markers,
-  quarantine).
+  `presets`, `palettes`, `gradients`, `meta` (per-collection migration markers `migration:<name>`,
+  quarantine entries `quarantine:<uuid>`). The IndexedDB version itself is the schema version.
 - Writes are per record. Never rewrite a whole collection. Changes that span several stores
   (e.g. deleting a reference + its blobs + its recipe) go in one transaction.
 - Images are stored as `Blob`s: the original file as-is, plus a 256 px thumbnail. No base64 data
@@ -166,12 +166,12 @@ The maintainer's rules. They apply to every line.
 
 ### Tooling (enforced)
 
-| Command | What it does |
-|---|---|
-| `bun run check:all` | **The gate.** `oxfmt --check` → `oxlint` → `svelte-kit sync` → `svelte-check` → `vitest --run`. Must be 0 errors / 0 warnings. |
-| `bun run lint` / `lint:fix` | oxlint + the vendored anti-slop plugin (`tools/oxlint/anti-slop`, all rules at `"error"`) |
-| `bun run format` / `format:check` | oxfmt (tabs, width 100, double quotes, `es5` trailing commas) |
-| `bun run build` / `preview` | static SPA build into `build/` |
+| Command                           | What it does                                                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `bun run check:all`               | **The gate.** `oxfmt --check` → `oxlint` → `svelte-kit sync` → `svelte-check` → `vitest --run`. Must be 0 errors / 0 warnings. |
+| `bun run lint` / `lint:fix`       | oxlint + the vendored anti-slop plugin (`tools/oxlint/anti-slop`, all rules at `"error"`)                                      |
+| `bun run format` / `format:check` | oxfmt (tabs, width 100, double quotes, `es5` trailing commas)                                                                  |
+| `bun run build` / `preview`       | static SPA build into `build/`                                                                                                 |
 
 - Package manager: **bun**. Never use npm/yarn/pnpm lockfiles.
 - `.oxfmtrc.json` uses **oxfmt/Prettier option names** (`useTabs`, `printWidth`, …). The Biome
@@ -203,11 +203,13 @@ The maintainer's rules. They apply to every line.
 - **Deviation from the plan:** the v2 database and the migrations moved to Stage 1 and later (see
   "Storage v2"). Migrating before a feature switched to v2 would have lost edits.
 
-### Stage 1: References rewrite · ⏳ next
+### Stage 1: References rewrite · 🚧 in progress
+
+Decided: the `EditRecipe` stores a snapshot of the gradient-map colors (see the 2026-09-24 log entry).
 
 Build in this order. Each step ends with `check:all` green.
 
-1. [ ] `core/storage` v2: DB schema, typed repositories, blob store, migration runner (per
+1. [x] `core/storage` v2: DB schema, typed repositories, blob store, migration runner (per
        collection, marker written last, quarantine in `meta`).
 2. [ ] `features/references/domain`: `Reference` (metadata only: id, name, createdAt, width,
        height, `originalBlobId`, `thumbBlobId`, tags) and `EditRecipe` (versioned zod schema,
@@ -288,26 +290,76 @@ linear/radial only. Replace the per-pixel JS loop in `MeshGradientCanvas.svelte`
 
 ## 8. Known issues and risks (carry forward until fixed)
 
-| Issue | Where | Fixed in |
-|---|---|---|
-| Import shrinks every image to 1920×1080 JPEG, which destroys PNG transparency | `services/performance.ts#optimizeImage`, `ReferencesModule.svelte#processFile` | Stage 1 |
-| Preview ≠ export (CSS/SVG filters vs Canvas2D path) | `hooks/useImageEditor.svelte.ts`, `utils/canvas-renderer.ts` | Stage 1 |
-| Two undo systems per edit; every slider commit rewrites the whole references array (with base64 images) to IDB | `useImageEditor.handleStateUpdate → syncToStore → ReferenceStore.update` | Stage 1 |
-| History clones layer data URLs on every step (`JSON.parse(JSON.stringify)`) | `components/editor/EditorHistory.svelte.ts` | Stage 1 |
-| `mergeDown` deletes the layer instead of merging it; layers never appear in the render | `useImageEditor.mergeDown` | Stage 1 |
-| Pixel ops run on the main thread, in gamma space, with a copy into and out of WASM each time | `services/wasm.ts#processImage` | Stage 1 |
-| Two separate image-palette extractors with different algorithms | see Stage 1 step 6 | Stage 1 |
-| The palettes, gradients and filter-presets stores call `save()` without awaiting it or catching errors, so failed writes (e.g. storage full) go unnoticed | `stores/*.svelte.ts` | Stages 1–3 (stores replaced) |
-| Mesh gradient: per-pixel JS on the main thread, `Math.random` noise (no two renders match), CSS export is a separate approximation | `gradients/MeshGradientCanvas.svelte` | Stage 3 |
-| `interpolateGradientColors` maps `oklch`→`lch` and `oklab`→`lab` for chroma-js, so gradients labelled OKLCH are not actually OKLCH | `gradients/gradient-utils.ts` | Stage 3 |
-| The `docs/` Astro site still describes the Zig WASM architecture | `docs/src/content/docs/guides/*` | after Stage 1 |
+| Issue                                                                                                                                                     | Where                                                                          | Fixed in                     |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------- |
+| Import shrinks every image to 1920×1080 JPEG, which destroys PNG transparency                                                                             | `services/performance.ts#optimizeImage`, `ReferencesModule.svelte#processFile` | Stage 1                      |
+| Preview ≠ export (CSS/SVG filters vs Canvas2D path)                                                                                                       | `hooks/useImageEditor.svelte.ts`, `utils/canvas-renderer.ts`                   | Stage 1                      |
+| Two undo systems per edit; every slider commit rewrites the whole references array (with base64 images) to IDB                                            | `useImageEditor.handleStateUpdate → syncToStore → ReferenceStore.update`       | Stage 1                      |
+| History clones layer data URLs on every step (`JSON.parse(JSON.stringify)`)                                                                               | `components/editor/EditorHistory.svelte.ts`                                    | Stage 1                      |
+| `mergeDown` deletes the layer instead of merging it; layers never appear in the render                                                                    | `useImageEditor.mergeDown`                                                     | Stage 1                      |
+| Pixel ops run on the main thread, in gamma space, with a copy into and out of WASM each time                                                              | `services/wasm.ts#processImage`                                                | Stage 1                      |
+| Two separate image-palette extractors with different algorithms                                                                                           | see Stage 1 step 6                                                             | Stage 1                      |
+| The palettes, gradients and filter-presets stores call `save()` without awaiting it or catching errors, so failed writes (e.g. storage full) go unnoticed | `stores/*.svelte.ts`                                                           | Stages 1–3 (stores replaced) |
+| Mesh gradient: per-pixel JS on the main thread, `Math.random` noise (no two renders match), CSS export is a separate approximation                        | `gradients/MeshGradientCanvas.svelte`                                          | Stage 3                      |
+| `interpolateGradientColors` maps `oklch`→`lch` and `oklab`→`lab` for chroma-js, so gradients labelled OKLCH are not actually OKLCH                        | `gradients/gradient-utils.ts`                                                  | Stage 3                      |
+| The `docs/` Astro site still describes the Zig WASM architecture                                                                                          | `docs/src/content/docs/guides/*`                                               | after Stage 1                |
 
 ## 9. Progress log (newest first)
 
 Add one entry per work session: date, stage, what changed, checks actually run, any deviations,
 and what comes next.
 
+### 2026-09-24 · Stage 1, step 1
+
+- Added `src/lib/core/storage/` (public API in `index.ts`):
+  - `database.ts`: `openDatabase()` opens DB `phoenyx` v1 with the seven stores from "Storage v2".
+    Record stores are typed `unknown`, because every read goes through a schema.
+  - `repository.ts`: `Repository<TSchema>` (`get`/`getAll`/`put`/`delete`, one record per write).
+    A record that fails its schema on read moves to a `meta` quarantine entry: the copy and the
+    delete happen in one transaction, and the record is re-checked inside it first.
+  - `blobs.ts`: `BlobId` brand, `newBlobId`, `putBlob`, `getBlob`.
+  - `migration.ts`: `runMigration(db, migration)`. It reads one `PhoenyxColorDB`/`keyval` key
+    (read only; the old DB is kept) and parses each record. Conversion runs outside the
+    transaction, so it may be async. Then one transaction writes the records, the quarantine
+    entries and, last, the marker. If the marker already exists, the run is a no-op. A failed
+    write aborts the transaction, so nothing is written.
+  - `meta.ts`: key helpers and `QuarantineEntry`.
+  - `storage.test.ts`: 8 tests (store layout, repository quarantine, blob round trip, migration
+    happy path + quarantine + legacy kept, rerun is a no-op, failed write writes nothing and a
+    retry succeeds, a missing legacy key still gets its marker).
+- Ran `oxfmt` on `PROGRESS.md`: the gate was red at the start of this session because this file
+  was not formatted (tables and `*emphasis*` only; no content change).
+- Checks run: `bun run check:all`: format ✔, oxlint ✔ (exit 0), svelte-check ✔ 0 errors /
+  0 warnings, vitest ✔ 42/42 (rerun after the fallow cleanup, same result).
+- Deviations:
+  - The schema version is not stored in `meta`; the IndexedDB version already is the schema version.
+  - The blob store has no delete helper. Deleting blobs belongs in the feature's cross-store
+    transaction (reference + blobs + recipe), which the feature opens with `db.transaction`.
+  - `storage.test.ts` runs in Vitest's `node` environment, because jsdom's `Blob` does not
+    survive structured cloning into `fake-indexeddb`.
+- Nothing is wired to the app yet; the v2 database is not opened at runtime until a feature uses it.
+- Next: Stage 1 step 2 (`features/references/domain`: `Reference` + versioned `EditRecipe`).
+- **Decision (maintainer, 2026-09-24):** the recipe stores a **snapshot** of the gradient-map
+  colors, taken when the map is applied (not a link to a palette/gradient). Reason: the preview
+  and the export must match, and so must reloads, even after the source palette changes or is
+  deleted. Today `ImageCanvas.svelte#getGradientTableValues` reads the app-wide active
+  gradient/palette, and `canvas-renderer.ts` ignores the gradient map. Both go away in Stage 1.
+- Fallow cleanup (`fallow dead-code`, `fallow dupes`):
+  - Unused code removed: the `DATABASE_NAME`/`newBlobId` exports and the extra
+    `core/storage/index.ts` re-exports, `Repository.delete` (re-add it when a caller needs it),
+    `IndexedDBAdapter.remove`, `LocalStorageAdapter.remove`.
+  - `ReferenceImageSchema` (`schemas/validation.ts`) and `PageMetadata` (`config/seo.ts`) were
+    used only inside their own files, so they are no longer exported.
+  - Added `.fallowrc.jsonc`: it ignores the vendored `tools/oxlint/anti-slop/**` (mirroring
+    `.oxlintrc.json`) and its `@oxlint/plugins` dependency, and it keeps `parseImportedState`
+    for the deferred backup import.
+  - Left as is: `LocalStorageAdapter.get/set/clear` are reported unused, but they are used through
+    `storage.local` (a fallow false positive; the only way to silence it is a marker, which
+    section 5 bans). The duplicated code in `services/wasm.ts` is deleted in step 8.
+    `History.undo`/`redo` are deliberate mirror images.
+
 ### 2026-09-24 · Stage 0
+
 - Wrote the rewrite plan; the maintainer approved it. Decisions: local-first/no server; WebGL2 +
   Rust only if needed; module-by-module stages in the order References → Palettes → Gradients;
   Palettes serves both artists and UI designers.

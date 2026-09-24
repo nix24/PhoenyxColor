@@ -1,0 +1,10 @@
+{
+	// Vendored lint plugin; oxlint ignores it for the same reason.
+	"ignorePatterns": ["tools/oxlint/anti-slop/**"],
+	// Imported only by that plugin.
+	"ignoreDependencies": ["@oxlint/plugins"],
+	"ignoreExports": [
+		// Parser for the deferred backup import (see PROGRESS.md, "Deferred").
+		{ "file": "src/lib/schemas/validation.ts", "exports": ["parseImportedState"] },
+	],
+}

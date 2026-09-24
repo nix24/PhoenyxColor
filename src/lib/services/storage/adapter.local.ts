@@ -32,11 +32,6 @@ export class LocalStorageAdapter {
 		}
 	}
 
-	async remove(key: string): Promise<void> {
-		if (!browser) return;
-		localStorage.removeItem(key);
-	}
-
 	async clear(): Promise<void> {
 		if (!browser) return;
 		localStorage.clear();

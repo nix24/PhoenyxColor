@@ -26,7 +26,7 @@ export const SITE_CONFIG = {
 
 const DEFAULT_OG_IMAGE = "/logo.jpg";
 
-export interface PageMetadata {
+interface PageMetadata {
 	title: string;
 	description: string;
 	path: string;

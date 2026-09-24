@@ -65,7 +65,7 @@ const DrawStrokeSchema = z.object({
 });
 
 // Reference Image validation
-export const ReferenceImageSchema = z.object({
+const ReferenceImageSchema = z.object({
 	id: z
 		.string()
 		.uuid()
