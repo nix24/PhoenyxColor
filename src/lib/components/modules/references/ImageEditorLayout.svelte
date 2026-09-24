@@ -446,7 +446,8 @@ function handleKeydown(e: KeyboardEvent) {
 		switch (e.key.toLowerCase()) {
 			case "z":
 				e.preventDefault();
-				e.shiftKey ? editor.handleRedo() : editor.handleUndo();
+				if (e.shiftKey) editor.handleRedo();
+				else editor.handleUndo();
 				break;
 			case "y":
 				e.preventDefault();

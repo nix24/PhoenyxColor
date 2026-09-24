@@ -2,8 +2,8 @@
 import { scale } from "svelte/transition";
 import { elasticOut } from "svelte/easing";
 import { app } from "$lib/stores/root.svelte";
-import type { ValidatedColorPalette } from "$lib/schemas/validation";
-import pkg from "file-saver";
+import type { ValidatedColorPalette, ValidatedReferenceImage } from "$lib/schemas/validation";
+import { downloadBlob } from "$lib/core/download";
 import Icon from "@iconify/svelte";
 import { toast } from "svelte-sonner";
 import { extractPalette } from "$lib/utils/color-engine";
@@ -17,7 +17,6 @@ import PaletteEditor from "./palettes/PaletteEditor.svelte";
 import PaletteInspector from "./palettes/PaletteInspector.svelte";
 import { isValidHexColor, normalizeHexColor } from "./palettes/palette-utils";
 
-const { saveAs } = pkg;
 
 // State
 let newPaletteName = $state("");
@@ -124,7 +123,7 @@ function exportPalette(format: "json" | "css" | "png") {
 	}
 
 	const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
-	saveAs(blob, filename);
+	downloadBlob(blob, filename);
 	toast.success(`Palette exported as ${filename}`);
 }
 
@@ -166,7 +165,7 @@ function exportPaletteAsImage(palette: ValidatedColorPalette) {
 
 	canvas.toBlob((blob) => {
 		if (blob) {
-			saveAs(blob, `${palette.name.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "palette"}.png`);
+			downloadBlob(blob, `${palette.name.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "palette"}.png`);
 			toast.success(`Palette exported as PNG.`);
 		} else {
 			toast.error("Failed to generate PNG blob.");
@@ -175,7 +174,7 @@ function exportPaletteAsImage(palette: ValidatedColorPalette) {
 }
 
 // Color extraction functions
-function buildFilterString(reference: any): string {
+function buildFilterString(reference: ValidatedReferenceImage): string {
 	const filters: string[] = [];
 	if (reference.isGrayscale) filters.push("grayscale(100%)");
 	if (reference.brightness !== undefined && reference.brightness !== 100) {
@@ -197,7 +196,7 @@ function buildFilterString(reference: any): string {
 }
 
 async function extractColorsFromTransformedImage(
-	reference: any,
+	reference: ValidatedReferenceImage,
 	numColors: number,
 ): Promise<string[]> {
 	return new Promise((resolve, reject) => {

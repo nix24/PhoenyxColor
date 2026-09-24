@@ -48,9 +48,13 @@ wasm.applyPosterize(data, width, height, intensity);
 wasm.applySolarize(data, width, height, intensity);
 
 // Duotone - map grayscale to two colors
-wasm.applyDuotone(data, width, height, intensity, 
-    { r: 0, g: 0, b: 0 },       // dark color
-    { r: 255, g: 255, b: 255 }  // light color
+wasm.applyDuotone(
+	data,
+	width,
+	height,
+	intensity,
+	{ r: 0, g: 0, b: 0 }, // dark color
+	{ r: 255, g: 255, b: 255 } // light color
 );
 
 // Pixelate (intensity controls block size)
@@ -81,17 +85,17 @@ applyEffect(ctx, width, height, effectType, intensity, duotoneColors);
 
 ### Available Effects
 
-| Effect | Description |
-|--------|-------------|
-| `posterize` | Reduces color palette to limited levels |
-| `pixelate` | Block averaging for retro pixel look |
-| `solarize` | Partial color inversion above threshold |
-| `duotone` | Maps grayscale to two specified colors |
-| `emboss` | Creates embossed/raised appearance |
-| `sharpen` | Increases edge contrast |
-| `halftone` | Converts to dot pattern |
-| `vhs` | Retro VHS effect with scan lines and noise |
-| `glitch` | RGB channel offset and slice displacement |
+| Effect      | Description                                |
+| ----------- | ------------------------------------------ |
+| `posterize` | Reduces color palette to limited levels    |
+| `pixelate`  | Block averaging for retro pixel look       |
+| `solarize`  | Partial color inversion above threshold    |
+| `duotone`   | Maps grayscale to two specified colors     |
+| `emboss`    | Creates embossed/raised appearance         |
+| `sharpen`   | Increases edge contrast                    |
+| `halftone`  | Converts to dot pattern                    |
+| `vhs`       | Retro VHS effect with scan lines and noise |
+| `glitch`    | RGB channel offset and slice displacement  |
 
 ### Usage Example
 
@@ -99,27 +103,27 @@ applyEffect(ctx, width, height, effectType, intensity, duotoneColors);
 <script>
   import { applyEffect } from "$lib/utils/effects-processing";
   import { wasm } from "$lib/services/wasm";
-  
+
   let canvas: HTMLCanvasElement;
-  
+
   async function processImage(imageSrc: string) {
     await wasm.init();
-    
+
     const img = new Image();
     img.src = imageSrc;
     await new Promise(resolve => img.onload = resolve);
-    
+
     canvas.width = img.width;
     canvas.height = img.height;
-    
+
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
     ctx.drawImage(img, 0, 0);
-    
+
     // Apply WASM-based adjustment
     const imageData = ctx.getImageData(0, 0, img.width, img.height);
     wasm.applyTemperature(imageData.data, img.width, img.height, 20);
     ctx.putImageData(imageData, 0, 0);
-    
+
     // Apply canvas-based effect
     applyEffect(ctx, img.width, img.height, "halftone", 50);
   }
@@ -137,9 +141,9 @@ For extracting color palettes from images, use the utilities that wrap WASM K-Me
 import { extractPalette, sortPalette, generateGradient } from "$lib/utils/color-engine";
 
 // Extract 5 colors with balanced quality
-const colors = await extractPalette(imageSrc, { 
-    colorCount: 5, 
-    quality: "balanced"  // "fast" | "balanced" | "best"
+const colors = await extractPalette(imageSrc, {
+	colorCount: 5,
+	quality: "balanced", // "fast" | "balanced" | "best"
 });
 
 // Sort for visually smooth gradient
@@ -152,11 +156,11 @@ const css = generateGradient(sorted, "to right");
 
 ### Quality Settings
 
-| Quality | Downsample Size | K-Means Iterations |
-|---------|-----------------|-------------------|
-| `fast` | 64px | 5 |
-| `balanced` | 128px | 10 |
-| `best` | 256px | 20 |
+| Quality    | Downsample Size | K-Means Iterations |
+| ---------- | --------------- | ------------------ |
+| `fast`     | 64px            | 5                  |
+| `balanced` | 128px           | 10                 |
+| `best`     | 256px           | 20                 |
 
 ## Theme Extraction
 

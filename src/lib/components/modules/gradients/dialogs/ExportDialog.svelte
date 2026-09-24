@@ -10,8 +10,7 @@ import {
 	gradientToSVG,
 	type InterpolationMode,
 } from "../gradient-utils";
-import pkg from "file-saver";
-const { saveAs } = pkg;
+import { downloadBlob } from "$lib/core/download";
 
 interface Props {
 	open: boolean;
@@ -76,14 +75,14 @@ async function handleExport() {
 			case "svg": {
 				const svg = gradientToSVG(gradient, 800, 400);
 				const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-				saveAs(blob, `${gradient.name}.svg`);
+				downloadBlob(blob, `${gradient.name}.svg`);
 				toast.success("SVG file saved!");
 				break;
 			}
 			case "json": {
 				const json = JSON.stringify(gradient, null, 2);
 				const blob = new Blob([json], { type: "application/json;charset=utf-8" });
-				saveAs(blob, `${gradient.name}.json`);
+				downloadBlob(blob, `${gradient.name}.json`);
 				toast.success("JSON file saved!");
 				break;
 			}

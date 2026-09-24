@@ -1,6 +1,6 @@
 import { storage } from "$lib/services/storage";
 import { HistoryStore, recordCollectionUpdate } from "./history.svelte";
-import type { ValidatedColorPalette } from "$lib/schemas/validation";
+import { StoredRecordSchemas, type ValidatedColorPalette } from "$lib/schemas/validation";
 import type { PaletteId } from "$lib/types/brands";
 
 export class PaletteStore {
@@ -30,14 +30,11 @@ export class PaletteStore {
 
 	async load() {
 		try {
-			const saved = await storage.db.get<ValidatedColorPalette[]>(this.STORAGE_KEY);
-			if (saved) {
-				// Hydrate dates
-				this.palettes = saved.map((p) => ({
-					...p,
-					createdAt: new Date(p.createdAt),
-				}));
-			}
+			const { records } = await storage.db.getCollection(
+				this.STORAGE_KEY,
+				StoredRecordSchemas.palettes
+			);
+			this.palettes = records;
 		} catch (error) {
 			console.warn("Failed to load palettes:", error);
 		} finally {
@@ -122,7 +119,7 @@ export class PaletteStore {
 				(state) => (this.palettes = state),
 				() => this.save(),
 				this.history,
-				"Update Palette",
+				"Update Palette"
 			);
 		}
 	}

@@ -17,7 +17,7 @@ export function buildCSSFilterString(
 		| "hueRotate"
 		| "blur"
 	>,
-	isComparing = false,
+	isComparing = false
 ): string {
 	if (isComparing) return "none";
 
@@ -36,7 +36,7 @@ export function buildCSSFilterString(
 }
 
 export function buildTransformString(
-	state: Pick<ImageEditorState, "scale" | "rotation" | "flipX" | "flipY">,
+	state: Pick<ImageEditorState, "scale" | "rotation" | "flipX" | "flipY">
 ): string {
 	const transforms: string[] = [];
 

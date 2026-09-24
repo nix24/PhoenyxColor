@@ -1,11 +1,5 @@
-// Layout load function for PhoenyxColor
-// This configures SSR/prerendering and provides base metadata
-
-// Disable prerendering - app relies heavily on client-side localStorage/IndexedDB
+// Client-only app: all state lives in IndexedDB/localStorage, so there is nothing to render on a server.
+export const ssr = false;
 export const prerender = false;
 
-// Enable client-side rendering
-export const ssr = true;
-
-// Enable trailing slashes for consistent URLs
 export const trailingSlash = "never";

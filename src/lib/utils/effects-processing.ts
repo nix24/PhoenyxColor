@@ -25,7 +25,7 @@ function applyPosterize(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number,
+	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyPosterize(imageData.data, width, height, intensity);
@@ -39,7 +39,7 @@ function applyPixelate(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number,
+	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyPixelate(imageData.data, width, height, intensity);
@@ -53,7 +53,7 @@ function applySolarize(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number,
+	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applySolarize(imageData.data, width, height, intensity);
@@ -69,7 +69,7 @@ function applyDuotone(
 	height: number,
 	intensity: number,
 	darkColor: string,
-	lightColor: string,
+	lightColor: string
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 
@@ -87,7 +87,7 @@ function applyEmboss(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number,
+	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyConvolution3x3(
@@ -96,7 +96,7 @@ function applyEmboss(
 		height,
 		[-2, -1, 0, -1, 1, 1, 0, 1, 2],
 		intensity,
-		128,
+		128
 	);
 	ctx.putImageData(imageData, 0, 0);
 }
@@ -108,7 +108,7 @@ function applySharpen(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number,
+	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyConvolution3x3(
@@ -117,7 +117,7 @@ function applySharpen(
 		height,
 		[0, -1, 0, -1, 5, -1, 0, -1, 0],
 		intensity,
-		0,
+		0
 	);
 	ctx.putImageData(imageData, 0, 0);
 }
@@ -129,7 +129,7 @@ function applyHalftone(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number,
+	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyHalftone(imageData.data, width, height, intensity);
@@ -143,7 +143,7 @@ function applyVHS(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number,
+	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyVHS(imageData.data, width, height, intensity);
@@ -157,7 +157,7 @@ function applyGlitch(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	intensity: number,
+	intensity: number
 ): void {
 	const imageData = ctx.getImageData(0, 0, width, height);
 	wasm.applyGlitch(imageData.data, width, height, intensity);
@@ -173,7 +173,7 @@ export function applyEffect(
 	height: number,
 	effect: EffectType,
 	intensity: number,
-	duotoneColors?: [string, string],
+	duotoneColors?: [string, string]
 ): void {
 	switch (effect) {
 		case "posterize":
@@ -193,7 +193,7 @@ export function applyEffect(
 					height,
 					intensity,
 					duotoneColors[0] ?? "#000000",
-					duotoneColors[1] ?? "#ffffff",
+					duotoneColors[1] ?? "#ffffff"
 				);
 			}
 			break;

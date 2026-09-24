@@ -20,38 +20,8 @@ interface PixelDimensions {
 	height: number;
 }
 
-/** How many entries each in-memory cache currently holds. */
-interface CacheStats {
-	imageCache: number;
-	thumbnailCache: number;
-}
-
-/** JS heap figures, empty when the browser does not expose `performance.memory`. */
-interface MemoryUsage {
-	used?: number;
-	total?: number;
-	percentage?: number;
-}
-
-/** Chrome-only heap counters; absent in every other engine. */
-interface HeapMemory {
-	usedJSHeapSize: number;
-	totalJSHeapSize: number;
-}
-
-function readHeapMemory(): HeapMemory | null {
-	if (!("memory" in performance)) return null;
-	// SAFETY: `performance.memory` is a non-standard Chrome extension missing from the
-	// DOM lib; the `in` check above confirms this engine provides it.
-	return performance.memory as HeapMemory;
-}
-
 class PerformanceService {
 	private static instance: PerformanceService;
-	private imageCache = new Map<string, string>();
-	private thumbnailCache = new Map<string, string>();
-	private static readonly MAX_CACHE_SIZE = 50;
-
 	static getInstance(): PerformanceService {
 		if (!PerformanceService.instance) {
 			PerformanceService.instance = new PerformanceService();
@@ -59,28 +29,12 @@ class PerformanceService {
 		return PerformanceService.instance;
 	}
 
-	private evictLRU(cache: Map<string, string>): void {
-		if (cache.size <= PerformanceService.MAX_CACHE_SIZE) return;
-		// Map iteration order is insertion order — delete oldest entries
-		const toRemove = cache.size - PerformanceService.MAX_CACHE_SIZE;
-		let removed = 0;
-		for (const [key, value] of cache) {
-			if (removed >= toRemove) break;
-			// Revoke blob URLs to free memory
-			if (value.startsWith("blob:")) {
-				URL.revokeObjectURL(value);
-			}
-			cache.delete(key);
-			removed++;
-		}
-	}
-
 	/**
 	 * Optimize image for better performance
 	 */
 	async optimizeImage(
 		file: File,
-		options: ImageOptimizationOptions = {},
+		options: ImageOptimizationOptions = {}
 	): Promise<{ optimized: File; thumbnail: string }> {
 		const { maxWidth = 1920, maxHeight = 1080, quality = 0.92, format = "jpeg" } = options;
 
@@ -95,7 +49,7 @@ class PerformanceService {
 						img.width,
 						img.height,
 						maxWidth,
-						maxHeight,
+						maxHeight
 					);
 
 					// Create canvas for optimization with high quality rendering
@@ -136,7 +90,7 @@ class PerformanceService {
 							}
 						},
 						`image/${format}`,
-						quality,
+						quality
 					);
 				} catch (error) {
 					reject(error);
@@ -156,7 +110,7 @@ class PerformanceService {
 	 */
 	generateThumbnail(
 		source: HTMLImageElement | HTMLCanvasElement,
-		options: ThumbnailOptions,
+		options: ThumbnailOptions
 	): string {
 		const { width, height, quality = 0.9 } = options; // Higher default quality
 
@@ -181,7 +135,7 @@ class PerformanceService {
 			sourceWidth,
 			sourceHeight,
 			width,
-			height,
+			height
 		);
 
 		// Center the image
@@ -205,7 +159,7 @@ class PerformanceService {
 		originalWidth: number,
 		originalHeight: number,
 		maxWidth: number,
-		maxHeight: number,
+		maxHeight: number
 	): PixelDimensions {
 		const aspectRatio = originalWidth / originalHeight;
 
@@ -225,188 +179,6 @@ class PerformanceService {
 
 		return { width: Math.round(width), height: Math.round(height) };
 	}
-
-	/**
-	 * Lazy load image with placeholder
-	 */
-	async lazyLoadImage(src: string, placeholder?: string): Promise<string> {
-		// Check cache first
-		if (this.imageCache.has(src)) {
-			return this.imageCache.get(src) ?? "";
-		}
-
-		return new Promise((resolve, reject) => {
-			const img = new Image();
-
-			img.onload = () => {
-				// Cache the loaded image with LRU eviction
-				this.imageCache.set(src, src);
-				this.evictLRU(this.imageCache);
-				resolve(src);
-			};
-
-			img.onerror = () => {
-				if (placeholder) {
-					resolve(placeholder);
-				} else {
-					reject(new Error("Failed to load image"));
-				}
-			};
-
-			img.src = src;
-		});
-	}
-
-	/**
-	 * Preload critical images
-	 */
-	async preloadImages(urls: string[]): Promise<void> {
-		const promises = urls.map((url) => this.lazyLoadImage(url));
-
-		try {
-			await Promise.allSettled(promises);
-		} catch (error) {
-			console.warn("Some images failed to preload:", error);
-		}
-	}
-
-	/**
-	 * Debounce function for performance optimization
-	 */
-	debounce<T extends (...args: any[]) => any>(
-		func: T,
-		wait: number,
-	): (...args: Parameters<T>) => void {
-		let timeout: number;
-
-		return (...args: Parameters<T>) => {
-			clearTimeout(timeout);
-			timeout = window.setTimeout(() => func(...args), wait);
-		};
-	}
-
-	/**
-	 * Throttle function for performance optimization
-	 */
-	throttle<T extends (...args: any[]) => any>(
-		func: T,
-		limit: number,
-	): (...args: Parameters<T>) => void {
-		let inThrottle: boolean;
-
-		return (...args: Parameters<T>) => {
-			if (!inThrottle) {
-				func(...args);
-				inThrottle = true;
-				setTimeout(() => (inThrottle = false), limit);
-			}
-		};
-	}
-
-	/**
-	 * Measure and log performance metrics
-	 */
-	measurePerformance<T>(name: string, fn: () => T): T {
-		const start = performance.now();
-		const result = fn();
-		const end = performance.now();
-
-		console.log(`Performance: ${name} took ${end - start} milliseconds`);
-		return result;
-	}
-
-	/**
-	 * Clear image caches to free memory
-	 */
-	clearCaches(): void {
-		// Revoke any blob URLs to free memory
-		for (const value of this.imageCache.values()) {
-			if (value.startsWith("blob:")) URL.revokeObjectURL(value);
-		}
-		for (const value of this.thumbnailCache.values()) {
-			if (value.startsWith("blob:")) URL.revokeObjectURL(value);
-		}
-		this.imageCache.clear();
-		this.thumbnailCache.clear();
-	}
-
-	/**
-	 * Get cache statistics
-	 */
-	getCacheStats(): CacheStats {
-		return {
-			imageCache: this.imageCache.size,
-			thumbnailCache: this.thumbnailCache.size,
-		};
-	}
-
-	/**
-	 * Optimize canvas rendering
-	 */
-	optimizeCanvas(canvas: HTMLCanvasElement): void {
-		const ctx = canvas.getContext("2d");
-		if (ctx) {
-			// Enable image smoothing for better quality
-			ctx.imageSmoothingEnabled = true;
-			ctx.imageSmoothingQuality = "high";
-
-			// Set optimal composite operation
-			ctx.globalCompositeOperation = "source-over";
-		}
-	}
-
-	/**
-	 * Check if WebP is supported
-	 */
-	isWebPSupported(): boolean {
-		const canvas = document.createElement("canvas");
-		canvas.width = 1;
-		canvas.height = 1;
-		return canvas.toDataURL("image/webp").indexOf("data:image/webp") === 0;
-	}
-
-	/**
-	 * Get optimal image format based on browser support
-	 */
-	getOptimalImageFormat(): "webp" | "jpeg" {
-		return this.isWebPSupported() ? "webp" : "jpeg";
-	}
-
-	/**
-	 * Compress image data URL
-	 */
-	compressDataURL(dataURL: string, quality: number = 0.8): string {
-		const canvas = document.createElement("canvas");
-		const ctx = canvas.getContext("2d");
-		if (!ctx) {
-			toast.error("Failed to create canvas context");
-			return "";
-		}
-		const img = new Image();
-
-		img.onload = () => {
-			canvas.width = img.width;
-			canvas.height = img.height;
-			ctx.drawImage(img, 0, 0);
-		};
-
-		img.src = dataURL;
-		return canvas.toDataURL("image/jpeg", quality);
-	}
-
-	/**
-	 * Monitor memory usage (if available)
-	 */
-	getMemoryUsage(): MemoryUsage {
-		const memory = readHeapMemory();
-		if (!memory) return {};
-		return {
-			used: memory.usedJSHeapSize,
-			total: memory.totalJSHeapSize,
-			percentage: (memory.usedJSHeapSize / memory.totalJSHeapSize) * 100,
-		};
-	}
 }
 
-// Export singleton instance
 export const performanceService = PerformanceService.getInstance();

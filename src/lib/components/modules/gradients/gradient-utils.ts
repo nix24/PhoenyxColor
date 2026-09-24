@@ -37,13 +37,6 @@ export type PresetCategory =
 	| "duotone"
 	| "mesh";
 
-interface NoiseConfig {
-	enabled: boolean;
-	intensity: number; // 0-100
-	scale: number; // 0.1-10
-	type: "perlin" | "simplex" | "grain";
-}
-
 export type MoodType = "calm" | "energetic" | "corporate" | "playful" | "luxury" | "natural";
 
 /** The generation envelope a mood imposes on the colors derived from a seed. */
@@ -408,7 +401,7 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 
 export function generateCSSGradient(
 	gradient: ValidatedGradient | null,
-	interpolationMode: InterpolationMode = "oklch",
+	interpolationMode: InterpolationMode = "oklch"
 ): string {
 	if (!gradient || !gradient.stops || !gradient.stops.length) {
 		return `linear-gradient(45deg in oklch, #3b82f6, #8b5cf6)`;
@@ -452,7 +445,7 @@ export function generateTailwindGradient(gradient: ValidatedGradient): string {
 
 	const angle = gradient.angle || 45;
 	const closestAngle = [...angleToDirection.keys()].reduce((prev, curr) =>
-		Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev,
+		Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev
 	);
 
 	const direction = angleToDirection.get(closestAngle) || "to-r";
@@ -487,19 +480,14 @@ export function generateCSSVariables(gradient: ValidatedGradient, prefix = "grad
 function interpolateGradientColors(
 	colors: string[],
 	steps: number,
-	mode: InterpolationMode = "oklch",
+	mode: InterpolationMode = "oklch"
 ): string[] {
 	if (colors.length < 2) return colors;
 
 	try {
-		const chromaMode = mode === "oklch" ? "lch" : mode === "oklab" ? "lab" : mode;
-		// SAFETY: chroma's `mode` parameter is typed as a closed union of its own
-		// interpolation-space names; `chromaMode` holds one of those names, but the union
-		// is not exported for us to annotate against.
-		return chroma
-			.scale(colors)
-			.mode(chromaMode as any)
-			.colors(steps);
+		const chromaMode: chroma.InterpolationMode =
+			mode === "oklch" ? "lch" : mode === "oklab" ? "lab" : mode;
+		return chroma.scale(colors).mode(chromaMode).colors(steps);
 	} catch {
 		return chroma.scale(colors).colors(steps);
 	}
@@ -507,7 +495,7 @@ function interpolateGradientColors(
 
 export function smoothenGradientStops(
 	stops: ValidatedGradientStop[],
-	mode: InterpolationMode = "oklch",
+	mode: InterpolationMode = "oklch"
 ): ValidatedGradientStop[] {
 	if (stops.length < 3) return stops;
 
@@ -696,27 +684,10 @@ export function gradientToSVG(gradient: ValidatedGradient, width = 400, height =
 
 // --- Validation Helpers ---
 
-function isValidHexColor(color: string): boolean {
-	return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
-}
-
-function normalizeHexColor(color: string): string {
-	if (!color.startsWith("#")) {
-		color = `#${color}`;
-	}
-
-	if (color.length === 4) {
-		// Expand shorthand (#RGB -> #RRGGBB)
-		color = `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
-	}
-
-	return color.toLowerCase();
-}
-
 export function interpolateColorAtPosition(
 	stops: ValidatedGradientStop[],
 	position: number,
-	mode: InterpolationMode = "oklch",
+	mode: InterpolationMode = "oklch"
 ): string {
 	const sorted = [...stops].sort((a, b) => a.position - b.position);
 	if (sorted.length === 0) return "#808080";

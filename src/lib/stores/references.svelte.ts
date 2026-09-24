@@ -1,6 +1,6 @@
 import { storage } from "$lib/services/storage";
 import { HistoryStore } from "./history.svelte";
-import { ReferenceImageSchema, type ValidatedReferenceImage } from "$lib/schemas/validation";
+import { StoredRecordSchemas, type ValidatedReferenceImage } from "$lib/schemas/validation";
 import type { ReferenceId } from "$lib/types/brands";
 
 export class ReferenceStore {
@@ -30,22 +30,13 @@ export class ReferenceStore {
 		this.isReady = false;
 		this.loadError = null;
 		try {
-			const saved = await storage.db.get<ValidatedReferenceImage[]>(this.STORAGE_KEY);
-			if (saved) {
-				const references: ValidatedReferenceImage[] = [];
-				let invalidCount = 0;
-				for (const stored of saved) {
-					const result = ReferenceImageSchema.safeParse({
-						...stored,
-						createdAt: new Date(stored.createdAt),
-					});
-					if (result.success) references.push(result.data);
-					else invalidCount += 1;
-				}
-				this.references = references;
-				if (invalidCount > 0) {
-					this.loadError = `${invalidCount} saved reference ${invalidCount === 1 ? "was" : "were"} invalid and could not be restored.`;
-				}
+			const { records, invalidCount } = await storage.db.getCollection(
+				this.STORAGE_KEY,
+				StoredRecordSchemas.references
+			);
+			this.references = records;
+			if (invalidCount > 0) {
+				this.loadError = `${invalidCount} saved reference ${invalidCount === 1 ? "was" : "were"} invalid and could not be restored.`;
 			}
 		} catch (error) {
 			console.error("Failed to load references:", error);

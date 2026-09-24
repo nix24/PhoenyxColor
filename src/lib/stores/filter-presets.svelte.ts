@@ -1,4 +1,5 @@
 import { storage } from "$lib/services/storage";
+import { StoredRecordSchemas } from "$lib/schemas/validation";
 import { HistoryStore, recordCollectionUpdate } from "./history.svelte";
 import type { FilterPreset, PresetCategory, FilterPresetSettings } from "$lib/types/image-editor";
 
@@ -21,13 +22,11 @@ export class FilterPresetStore {
 
 	private async load() {
 		try {
-			const saved = await storage.db.get<FilterPreset[]>(STORAGE_KEY);
-			if (saved) {
-				this.presets = saved.map((p) => ({
-					...p,
-					createdAt: new Date(p.createdAt),
-				}));
-			}
+			const { records } = await storage.db.getCollection(
+				STORAGE_KEY,
+				StoredRecordSchemas.filterPresets
+			);
+			this.presets = records;
 		} catch (error) {
 			console.warn("Failed to load filter presets:", error);
 		} finally {
@@ -110,7 +109,7 @@ export class FilterPresetStore {
 				(state) => (this.presets = state),
 				() => this.save(),
 				this.history,
-				"Update Preset",
+				"Update Preset"
 			);
 		}
 	}

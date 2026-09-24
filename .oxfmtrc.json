@@ -13,8 +13,8 @@
 		".windsurf/**",
 		"tools/oxlint/anti-slop/**"
 	],
-	"indentStyle": "tab",
-	"lineWidth": 100,
-	"quoteStyle": "double",
-	"trailingComma": "es5"
+	"trailingComma": "es5",
+	"useTabs": true,
+	"printWidth": 100,
+	"singleQuote": false
 }

@@ -64,13 +64,13 @@ async function generateHistogram() {
 
 	const imageData = ctx.getImageData(0, 0, width, height);
 	const data = imageData.data;
-	const histogram = new Array(256).fill(0);
+	const histogram = Array.from({ length: 256 }, () => 0);
 
 	// Calculate luminance histogram
 	for (let i = 0; i < data.length; i += 4) {
 		const [r, g, b] = readRgbPixel(data, i);
 		const lum = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
-		histogram[lum]++;
+		histogram[lum] = (histogram[lum] ?? 0) + 1;
 	}
 
 	// Normalize

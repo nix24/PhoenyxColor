@@ -1,4 +1,4 @@
-import type { ImageEditorState, AppliedEffect } from "$lib/components/editor/EditorHistory.svelte";
+import type { ImageEditorState } from "$lib/components/editor/EditorHistory.svelte";
 import { applyAllAdjustments, applyCurves } from "$lib/utils/image-processing";
 import { applyEffect, type EffectType } from "$lib/utils/effects-processing";
 
@@ -7,7 +7,7 @@ function applyEditorTransform(
 	width: number,
 	height: number,
 	state: ImageEditorState,
-	sourceScale: number,
+	sourceScale: number
 ): void {
 	ctx.translate(width / 2, height / 2);
 	ctx.scale(state.flipX ? -sourceScale : sourceScale, state.flipY ? -sourceScale : sourceScale);
@@ -43,7 +43,7 @@ export function getOutputGeometry({
 	const croppedWidth = Math.max(1, Math.min(cropRect?.width ?? sourceWidth, sourceWidth - sourceX));
 	const croppedHeight = Math.max(
 		1,
-		Math.min(cropRect?.height ?? sourceHeight, sourceHeight - sourceY),
+		Math.min(cropRect?.height ?? sourceHeight, sourceHeight - sourceY)
 	);
 	const radians = (rotation * Math.PI) / 180;
 	const rawCos = Math.cos(radians);
@@ -91,7 +91,7 @@ export async function renderCanvasImage(
 			  }
 			| undefined;
 		maxSize?: number;
-	} = {},
+	} = {}
 ): Promise<void> {
 	const ctx = canvas.getContext("2d", { willReadFrequently: true });
 	if (!ctx) throw new Error("Could not get canvas context");
@@ -141,7 +141,7 @@ export async function renderCanvasImage(
 		-geometry.sourceWidth / 2,
 		-geometry.sourceHeight / 2,
 		geometry.sourceWidth,
-		geometry.sourceHeight,
+		geometry.sourceHeight
 	);
 	ctx.restore();
 
@@ -180,14 +180,7 @@ export async function renderCanvasImage(
 	const appliedEffects = state.appliedEffects || [];
 	for (const effect of appliedEffects) {
 		if (effect.type !== "none") {
-			applyEffect(
-				ctx,
-				width,
-				height,
-				effect.type,
-				effect.intensity,
-				effect.duotoneColors,
-			);
+			applyEffect(ctx, width, height, effect.type, effect.intensity, effect.duotoneColors);
 		}
 	}
 
@@ -199,7 +192,7 @@ export async function renderCanvasImage(
 			height,
 			options.previewEffect.type,
 			options.previewEffect.intensity,
-			options.previewEffect.duotoneColors,
+			options.previewEffect.duotoneColors
 		);
 	}
 
@@ -210,7 +203,7 @@ export async function renderCanvasImage(
 			0,
 			width / 2,
 			height / 2,
-			Math.max(width, height) / 2,
+			Math.max(width, height) / 2
 		);
 		vignette.addColorStop(0, "rgba(0,0,0,0)");
 		vignette.addColorStop(0.55, "rgba(0,0,0,0)");

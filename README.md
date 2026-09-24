@@ -26,7 +26,7 @@
 
 **PhoenyxColor** is a next-generation color toolkit that rises from the ashes of traditional color pickers and palette generators. Built with **SvelteKit 5**, **WebAssembly**, and modern **perceptual color science**, it offers a seamless experience for creating, managing, and exporting stunning color palettes and gradients.
 
-Unlike conventional tools that operate in the outdated RGB or HSL color spaces, PhoenyxColor leverages the power of **OkLCH** and **Oklab**—perceptually uniform color spaces designed for how humans *actually see* color. The result? Gradients that feel natural, palettes that harmonize effortlessly, and color manipulation that just makes sense.
+Unlike conventional tools that operate in the outdated RGB or HSL color spaces, PhoenyxColor leverages the power of **OkLCH** and **Oklab**—perceptually uniform color spaces designed for how humans _actually see_ color. The result? Gradients that feel natural, palettes that harmonize effortlessly, and color manipulation that just makes sense.
 
 ---
 
@@ -68,24 +68,28 @@ zig build
 ## 🎨 Features
 
 ### **Color Palettes**
+
 - Create palettes manually or with AI-powered smart generation
 - Extract palettes from images using **K-Means clustering** in Oklab color space
 - Organize with tags, rename, and manage multiple palettes
 - Export as **JSON**, **CSS variables**, or **PNG swatches**
 
 ### **Gradient Designer**
+
 - Design **linear**, **radial**, and **conic** gradients with precision
 - Generate gradients from existing palettes with automatic color sorting
 - Modern **Oklch interpolation** for perceptually smooth transitions
 - Export production-ready CSS with a single click
 
 ### **Reference Boards**
+
 - Drag-and-drop image uploads with automatic thumbnailing
 - Advanced transformations: brightness, contrast, saturation, blur
 - Creative filters: grayscale, sepia, invert, hue rotation
 - WASM-powered effects: posterize, solarize, duotone, pixelate, VHS, glitch
 
 ### **High-Performance Processing**
+
 - **WebAssembly (Zig)** for blazing-fast image manipulation
 - K-Means clustering, temperature/tint adjustments, and creative effects
 - Non-blocking architecture with IndexedDB persistence
@@ -96,9 +100,9 @@ zig build
 
 ### Why OkLCH?
 
-Traditional color spaces like **RGB** and **HSL** were designed for machines, not humans. A 50% change in "lightness" in HSL doesn't *feel* like 50% to your eyes—because human color perception is non-linear.
+Traditional color spaces like **RGB** and **HSL** were designed for machines, not humans. A 50% change in "lightness" in HSL doesn't _feel_ like 50% to your eyes—because human color perception is non-linear.
 
-**OkLCH** (part of the Oklab family) is a *perceptually uniform* color space, meaning:
+**OkLCH** (part of the Oklab family) is a _perceptually uniform_ color space, meaning:
 
 - **Equal numeric changes = equal perceived changes**
 - Gradients look smooth and natural, without muddy middle tones
@@ -112,7 +116,7 @@ When extracting a palette from an image, the order of colors matters. PhoenyxCol
 
 ### K-Means Clustering in Oklab
 
-Rather than naive color quantization, PhoenyxColor uses **K-Means clustering** in the Oklab color space to find the most representative colors in an image. This produces palettes that *feel* right, capturing the essence of your reference images.
+Rather than naive color quantization, PhoenyxColor uses **K-Means clustering** in the Oklab color space to find the most representative colors in an image. This produces palettes that _feel_ right, capturing the essence of your reference images.
 
 ### Delta E 2000
 
@@ -132,12 +136,12 @@ bun run dev
 
 ### Key Guides
 
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](docs/src/content/docs/guides/example.md) | Quick setup and first steps |
-| [Architecture](docs/src/content/docs/guides/architecture.mdx) | Deep dive into the codebase structure |
-| [WASM & Effects](docs/src/content/docs/guides/wasm-effects.md) | Using WebAssembly image processing |
-| [API Reference](docs/src/content/docs/reference/api/README.md) | Auto-generated TypeDoc documentation |
+| Guide                                                          | Description                           |
+| -------------------------------------------------------------- | ------------------------------------- |
+| [Getting Started](docs/src/content/docs/guides/example.md)     | Quick setup and first steps           |
+| [Architecture](docs/src/content/docs/guides/architecture.mdx)  | Deep dive into the codebase structure |
+| [WASM & Effects](docs/src/content/docs/guides/wasm-effects.md) | Using WebAssembly image processing    |
+| [API Reference](docs/src/content/docs/reference/api/README.md) | Auto-generated TypeDoc documentation  |
 
 ---
 
@@ -175,15 +179,15 @@ src/lib/
 
 ## 🛠️ Tech Stack
 
-| Technology | Purpose |
-|------------|---------|
-| **SvelteKit 5** | Framework with runes-based reactivity |
-| **TypeScript** | Type safety with branded types |
-| **Zig → WASM** | High-performance image processing |
-| **Culori** | Color space conversions (OkLCH, Oklab) |
-| **IndexedDB** | Persistent storage for large data |
-| **Starlight** | Documentation site generator |
-| **Zod** | Runtime validation schemas |
+| Technology      | Purpose                                |
+| --------------- | -------------------------------------- |
+| **SvelteKit 5** | Framework with runes-based reactivity  |
+| **TypeScript**  | Type safety with branded types         |
+| **Zig → WASM**  | High-performance image processing      |
+| **Culori**      | Color space conversions (OkLCH, Oklab) |
+| **IndexedDB**   | Persistent storage for large data      |
+| **Starlight**   | Documentation site generator           |
+| **Zod**         | Runtime validation schemas             |
 
 ---
 

@@ -65,11 +65,11 @@ export function recordCollectionUpdate<T>(
 	setState: (state: T[]) => void,
 	save: () => void,
 	history: HistoryStore<T[]>,
-	label: string,
+	label: string
 ): void {
 	const previousState = snapshotStoreState(current);
 	const nextState = previousState.map((item, itemIndex) =>
-		itemIndex === index ? { ...item, ...updates } : item,
+		itemIndex === index ? { ...item, ...updates } : item
 	);
 	applyUpdates();
 	save();

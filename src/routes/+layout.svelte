@@ -14,8 +14,9 @@ import { SITE_CONFIG, getStructuredData } from "$lib/config/seo";
 import { fly, fade } from "svelte/transition";
 import { backOut } from "svelte/easing";
 
-// Generate structured data for JSON-LD
-const structuredData = JSON.stringify(getStructuredData());
+// JSON-LD tag built here: a literal closing script tag inside markup breaks the Svelte/oxlint parsers.
+// `<` is escaped so the JSON can never terminate the tag early.
+const structuredDataTag = `<script type="application/ld+json">${JSON.stringify(getStructuredData()).replace(/</g, "\\u003c")}<${"/"}script>`;
 
 let { children } = $props();
 
@@ -117,7 +118,7 @@ onDestroy(() => {
 	<meta name="keywords" content={SITE_CONFIG.keywords.join(", ")} />
 
 	<!-- JSON-LD Structured Data -->
-	{@html `<script type="application/ld+json">${structuredData}</script>`}
+	{@html structuredDataTag}
 </svelte:head>
 
 <!-- Background System -->

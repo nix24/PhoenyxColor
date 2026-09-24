@@ -1,7 +1,7 @@
 <script lang="ts">
 import { app } from "$lib/stores/root.svelte";
 import Icon from "@iconify/svelte";
-import { dndzone } from "svelte-dnd-action";
+import { dndzone, type DndEvent } from "svelte-dnd-action";
 import { cn } from "$lib/utils/cn";
 import {
 	getContrastRatio,
@@ -22,7 +22,8 @@ interface Props {
 let { activeColorIndex, onColorIndexSelect }: Props = $props();
 
 // Local state for dnd - we manage items locally, not derived.
-let localItems = $state<Array<{ id: string; color: string; index: number }>>([]);
+type SwatchItem = { id: string; color: string; index: number };
+let localItems = $state<SwatchItem[]>([]);
 
 // Stable ID counter for DnD identity tracking
 let idCounter = 0;
@@ -40,12 +41,12 @@ $effect(() => {
 	}
 });
 
-function handleDndConsider(e: CustomEvent<any>) {
+function handleDndConsider(e: CustomEvent<DndEvent<SwatchItem>>) {
 	isDragging = true;
 	localItems = e.detail.items;
 }
 
-function handleDndFinalize(e: CustomEvent<any>) {
+function handleDndFinalize(e: CustomEvent<DndEvent<SwatchItem>>) {
 	isDragging = false;
 	localItems = e.detail.items;
 

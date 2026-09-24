@@ -59,6 +59,7 @@ phoenyxcolor/
 ### 1. Color Palettes
 
 Navigate to `/palettes` to:
+
 - Create new palettes manually or with the smart generator
 - Extract palettes from images using AI-powered K-Means clustering
 - Edit colors with HSL sliders
@@ -67,6 +68,7 @@ Navigate to `/palettes` to:
 ### 2. Gradients
 
 Navigate to `/gradients` to:
+
 - Design linear, radial, and conic gradients
 - Generate gradients from existing palettes
 - Export CSS with modern `oklch` interpolation
@@ -74,6 +76,7 @@ Navigate to `/gradients` to:
 ### 3. Reference Boards
 
 Navigate to `/references` to:
+
 - Upload and organize reference images
 - Apply transformations (brightness, contrast, saturation, etc.)
 - Apply creative filters (grayscale, sepia, invert)
@@ -85,10 +88,10 @@ Import the global store singleton:
 ```svelte
 <script>
   import { app } from "$lib/stores/root.svelte";
-  
+
   // Access palettes
   $: palettes = app.palettes.palettes;
-  
+
   // Add a new palette
   function createPalette() {
     app.palettes.add({

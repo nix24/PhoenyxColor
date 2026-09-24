@@ -34,7 +34,7 @@ This pattern effectively forces the developer to "bless" a string before it can 
 
 TypeScript
 
-function sendEmail(userId: UserId, email: EmailAddress) { /*...*/ }
+function sendEmail(userId: UserId, email: EmailAddress) { /_..._/ }
 
 // Compile Error: Argument of type 'string' is not assignable to parameter of type 'UserId'.
 sendEmail("user_123", "<test@example.com>");
@@ -53,10 +53,10 @@ Advanced TypeScript usage now involves utility types that generate all valid pat
 TypeScript
 
 type Join<K, P> = K extends string | number?
-  (P extends string | number? `${K}.${P}` : never) : never;
+(P extends string | number? `${K}.${P}` : never) : never;
 
 type Leaves<T> = T extends object?
-  {-?: Join<K, Leaves<T[K]>> } : T;
+{-?: Join<K, Leaves<T[K]>> } : T;
 
 When applied to a data model, this utility generates a union of every possible leaf path. If a developer typos a path or if a property is renamed in the backend schema, the frontend code immediately fails to compile. This tight coupling between the data model and the consuming code reduces the feedback loop from "runtime error in production" to "red squiggly line in IDE".4
 
@@ -95,7 +95,7 @@ This seemingly simple feature allows for the creation of "smart" API clients. A 
 TypeScript
 
 type EventPayload<T> = T extends "auth:created"? { userId: string } :
-                       T extends "payment:updated"? { amount: number } : never;
+T extends "payment:updated"? { amount: number } : never;
 
 function handleEvent<T extends EventType>(event: T, payload: EventPayload<T>) {... }
 
@@ -113,8 +113,8 @@ Option A: Explicit Annotation.
 TypeScript
 
 const palette: Record<string, string | number> = {
-    red: ,
-    green: "#00ff00",
+red: ,
+green: "#00ff00",
 };
 
 Here, palette.green is widened to string | number. We cannot call .toUpperCase() on it without a type check, even though we see it's a string literal.
@@ -123,8 +123,8 @@ Option B: No Annotation.
 TypeScript
 
 const palette = {
-    red: ,
-    green: "#00ff00",
+red: ,
+green: "#00ff00",
 };
 
 Here, we get precise types, but if we misspell red as redd, the compiler won't warn us until we try to use it.
@@ -136,8 +136,8 @@ The satisfies operator validates that the expression matches the type without ch
 TypeScript
 
 const palette = {
-    red: ,
-    green: "#00ff00",
+red: ,
+green: "#00ff00",
 } satisfies Record<string, string | number>;
 
 The compiler checks that the structure conforms to the Record. However, the type of palette remains the precise inferred literal type. palette.green is known to be the string "#00ff00", allowing direct access to string methods. This "check without widening" capability is indispensable for configuration management, ensuring both correctness and ease of use.10
@@ -153,7 +153,7 @@ To enforce immutability at the type level (a key requirement for Redux-style sta
 TypeScript
 
 type DeepReadonly<T> = {
-    readonly: T[P] extends object? DeepReadonly<T[P]> : T[P];
+readonly: T[P] extends object? DeepReadonly<T[P]> : T[P];
 };
 
 This pattern is applied to all state atoms in frontend applications, preventing accidental mutation bugs that are notoriously difficult to track. The compiler simply refuses to accept code that attempts to reassign a property on a state object.22
@@ -191,10 +191,10 @@ import { z } from 'zod';
 
 // Define the Runtime Schema
 const UserSchema = z.object({
-  id: z.string().uuid(),
-  username: z.string().min(3),
-  email: z.string().email(),
-  role: z.enum(['admin', 'user', 'guest']),
+id: z.string().uuid(),
+username: z.string().min(3),
+email: z.string().email(),
+role: z.enum(['admin', 'user', 'guest']),
 });
 
 // Infer the Static Type
@@ -216,10 +216,10 @@ TypeScript
 import { match } from 'ts-pattern';
 
 const result = match(state)
- .with({ status: 'loading' }, () => 'Loading...')
- .with({ status: 'success', data: P.select() }, (data) => `Data: ${data}`)
- .with({ status: 'error' }, () => 'Error occurred')
- .exhaustive();
+.with({ status: 'loading' }, () => 'Loading...')
+.with({ status: 'success', data: P.select() }, (data) => `Data: ${data}`)
+.with({ status: 'error' }, () => 'Error occurred')
+.exhaustive();
 
 The .exhaustive() method is the key architectural feature here. It forces the developer to handle every possible state. If a new state (status: 'idle') is added to the union type definition, the build fails immediately at every match block that doesn't handle it. This "Make Illegal States Unrepresentable" philosophy is crucial for preventing logic gaps in complex state machines.30
 
@@ -393,8 +393,8 @@ Recommendation:
 TypeScript
 // Preferred in 2025
 const Roles = {
-  Admin: 'admin',
-  User: 'user',
+Admin: 'admin',
+User: 'user',
 } as const;
 type Role = typeof Roles; // 'admin' | 'user'
 

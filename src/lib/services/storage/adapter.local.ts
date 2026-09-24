@@ -1,13 +1,21 @@
-import type { StorageAdapter } from "./adapter.interface";
+import type { z } from "zod";
 import { browser } from "$app/environment";
 
 /** Local storage adapter implementation */
-export class LocalStorageAdapter implements StorageAdapter {
-	async get<T>(key: string): Promise<T | null> {
+export class LocalStorageAdapter {
+	/** Read `key` and parse it with `schema`. Null when absent, unreadable, or invalid. */
+	async get<TSchema extends z.ZodType>(
+		key: string,
+		schema: TSchema
+	): Promise<z.infer<TSchema> | null> {
 		if (!browser) return null;
 		try {
 			const item = localStorage.getItem(key);
-			return item ? JSON.parse(item) : null;
+			if (!item) return null;
+			const parsed = schema.safeParse(JSON.parse(item));
+			if (parsed.success) return parsed.data;
+			console.warn(`LocalStorage value for "${key}" failed validation; ignoring it.`);
+			return null;
 		} catch (error) {
 			console.error(`LocalStorage get error for key "${key}":`, error);
 			return null;
@@ -34,4 +42,3 @@ export class LocalStorageAdapter implements StorageAdapter {
 		localStorage.clear();
 	}
 }
-// fallow-ignore-file unused-class-member

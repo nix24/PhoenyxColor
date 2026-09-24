@@ -3,13 +3,6 @@
  * Handles mouse drag panning, scroll wheel zoom, and touch pinch zoom.
  */
 
-interface PanZoomState {
-	zoom: number;
-	panX: number;
-	panY: number;
-	isPanning: boolean;
-}
-
 export interface PanZoomOptions {
 	minZoom?: number;
 	maxZoom?: number;

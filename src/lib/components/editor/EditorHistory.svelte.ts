@@ -154,7 +154,7 @@ function deepCloneState(state: ImageEditorState): ImageEditorState {
 
 function mergeEditorState(
 	currentState: ImageEditorState,
-	newState: Partial<ImageEditorState>,
+	newState: Partial<ImageEditorState>
 ): ImageEditorState {
 	const mergedState = { ...currentState, ...newState };
 	if (newState.curves) mergedState.curves = deepClone(newState.curves);
@@ -266,10 +266,4 @@ export function createEditorHistory(): EditorHistoryService {
 	return new EditorHistoryService();
 }
 
-/**
- * Merge partial state with defaults to create a complete state
- */
-function mergeWithDefaults(partial: Partial<ImageEditorState>): ImageEditorState {
-	return { ...DEFAULT_EDITOR_STATE, ...partial };
-}
 // fallow-ignore-file unused-class-member

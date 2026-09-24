@@ -1,9 +1,6 @@
-// Server-side redirect for the root page
-// This is better for SEO than client-side redirects
 import { redirect } from "@sveltejs/kit";
-import type { Load } from "@sveltejs/kit";
+import type { PageLoad } from "./$types";
 
-export const load: Load = () => {
-	// Redirect to the references page as the default landing
-	redirect(302, "/references");
+export const load: PageLoad = () => {
+	redirect(307, "/references");
 };

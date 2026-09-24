@@ -16,22 +16,28 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid } from "@astrojs/starlight/components";
 
 ## Features
 
 <CardGrid stagger>
 	<Card title="Color Palettes" icon="sun">
-		Create, manage, and export color palettes with support for multiple views: **Editor**, **Gallery**, and **Analysis**. Generate palettes from moods, themes, or extract them directly from images using WASM-powered K-Means clustering.
+		Create, manage, and export color palettes with support for multiple views: **Editor**,
+		**Gallery**, and **Analysis**. Generate palettes from moods, themes, or extract them directly
+		from images using WASM-powered K-Means clustering.
 	</Card>
 	<Card title="Gradient Designer" icon="random">
-		Design complex **Linear**, **Radial**, and **Conic** gradients. Generate gradients from existing palettes or extract dominant colors from images. Export as CSS with modern `oklch` interpolation.
+		Design complex **Linear**, **Radial**, and **Conic** gradients. Generate gradients from existing
+		palettes or extract dominant colors from images. Export as CSS with modern `oklch`
+		interpolation.
 	</Card>
 	<Card title="Reference Boards" icon="seti:image">
-		Manage visual inspiration with drag-and-drop image uploads. Apply advanced transformations including brightness, contrast, saturation, blur, and creative filters like grayscale and sepia.
+		Manage visual inspiration with drag-and-drop image uploads. Apply advanced transformations
+		including brightness, contrast, saturation, blur, and creative filters like grayscale and sepia.
 	</Card>
 	<Card title="WASM-Powered Performance" icon="rocket">
-		High-performance image processing via WebAssembly (Zig). Includes K-Means clustering, temperature/tint adjustments, posterize, solarize, duotone, pixelate, and more.
+		High-performance image processing via WebAssembly (Zig). Includes K-Means clustering,
+		temperature/tint adjustments, posterize, solarize, duotone, pixelate, and more.
 	</Card>
 </CardGrid>
 
@@ -45,10 +51,12 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 		Fully typed codebase with branded types for type-safe IDs and comprehensive validation schemas.
 	</Card>
 	<Card title="OkLCH Color Space" icon="approve-check">
-		Uses perceptually uniform OkLCH color space for smooth gradients and accurate color manipulation via the `culori` library.
+		Uses perceptually uniform OkLCH color space for smooth gradients and accurate color manipulation
+		via the `culori` library.
 	</Card>
 	<Card title="IndexedDB Persistence" icon="open-book">
-		Automatic persistence of palettes, gradients, references, and settings via IndexedDB with LocalStorage fallback.
+		Automatic persistence of palettes, gradients, references, and settings via IndexedDB with
+		LocalStorage fallback.
 	</Card>
 </CardGrid>
 

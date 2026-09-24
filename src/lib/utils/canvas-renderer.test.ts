@@ -9,7 +9,7 @@ describe("getOutputGeometry", () => {
 				sourceHeight: 300,
 				rotation: 90,
 				cropRect: null,
-			}),
+			})
 		).toMatchObject({ outputWidth: 300, outputHeight: 400 });
 	});
 
@@ -20,7 +20,7 @@ describe("getOutputGeometry", () => {
 				sourceHeight: 300,
 				rotation: 90,
 				cropRect: { x: 20, y: 30, width: 100, height: 50 },
-			}),
+			})
 		).toEqual({
 			sourceX: 20,
 			sourceY: 30,
@@ -38,7 +38,7 @@ describe("getOutputGeometry", () => {
 				sourceHeight: 200,
 				rotation: 45,
 				cropRect: null,
-			}),
+			})
 		).toMatchObject({ outputWidth: 213, outputHeight: 213 });
 	});
 });

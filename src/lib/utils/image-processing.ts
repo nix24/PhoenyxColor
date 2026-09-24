@@ -17,7 +17,7 @@ export interface ImageProcessingOptions {
 
 export function readRgbPixel(
 	data: Uint8ClampedArray | Uint8Array,
-	index: number,
+	index: number
 ): [number, number, number] {
 	return [data[index] ?? 0, data[index + 1] ?? 0, data[index + 2] ?? 0];
 }
@@ -30,7 +30,7 @@ function applyTemperature(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	temperature: number,
+	temperature: number
 ): void {
 	if (temperature === 0) return;
 
@@ -47,7 +47,7 @@ function applyTint(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	tint: number,
+	tint: number
 ): void {
 	if (tint === 0) return;
 
@@ -66,7 +66,7 @@ function applyShadowsHighlights(
 	width: number,
 	height: number,
 	shadows: number,
-	highlights: number,
+	highlights: number
 ): void {
 	if (shadows === 0 && highlights === 0) return;
 
@@ -84,7 +84,7 @@ function applyVibrance(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	vibrance: number,
+	vibrance: number
 ): void {
 	if (vibrance === 0) return;
 
@@ -101,7 +101,7 @@ function applyClarity(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	clarity: number,
+	clarity: number
 ): void {
 	if (clarity === 0) return;
 
@@ -117,7 +117,7 @@ export function applyAllAdjustments(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	options: ImageProcessingOptions,
+	options: ImageProcessingOptions
 ): void {
 	// Apply in order: temperature/tint first, then tonal, then detail
 	if (options.temperature !== undefined && options.temperature !== 0) {
@@ -192,7 +192,7 @@ export function getTintColorMatrix(tint: number): string {
  * Interpolate curve points using Catmull-Rom spline
  */
 export function interpolateCurvePoints(
-	points: Array<{ x: number; y: number }>,
+	points: Array<{ x: number; y: number }>
 ): Array<{ x: number; y: number }> {
 	if (points.length < 2) return points;
 
@@ -280,7 +280,7 @@ export function applyCurves(
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	curves: CurveChannels,
+	curves: CurveChannels
 ): void {
 	if (
 		isDefaultCurvePoints(curves.rgb) &&

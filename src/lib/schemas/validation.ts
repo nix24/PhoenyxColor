@@ -126,7 +126,7 @@ export const ReferenceImageSchema = z.object({
 				blendMode: z.enum(BLEND_MODE_VALUES),
 				visible: z.boolean(),
 				locked: z.boolean(),
-			}),
+			})
 		)
 		.optional(),
 	activeLayerId: z.string().uuid().nullable().optional(),
@@ -197,7 +197,7 @@ const ColorPaletteSchema = z.object({
 });
 
 // App Settings validation
-const AppSettingsSchema = z.object({
+export const AppSettingsSchema = z.object({
 	theme: z.enum(["light", "dark", "system"]),
 	defaultPaletteSlots: z.number().min(3).max(50),
 	alwaysOnTop: z.boolean(),
@@ -264,7 +264,7 @@ export function validateColor(color: string): ValidationResult {
 }
 
 export function validateGradient(
-	gradient: z.input<typeof GradientSchema>,
+	gradient: z.input<typeof GradientSchema>
 ): ValidationResult<z.infer<typeof GradientSchema>> {
 	try {
 		return { valid: true, data: GradientSchema.parse(gradient) };
@@ -274,7 +274,7 @@ export function validateGradient(
 }
 
 export function validatePalette(
-	palette: z.input<typeof ColorPaletteSchema>,
+	palette: z.input<typeof ColorPaletteSchema>
 ): ValidationResult<z.infer<typeof ColorPaletteSchema>> {
 	try {
 		return { valid: true, data: ColorPaletteSchema.parse(palette) };
@@ -284,7 +284,7 @@ export function validatePalette(
 }
 
 export function validateAppData(
-	data: z.input<typeof ExportDataSchema>,
+	data: z.input<typeof ExportDataSchema>
 ): ValidationResult<z.infer<typeof ExportDataSchema>> {
 	try {
 		return { valid: true, data: ExportDataSchema.parse(data) };
@@ -299,6 +299,48 @@ const ImportedDateSchema = z.coerce.date().catch(() => new Date());
 const ImportedReferenceSchema = ReferenceImageSchema.extend({ createdAt: ImportedDateSchema });
 const ImportedPaletteSchema = ColorPaletteSchema.extend({ createdAt: ImportedDateSchema });
 const ImportedGradientSchema = GradientSchema.extend({ createdAt: ImportedDateSchema });
+
+const FilterPresetSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	category: z.enum(["custom", "portrait", "landscape", "urban", "vintage", "creative"]),
+	// exactOptional: presets omit untouched adjustments rather than storing undefined.
+	settings: z.object({
+		brightness: z.number().exactOptional(),
+		contrast: z.number().exactOptional(),
+		saturation: z.number().exactOptional(),
+		hueRotate: z.number().exactOptional(),
+		sepia: z.number().exactOptional(),
+		invert: z.number().exactOptional(),
+		isGrayscale: z.boolean().exactOptional(),
+		shadows: z.number().exactOptional(),
+		highlights: z.number().exactOptional(),
+		vibrance: z.number().exactOptional(),
+		temperature: z.number().exactOptional(),
+		tint: z.number().exactOptional(),
+		clarity: z.number().exactOptional(),
+		vignette: z.number().exactOptional(),
+	}),
+	createdAt: ImportedDateSchema,
+	thumbnail: z.string().exactOptional(),
+});
+
+/** Schemas for records read back from device storage. Dates may come back as strings. */
+export const StoredRecordSchemas = {
+	references: ImportedReferenceSchema,
+	palettes: ImportedPaletteSchema,
+	/** Gradients with unusable stops are repaired to the default pair, as before validation existed. */
+	gradients: ImportedGradientSchema.extend({
+		stops: z
+			.array(GradientStopSchema)
+			.min(2)
+			.catch(() => [
+				{ color: "#3b82f6", position: 0 },
+				{ color: "#8b5cf6", position: 100 },
+			]),
+	}),
+	filterPresets: FilterPresetSchema,
+};
 
 /**
  * The envelope of an exported file. Collections stay unparsed here so a single corrupt
@@ -327,7 +369,7 @@ export type ImportedState = {
 /** Keep only the entries that satisfy `schema`; drop the rest. */
 function parseEntries<TSchema extends z.ZodType>(
 	schema: TSchema,
-	entries: readonly unknown[] | undefined,
+	entries: readonly unknown[] | undefined
 ): z.infer<TSchema>[] | undefined {
 	if (entries === undefined) return undefined;
 	return entries.flatMap((entry) => {
@@ -365,10 +407,6 @@ export function parseImportedState(fileText: string): ImportedState | null {
 // Runtime type guards
 export type ValidatedReferenceImage = z.infer<typeof ReferenceImageSchema>;
 export type ValidatedGradientStop = z.infer<typeof GradientStopSchema>;
-type ValidatedMeshPoint = z.infer<typeof MeshPointSchema>;
-type ValidatedNoiseConfig = z.infer<typeof NoiseConfigSchema>;
 export type ValidatedGradient = z.infer<typeof GradientSchema>;
 export type ValidatedColorPalette = z.infer<typeof ColorPaletteSchema>;
 export type ValidatedAppSettings = z.infer<typeof AppSettingsSchema>;
-type ValidatedTutorialProgress = z.infer<typeof TutorialProgressSchema>;
-type ValidatedExportData = z.infer<typeof ExportDataSchema>;

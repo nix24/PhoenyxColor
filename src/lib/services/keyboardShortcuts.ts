@@ -1,7 +1,7 @@
 import { app } from "$lib/stores/root.svelte";
 import { goto } from "$app/navigation";
 import { toast } from "svelte-sonner";
-import { PersistenceService } from "$lib/services/persistence";
+import { exportBackup } from "$lib/services/persistence";
 
 interface ShortcutAction {
 	key: string;
@@ -118,7 +118,7 @@ class KeyboardShortcutsService {
 				key: "e",
 				ctrlKey: true,
 				shiftKey: true,
-				action: () => PersistenceService.getInstance().exportData(app),
+				action: () => exportBackup(app),
 				description: "Export Data",
 				category: "export",
 			},

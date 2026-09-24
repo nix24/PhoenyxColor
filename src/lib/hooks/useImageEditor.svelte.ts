@@ -82,13 +82,13 @@ export function useImageEditor(getImageId: () => string) {
 			history.currentState.highlights !== 0 ||
 			history.currentState.vibrance !== 0 ||
 			history.currentState.clarity !== 0 ||
-			(history.currentState.appliedEffects && history.currentState.appliedEffects.length > 0),
+			(history.currentState.appliedEffects && history.currentState.appliedEffects.length > 0)
 	);
 
 	const filterString = $derived(buildCSSFilterString(history.currentState));
 	const transformString = $derived(buildTransformString(history.currentState));
 	const colorAdjustActive = $derived(
-		history.currentState.temperature !== 0 || history.currentState.tint !== 0,
+		history.currentState.temperature !== 0 || history.currentState.tint !== 0
 	);
 	const appliedCrop = $derived(history.currentState.cropRect);
 
@@ -383,7 +383,7 @@ export function useImageEditor(getImageId: () => string) {
 			return Array.from({ length: 256 }, (_, i) => (i / 255).toFixed(4)).join(" ");
 		}
 		return Array.from(createCurveLookupTable(points), (value) => (value / 255).toFixed(4)).join(
-			" ",
+			" "
 		);
 	}
 

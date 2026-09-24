@@ -1,5 +1,6 @@
 import { storage } from "$lib/services/storage";
-import type { ValidatedAppSettings } from "$lib/schemas/validation";
+import { z } from "zod";
+import { AppSettingsSchema, type ValidatedAppSettings } from "$lib/schemas/validation";
 
 const DEFAULT_SETTINGS: ValidatedAppSettings = {
 	theme: "system",
@@ -46,11 +47,12 @@ export class SettingsStore {
 
 	async load() {
 		try {
-			const saved = await storage.local.get<ValidatedAppSettings>(this.STORAGE_KEY);
-			if (saved) {
-				// Merge with defaults to handle new settings in future versions
-				this.state = { ...DEFAULT_SETTINGS, ...saved };
-			}
+			const saved = await storage.local.get(this.STORAGE_KEY, z.looseObject({}));
+			// Merge over defaults so settings added in later versions get their default value;
+			// if the merged result is still invalid, keep the defaults.
+			const merged = AppSettingsSchema.safeParse({ ...DEFAULT_SETTINGS, ...saved });
+			if (merged.success) this.state = merged.data;
+			else console.warn("Stored settings are invalid; using defaults.", merged.error);
 		} catch (error) {
 			console.warn("Failed to load settings, using defaults:", error);
 		} finally {

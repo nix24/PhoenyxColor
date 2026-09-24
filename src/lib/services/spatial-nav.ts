@@ -18,20 +18,20 @@ class SpatialNavEngine {
 
 	constructor() {
 		if (browser) {
-			window.addEventListener("keydown", this.handleKeyDown.bind(this));
+			window.addEventListener("keydown", this.handleKeyDown);
 		}
 	}
 
 	destroy() {
 		if (browser) {
-			window.removeEventListener("keydown", this.handleKeyDown.bind(this));
+			window.removeEventListener("keydown", this.handleKeyDown);
 		}
 	}
 
 	register(
 		id: string,
 		element: HTMLElement,
-		callbacks?: { onFocus?: () => void; onBlur?: () => void; onSelect?: () => void },
+		callbacks?: { onFocus?: () => void; onBlur?: () => void; onSelect?: () => void }
 	) {
 		this.elements.set(id, {
 			id,
@@ -67,7 +67,8 @@ class SpatialNavEngine {
 		}
 	}
 
-	private handleKeyDown(e: KeyboardEvent) {
+	// Arrow property so add/removeEventListener receive the same function reference.
+	private handleKeyDown = (e: KeyboardEvent) => {
 		if (!this.enabled) return;
 
 		switch (e.key) {
@@ -95,7 +96,7 @@ class SpatialNavEngine {
 				}
 				break;
 		}
-	}
+	};
 
 	private move(direction: Direction) {
 		if (!this.currentFocusId) {
@@ -112,7 +113,7 @@ class SpatialNavEngine {
 		this.refreshRects();
 
 		const candidates = Array.from(this.elements.values()).filter(
-			(e) => e.id !== this.currentFocusId,
+			(e) => e.id !== this.currentFocusId
 		);
 		let bestCandidate: FocusableElement | null = null;
 		let minDistance = Infinity;
@@ -141,7 +142,7 @@ class SpatialNavEngine {
 	private isValidCandidate(
 		current: FocusableElement,
 		candidate: FocusableElement,
-		direction: Direction,
+		direction: Direction
 	): boolean {
 		const cRect = current.rect;
 		const nRect = candidate.rect;
@@ -161,7 +162,7 @@ class SpatialNavEngine {
 	private getDistance(
 		current: FocusableElement,
 		candidate: FocusableElement,
-		direction: Direction,
+		direction: Direction
 	): number {
 		const cRect = current.rect;
 		const nRect = candidate.rect;

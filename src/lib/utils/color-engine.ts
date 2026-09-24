@@ -8,11 +8,6 @@ export interface PaletteOptions {
 	quality: "fast" | "balanced" | "best"; // Controls downsampling size and iterations
 }
 
-interface ColorStop {
-	color: string; // CSS string
-	position?: number; // 0-100
-}
-
 // --- Constants ---
 
 const DOWNSAMPLE_SIZES = {
@@ -39,7 +34,7 @@ const toRgb = converter("rgb");
  */
 export async function extractPalette(
 	imageSrc: string,
-	options: PaletteOptions = { colorCount: 5, quality: "balanced" },
+	options: PaletteOptions = { colorCount: 5, quality: "balanced" }
 ): Promise<string[]> {
 	// 1. Load Image and Downsample
 	const pixelData = await getDownsampledPixelData(imageSrc, DOWNSAMPLE_SIZES[options.quality]);
@@ -134,15 +129,6 @@ export function sortPalette(colors: string[]): string[] {
 	}
 
 	return sortedIndices.map((i) => colors[i]).filter((c): c is string => c !== undefined);
-}
-
-/**
- * Generates a CSS linear gradient string using Oklch interpolation.
- */
-function generateGradient(colors: string[], direction: string = "to right"): string {
-	// We use 'in oklch' for the interpolation space, which is the key for modern smooth gradients
-	const stops = colors.join(", ");
-	return `linear-gradient(${direction} in oklch, ${stops})`;
 }
 
 // --- Helper Functions ---

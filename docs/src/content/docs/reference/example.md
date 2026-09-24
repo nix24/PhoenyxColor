@@ -27,11 +27,11 @@ export type UndoActionId = Brand<string, "UndoActionId">;
 
 ```typescript
 interface ValidatedColorPalette {
-    id: PaletteId;
-    name: string;
-    colors: string[];        // Array of CSS color strings
-    maxSlots: number;        // Maximum allowed colors
-    createdAt: Date;
+	id: PaletteId;
+	name: string;
+	colors: string[]; // Array of CSS color strings
+	maxSlots: number; // Maximum allowed colors
+	createdAt: Date;
 }
 ```
 
@@ -39,17 +39,17 @@ interface ValidatedColorPalette {
 
 ```typescript
 interface ValidatedGradient {
-    id: GradientId;
-    name: string;
-    type: "linear" | "radial" | "conic";
-    stops: ValidatedGradientStop[];
-    angle: number;           // For linear gradients
-    createdAt: Date;
+	id: GradientId;
+	name: string;
+	type: "linear" | "radial" | "conic";
+	stops: ValidatedGradientStop[];
+	angle: number; // For linear gradients
+	createdAt: Date;
 }
 
 interface ValidatedGradientStop {
-    color: string;           // CSS color string
-    position: number;        // 0-100
+	color: string; // CSS color string
+	position: number; // 0-100
 }
 ```
 
@@ -57,33 +57,33 @@ interface ValidatedGradientStop {
 
 ```typescript
 interface ValidatedReferenceImage {
-    id: ReferenceId;
-    name: string;
-    src: string;             // Full image data URL
-    thumbnailSrc: string;    // Thumbnail for gallery view
-    width: number;
-    height: number;
-    
-    // Transform state
-    scale: number;
-    rotation: number;
-    flipX: boolean;
-    flipY: boolean;
-    
-    // Adjustments
-    opacity: number;
-    brightness: number;
-    contrast: number;
-    saturation: number;
-    blur: number;
-    
-    // Filters
-    grayscale: number;
-    sepia: number;
-    invert: number;
-    hueRotate: number;
-    
-    createdAt: Date;
+	id: ReferenceId;
+	name: string;
+	src: string; // Full image data URL
+	thumbnailSrc: string; // Thumbnail for gallery view
+	width: number;
+	height: number;
+
+	// Transform state
+	scale: number;
+	rotation: number;
+	flipX: boolean;
+	flipY: boolean;
+
+	// Adjustments
+	opacity: number;
+	brightness: number;
+	contrast: number;
+	saturation: number;
+	blur: number;
+
+	// Filters
+	grayscale: number;
+	sepia: number;
+	invert: number;
+	hueRotate: number;
+
+	createdAt: Date;
 }
 ```
 
@@ -91,31 +91,31 @@ interface ValidatedReferenceImage {
 
 ```typescript
 interface ValidatedAppSettings {
-    theme: "light" | "dark" | "system";
-    defaultPaletteSlots: number;
-    alwaysOnTop: boolean;
-    enableAnimations: boolean;
-    globalEyedropperEnabled: boolean;
-    referenceBoardSavePath: string | null;
-    
-    workspace: {
-        showGrid: boolean;
-        snapToGrid: boolean;
-        gridSize: number;
-        showRulers: boolean;
-    };
-    
-    exportPreferences: {
-        defaultFormat: "png" | "svg" | "json" | "css";
-        defaultScale: number;
-        includeBackground: boolean;
-        defaultPngResolution: number;
-        defaultSvgSize: { width: number; height: number };
-        compressionLevel: number;
-    };
-    
-    autoSave: boolean;
-    autoSaveInterval: number;  // Minutes
+	theme: "light" | "dark" | "system";
+	defaultPaletteSlots: number;
+	alwaysOnTop: boolean;
+	enableAnimations: boolean;
+	globalEyedropperEnabled: boolean;
+	referenceBoardSavePath: string | null;
+
+	workspace: {
+		showGrid: boolean;
+		snapToGrid: boolean;
+		gridSize: number;
+		showRulers: boolean;
+	};
+
+	exportPreferences: {
+		defaultFormat: "png" | "svg" | "json" | "css";
+		defaultScale: number;
+		includeBackground: boolean;
+		defaultPngResolution: number;
+		defaultSvgSize: { width: number; height: number };
+		compressionLevel: number;
+	};
+
+	autoSave: boolean;
+	autoSaveInterval: number; // Minutes
 }
 ```
 
@@ -123,9 +123,9 @@ interface ValidatedAppSettings {
 
 ```typescript
 interface HistoryAction<T> {
-    label: string;
-    undo: (state: T) => void;
-    redo: (state: T) => void;
+	label: string;
+	undo: (state: T) => void;
+	redo: (state: T) => void;
 }
 ```
 
@@ -135,11 +135,11 @@ Used by the ThemeStore for procedural theming:
 
 ```typescript
 interface ThemePalette {
-    primary: string;
-    secondary: string;
-    background: string;
-    text: string;
-    accent: string;
+	primary: string;
+	secondary: string;
+	background: string;
+	text: string;
+	accent: string;
 }
 ```
 
@@ -147,12 +147,12 @@ interface ThemePalette {
 
 ```typescript
 interface PaletteOptions {
-    colorCount: number;
-    quality: "fast" | "balanced" | "best";
+	colorCount: number;
+	quality: "fast" | "balanced" | "best";
 }
 
 interface ColorStop {
-    color: string;       // CSS string
-    position?: number;   // 0-100
+	color: string; // CSS string
+	position?: number; // 0-100
 }
 ```

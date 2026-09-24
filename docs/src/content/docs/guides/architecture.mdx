@@ -80,46 +80,46 @@ Each major feature has its own dedicated store class. These stores handle their 
 
 ```typescript
 export class ExampleStore {
-    items = $state<Item[]>([]);
-    isReady = $state(false);
-    history = new HistoryStore<Item[]>();
-    
-    private STORAGE_KEY = "phoenyx_items";
-    private loadPromise: Promise<void>;
+	items = $state<Item[]>([]);
+	isReady = $state(false);
+	history = new HistoryStore<Item[]>();
 
-    constructor() {
-        // Non-blocking initialization
-        this.loadPromise = this.load();
-    }
+	private STORAGE_KEY = "phoenyx_items";
+	private loadPromise: Promise<void>;
 
-    async whenReady(): Promise<void> {
-        return this.loadPromise;
-    }
+	constructor() {
+		// Non-blocking initialization
+		this.loadPromise = this.load();
+	}
 
-    async load() {
-        try {
-            const saved = await storage.db.get<Item[]>(this.STORAGE_KEY);
-            if (saved) this.items = saved;
-        } finally {
-            this.isReady = true;
-        }
-    }
+	async whenReady(): Promise<void> {
+		return this.loadPromise;
+	}
 
-    async save() {
-        await storage.db.set(this.STORAGE_KEY, $state.snapshot(this.items));
-    }
+	async load() {
+		try {
+			const saved = await storage.db.get<Item[]>(this.STORAGE_KEY);
+			if (saved) this.items = saved;
+		} finally {
+			this.isReady = true;
+		}
+	}
+
+	async save() {
+		await storage.db.set(this.STORAGE_KEY, $state.snapshot(this.items));
+	}
 }
 ```
 
 #### Available Stores
 
-| Store | Purpose | Key Features |
-|-------|---------|--------------|
-| **PaletteStore** | Color palette management | CRUD, undo/redo, color operations |
-| **GradientStore** | Gradient definitions | CRUD, undo/redo, stop management |
-| **ReferenceStore** | Reference image management | CRUD, undo/redo, transformation state |
-| **SettingsStore** | App preferences | Theme, export prefs, workspace settings |
-| **ThemeStore** | Dynamic theming | Image-based theme extraction, CSS variable updates |
+| Store              | Purpose                    | Key Features                                       |
+| ------------------ | -------------------------- | -------------------------------------------------- |
+| **PaletteStore**   | Color palette management   | CRUD, undo/redo, color operations                  |
+| **GradientStore**  | Gradient definitions       | CRUD, undo/redo, stop management                   |
+| **ReferenceStore** | Reference image management | CRUD, undo/redo, transformation state              |
+| **SettingsStore**  | App preferences            | Theme, export prefs, workspace settings            |
+| **ThemeStore**     | Dynamic theming            | Image-based theme extraction, CSS variable updates |
 
 ### HistoryStore
 
@@ -147,8 +147,8 @@ Data persistence is handled via a `storage` service that abstracts IndexedDB (fo
 
 ```typescript
 // Storage service provides two adapters:
-storage.db    // IndexedDB - for palettes, gradients, references
-storage.local // LocalStorage - for settings
+storage.db; // IndexedDB - for palettes, gradients, references
+storage.local; // LocalStorage - for settings
 ```
 
 ## Usage Pattern

@@ -27,11 +27,7 @@ export default defineConfig({
 					// Vendor chunks for commonly used libraries
 					if (id.includes("node_modules")) {
 						// Color manipulation libraries - frequently used together
-						if (
-							id.includes("chroma-js") ||
-							id.includes("colord") ||
-							id.includes("culori")
-						) {
+						if (id.includes("chroma-js") || id.includes("colord") || id.includes("culori")) {
 							return "vendor-color";
 						}
 						// Storage libraries
@@ -67,10 +63,7 @@ export default defineConfig({
 		},
 		// Warm up frequently used files
 		warmup: {
-			clientFiles: [
-				"./src/routes/+layout.svelte",
-				"./src/lib/stores/root.svelte.ts",
-			],
+			clientFiles: ["./src/routes/+layout.svelte", "./src/lib/stores/root.svelte.ts"],
 		},
 	},
 });

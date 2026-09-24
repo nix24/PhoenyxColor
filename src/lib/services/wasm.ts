@@ -25,7 +25,7 @@ interface WasmExports {
 		db: number,
 		lr: number,
 		lg: number,
-		lb: number,
+		lb: number
 	) => void;
 	applyPixelate: (ptr: number, width: number, height: number, intensity: number) => void;
 
@@ -44,7 +44,7 @@ interface WasmExports {
 		k7: number,
 		k8: number,
 		intensity: number,
-		bias: number,
+		bias: number
 	) => void;
 	applyClarity: (ptr: number, width: number, height: number, clarity: number) => void;
 
@@ -56,7 +56,7 @@ interface WasmExports {
 		width: number,
 		height: number,
 		intensity: number,
-		seed: number,
+		seed: number
 	) => void;
 
 	// Clustering
@@ -95,8 +95,6 @@ class WasmService {
 				// SAFETY: main.zig exports its linear memory under the name `memory`, so this
 				// export is always a `WebAssembly.Memory`.
 				this.memory = this.instance.exports.memory as WebAssembly.Memory;
-
-				console.log("PhoenyxColor WASM initialized successfully");
 			} catch (err) {
 				console.error("Failed to initialize WASM:", err);
 				throw err;
@@ -131,7 +129,7 @@ class WasmService {
 		data: Uint8ClampedArray | Uint8Array,
 		_width: number,
 		_height: number,
-		operation: (ptr: number, len: number) => void,
+		operation: (ptr: number, len: number) => void
 	) {
 		if (!this.instance) {
 			toast.error("WASM module not loaded. Image processing unavailable.");
@@ -167,7 +165,7 @@ class WasmService {
 		width: number,
 		height: number,
 		operation: (ptr: number, width: number, height: number) => void,
-		errorMessage?: string,
+		errorMessage?: string
 	) {
 		if (!this.instance) throw new Error("WASM not loaded");
 		const len = data.length;
@@ -206,7 +204,7 @@ class WasmService {
 		width: number,
 		height: number,
 		shadows: number,
-		highlights: number,
+		highlights: number
 	) {
 		this.processImage(data, width, height, (ptr, len) => {
 			this.exports.applyShadowsHighlights(ptr, len, shadows, highlights);
@@ -237,7 +235,7 @@ class WasmService {
 		height: number,
 		intensity: number,
 		dark: { r: number; g: number; b: number },
-		light: { r: number; g: number; b: number },
+		light: { r: number; g: number; b: number }
 	) {
 		this.processImage(data, width, height, (ptr, len) => {
 			this.exports.applyDuotone(
@@ -249,7 +247,7 @@ class WasmService {
 				dark.b,
 				light.r,
 				light.g,
-				light.b,
+				light.b
 			);
 		});
 	}
@@ -268,7 +266,7 @@ class WasmService {
 		height: number,
 		kernel: number[],
 		intensity: number,
-		bias: number,
+		bias: number
 	) {
 		this.processImageWithDimensions(
 			data,
@@ -289,10 +287,10 @@ class WasmService {
 					kernel[7]!,
 					kernel[8]!,
 					intensity,
-					bias,
+					bias
 				);
 			},
-			"Convolution",
+			"Convolution"
 		);
 	}
 
@@ -304,7 +302,7 @@ class WasmService {
 			(ptr, w, h) => {
 				this.exports.applyClarity(ptr, w, h, clarity);
 			},
-			"Clarity",
+			"Clarity"
 		);
 	}
 
@@ -318,7 +316,7 @@ class WasmService {
 			(ptr, w, h) => {
 				this.exports.applyHalftone(ptr, w, h, intensity);
 			},
-			"Halftone",
+			"Halftone"
 		);
 	}
 
@@ -327,7 +325,7 @@ class WasmService {
 		width: number,
 		height: number,
 		intensity: number,
-		seed?: number,
+		seed?: number
 	) {
 		this.processImageWithDimensions(
 			data,
@@ -336,7 +334,7 @@ class WasmService {
 			(ptr, w, h) => {
 				this.exports.applyVHS(ptr, w, h, intensity, seed ?? Date.now() & 0xffffffff);
 			},
-			"VHS",
+			"VHS"
 		);
 	}
 
@@ -345,7 +343,7 @@ class WasmService {
 		width: number,
 		height: number,
 		intensity: number,
-		seed?: number,
+		seed?: number
 	) {
 		this.processImageWithDimensions(
 			data,
@@ -354,7 +352,7 @@ class WasmService {
 			(ptr, w, h) => {
 				this.exports.applyGlitch(ptr, w, h, intensity, seed ?? Date.now() & 0xffffffff);
 			},
-			"Glitch",
+			"Glitch"
 		);
 	}
 
@@ -363,7 +361,7 @@ class WasmService {
 	runKMeans(
 		data: Uint8ClampedArray,
 		k: number,
-		iterations: number = 10,
+		iterations: number = 10
 	): { l: number; a: number; b: number }[] {
 		if (!this.instance) {
 			toast.error("WASM module not loaded. Palette extraction unavailable.");
@@ -391,7 +389,6 @@ class WasmService {
 			const resultHeap = new Float32Array(this.memory!.buffer);
 			// resultPtr is byte offset. Float32Array index = byte offset / 4.
 			const startIdx = resultPtr / 4;
-			const floatCount = k * 3;
 
 			const results: { l: number; a: number; b: number }[] = [];
 			for (let i = 0; i < k; i++) {

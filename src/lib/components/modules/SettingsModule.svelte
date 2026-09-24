@@ -3,6 +3,7 @@ import { app } from "$lib/stores/root.svelte";
 import Icon from "@iconify/svelte";
 import { toast } from "svelte-sonner";
 import { storage } from "$lib/services/storage";
+import { exportBackup } from "$lib/services/persistence";
 import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
 import { cn } from "$lib/utils/cn";
 
@@ -31,8 +32,6 @@ const themeOptions = [
 
 async function saveSettings() {
 	try {
-		console.log("💾 Saving settings from UI...");
-
 		// In the new architecture, changes to app.settings.state are reactive
 		// We just need to trigger a save to persistence
 		await app.settings.save();
@@ -47,26 +46,10 @@ async function saveSettings() {
 	}
 }
 
-async function exportSettings() {
+function exportSettings() {
 	isExporting = true;
 	try {
-		// TODO: Implement export in new architecture
-		// For now, we can just export the settings
-		const data = {
-			settings: app.settings.state,
-			palettes: app.palettes.palettes,
-			references: app.references.references,
-			gradients: app.gradients.gradients,
-		};
-
-		const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = `phoenyx-backup-${new Date().toISOString().split("T")[0]}.json`;
-		a.click();
-		URL.revokeObjectURL(url);
-		toast.success("Data exported successfully");
+		exportBackup(app);
 	} catch (error) {
 		console.error("Failed to export data:", error);
 		toast.error("Failed to export data. Please try again.");
