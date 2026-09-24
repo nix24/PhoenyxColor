@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onMount, onDestroy } from "svelte";
+import { browser } from "$app/environment";
 import { app } from "$lib/stores/root.svelte";
 
 let canvas: HTMLCanvasElement;
@@ -130,7 +131,7 @@ onMount(() => {
 });
 
 onDestroy(() => {
-	if (typeof window !== "undefined") {
+	if (browser) {
 		window.removeEventListener("resize", handleResize);
 		window.removeEventListener("mousemove", handleMouseMove);
 		window.removeEventListener("deviceorientation", handleOrientation);

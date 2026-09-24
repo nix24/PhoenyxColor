@@ -45,6 +45,11 @@ let draftStroke = $state<DrawStroke | null>(null);
 
 // Crop state
 let isCropping = $state(false);
+/** A point in the source image's own pixel coordinate space. */
+type ImagePoint = { x: number; y: number };
+/** Crop dimensions in source-image pixels. */
+type CropSize = { width: number; height: number };
+
 let cropRect = $state<CropRect | null>(null);
 let aspectRatio = $state<AspectRatio>("free");
 let cropGuideType = $state<CropGuideType>("thirds");
@@ -185,6 +190,8 @@ function handleAddLayerImage() {
 }
 
 async function handleLayerFileSelected(e: Event) {
+	// SAFETY: this handler is bound only to the hidden layer `<input type="file">`, so
+	// the event target is always that input.
 	const input = e.target as HTMLInputElement;
 	const file = input.files?.[0];
 	if (!file) return;
@@ -207,11 +214,13 @@ async function handleLayerFileSelected(e: Event) {
 }
 
 // Crop pointer interaction (unified mouse + touch via PointerEvent)
-function getImageRelativePosition(e: PointerEvent): { x: number; y: number } | null {
+function getImageRelativePosition(e: PointerEvent): ImagePoint | null {
 	// Use the actual rendered position of the image inner div.
 	// getBoundingClientRect() accounts for all CSS transforms (pan, zoom) automatically,
 	// so no manual math is needed. The inner div's coordinate space (0..naturalWidth,
 	// 0..naturalHeight) is exactly the crop coordinate space used by CropOverlay.
+	// SAFETY: `[data-image-inner]` is only ever set on the image wrapper `<div>` rendered
+	// by this component, so a match is always an HTMLElement.
 	const inner = document.querySelector("[data-image-inner]") as HTMLElement | null;
 	if (!inner) return null;
 	const rect = inner.getBoundingClientRect();
@@ -235,7 +244,7 @@ function clampRect(rect: CropRect): CropRect {
 	return { x, y, width, height };
 }
 
-function constrainToAspectRatio(width: number, height: number): { width: number; height: number } {
+function constrainToAspectRatio(width: number, height: number): CropSize {
 	if (aspectRatio === "free") return { width, height };
 	const parts = aspectRatio.split(":").map(Number);
 	const rw = parts[0] ?? 1;
@@ -422,11 +431,10 @@ function handleCropKeyboardNudge(e: KeyboardEvent) {
 
 // Keyboard shortcuts
 function handleKeydown(e: KeyboardEvent) {
-	if (
-		(e.target as HTMLElement)?.tagName === "INPUT" ||
-		(e.target as HTMLElement)?.tagName === "TEXTAREA"
-	)
-		return;
+	// SAFETY: this is a window keydown listener, so the target is whatever DOM element
+	// holds focus; reading `tagName` off it is the point of the check.
+	const focused = e.target as HTMLElement | null;
+	if (focused?.tagName === "INPUT" || focused?.tagName === "TEXTAREA") return;
 
 	// Crop keyboard nudging (arrow keys)
 	if (isCropping && cropRect && e.key.startsWith("Arrow")) {

@@ -3,11 +3,27 @@
  */
 
 import { hexToRgb, rgbToHex, rgbToHsl } from "$lib/utils/colorUtils";
+import type { Rgb } from "$lib/utils/colorUtils";
 
 export interface HSL {
 	h: number;
 	s: number;
 	l: number;
+}
+
+/** Outcome of normalizing a user-entered color into canonical hex. */
+export interface ColorNormalization {
+	valid: boolean;
+	color?: string;
+	error?: string;
+}
+
+/** WCAG conformance a contrast ratio reaches, per text size. */
+export interface WcagLevel {
+	aa: boolean;
+	aaLarge: boolean;
+	aaa: boolean;
+	aaaLarge: boolean;
 }
 
 // --- Color Validation ---
@@ -52,7 +68,7 @@ export function hexToHsl(hex: string): { h: number; s: number; l: number } | nul
 	return { h: Math.round(hsl.h), s: Math.round(hsl.s), l: Math.round(hsl.l) };
 }
 
-function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
+function hslToRgb(h: number, s: number, l: number): Rgb {
 	h /= 360;
 	const a = s * Math.min(l, 1 - l);
 	const f = (n: number) => {
@@ -85,11 +101,7 @@ function formatColor(hex: string, format: "hex" | "rgb" | "hsl" = "hex"): string
 
 // --- Color Validation with Normalization ---
 
-export function validateAndNormalizeColor(color: string): {
-	valid: boolean;
-	color?: string;
-	error?: string;
-} {
+export function validateAndNormalizeColor(color: string): ColorNormalization {
 	color = color.trim();
 
 	if (isValidHexColor(color)) {
@@ -214,12 +226,7 @@ export function getContrastRatio(color1: string, color2: string): number {
 	return (lighter + 0.05) / (darker + 0.05);
 }
 
-export function getWcagLevel(ratio: number): {
-	aa: boolean;
-	aaLarge: boolean;
-	aaa: boolean;
-	aaaLarge: boolean;
-} {
+export function getWcagLevel(ratio: number): WcagLevel {
 	return {
 		aa: ratio >= 4.5,
 		aaLarge: ratio >= 3,
@@ -260,7 +267,8 @@ function simulateColorBlindness(hex: string, type: ColorBlindnessType): string {
 	const g = rgb.g / 255;
 	const b = rgb.b / 255;
 
-	// Apply transformation matrix - using non-null assertion as matrix is guaranteed by type
+	// SAFETY: `colorBlindnessMatrices` declares every entry as three rows of three numbers,
+	// so destructuring `matrix` as a fixed 3x3 tuple cannot be out of bounds.
 	const [[r0, r1, r2], [g0, g1, g2], [b0, b1, b2]] = matrix as [
 		[number, number, number],
 		[number, number, number],
@@ -579,14 +587,10 @@ function interpolateColors(color1: string, color2: string, steps: number): strin
 
 function formatAsTailwindConfig(colors: string[], paletteName: string): string {
 	const name = paletteName.toLowerCase().replace(/\s+/g, "-");
-	const shades = colors.reduce(
-		(acc, color, index) => {
-			const shade = index === 0 ? "50" : String(index * 100);
-			acc[shade] = color;
-			return acc;
-		},
-		{} as Record<string, string>,
-	);
+	const shades: Record<string, string> = {};
+	for (const [index, color] of colors.entries()) {
+		shades[index === 0 ? "50" : String(index * 100)] = color;
+	}
 
 	return `// tailwind.config.js
 module.exports = {

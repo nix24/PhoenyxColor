@@ -20,6 +20,8 @@ export const ColorEngine = {
 	async extractTheme(imageSrc: string): Promise<ThemePalette> {
 		const pixels = await this.getImagePixels(imageSrc);
 		const colors = this.quantizeColors(pixels, 16);
+		// SAFETY: `toOklch` returns an `Oklch` for every color culori can parse; the inputs
+		// here are hex strings produced by `quantizeColors`.
 		const oklchColors = colors.map((c) => toOklch(c) as Oklch);
 
 		// Filter for high chroma (vibrant) colors

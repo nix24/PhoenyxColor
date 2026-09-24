@@ -1,5 +1,9 @@
 node_modules
 
+# Local agent tooling
+.agents/
+skills-lock.json
+
 # Output
 .output
 .vercel

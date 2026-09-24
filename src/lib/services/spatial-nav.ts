@@ -1,3 +1,5 @@
+import { browser } from "$app/environment";
+
 type Direction = "up" | "down" | "left" | "right";
 
 interface FocusableElement {
@@ -15,13 +17,13 @@ class SpatialNavEngine {
 	private enabled: boolean = true;
 
 	constructor() {
-		if (typeof window !== "undefined") {
+		if (browser) {
 			window.addEventListener("keydown", this.handleKeyDown.bind(this));
 		}
 	}
 
 	destroy() {
-		if (typeof window !== "undefined") {
+		if (browser) {
 			window.removeEventListener("keydown", this.handleKeyDown.bind(this));
 		}
 	}

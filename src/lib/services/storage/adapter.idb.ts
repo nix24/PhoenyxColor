@@ -12,7 +12,7 @@ interface PhoenyxDB extends DBSchema {
 export class IndexedDBAdapter implements StorageAdapter {
 	private dbPromise: Promise<IDBPDatabase<PhoenyxDB>> | null = null;
 	private dbName = "PhoenyxColorDB";
-	private storeName = "keyval";
+	private storeName = "keyval" as const;
 
 	constructor() {
 		if (browser) {
@@ -32,25 +32,25 @@ export class IndexedDBAdapter implements StorageAdapter {
 	async get<T>(key: string): Promise<T | null> {
 		const db = await this.getDB();
 		if (!db) return null;
-		return (await db.get(this.storeName as "keyval", key)) || null;
+		return (await db.get(this.storeName, key)) || null;
 	}
 
 	async set<T>(key: string, value: T): Promise<void> {
 		const db = await this.getDB();
 		if (!db) return;
-		await db.put(this.storeName as "keyval", value, key);
+		await db.put(this.storeName, value, key);
 	}
 
 	async remove(key: string): Promise<void> {
 		const db = await this.getDB();
 		if (!db) return;
-		await db.delete(this.storeName as "keyval", key);
+		await db.delete(this.storeName, key);
 	}
 
 	async clear(): Promise<void> {
 		const db = await this.getDB();
 		if (!db) return;
-		await db.clear(this.storeName as "keyval");
+		await db.clear(this.storeName);
 	}
 }
 // fallow-ignore-file unused-class-member

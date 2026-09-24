@@ -162,14 +162,10 @@ function exportPalette(format: ExportFormat) {
 			break;
 
 		case "tailwind": {
-			const tailwindColors = extractedPalette.reduce(
-				(acc, color, i) => {
-					const varName = cssVarNames[i] ?? `color-${i}`;
-					acc[varName] = color;
-					return acc;
-				},
-				{} as Record<string, string>,
-			);
+			const tailwindColors: Record<string, string> = {};
+			for (const [i, color] of extractedPalette.entries()) {
+				tailwindColors[cssVarNames[i] ?? `color-${i}`] = color;
+			}
 			content = `// tailwind.config.js colors\nmodule.exports = {\n  theme: {\n    extend: {\n      colors: ${JSON.stringify(tailwindColors, null, 8).replace(/"/g, "'")}\n    }\n  }\n}`;
 			filename = "tailwind-colors.js";
 			mimeType = "text/javascript";

@@ -92,6 +92,8 @@ class WasmService {
 				});
 
 				this.instance = module.instance;
+				// SAFETY: main.zig exports its linear memory under the name `memory`, so this
+				// export is always a `WebAssembly.Memory`.
 				this.memory = this.instance.exports.memory as WebAssembly.Memory;
 
 				console.log("PhoenyxColor WASM initialized successfully");
@@ -106,7 +108,10 @@ class WasmService {
 
 	private get exports(): WasmExports {
 		if (!this.instance) throw new Error("WASM not initialized");
-		return this.instance.exports as unknown as WasmExports;
+		// SAFETY: `WebAssembly.Exports` is an untyped record of exported functions; the
+		// `WasmExports` contract mirrors the functions main.zig actually exports, and the
+		// instantiation above would have thrown had any been missing.
+		return this.instance.exports as WebAssembly.Exports & WasmExports;
 	}
 
 	// --- Helpers ---

@@ -1,7 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
-import { BLEND_MODES, type ImageLayer, type BlendMode } from "$lib/types/image-editor";
+import { BLEND_MODES, BLEND_MODE_VALUES, type ImageLayer } from "$lib/types/image-editor";
 
 let {
 	layers = [],
@@ -80,7 +80,9 @@ function handleOpacityChange(layerId: string, value: number) {
 }
 
 function handleBlendModeChange(layerId: string, value: string) {
-	onUpdateLayer(layerId, { blendMode: value as BlendMode });
+	const blendMode = BLEND_MODE_VALUES.find((mode) => mode === value);
+	if (!blendMode) return;
+	onUpdateLayer(layerId, { blendMode });
 }
 </script>
 

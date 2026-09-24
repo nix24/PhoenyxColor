@@ -20,7 +20,7 @@ export type QuickEffectType =
 export interface AppliedEffect {
 	type: QuickEffectType;
 	intensity: number;
-	duotoneColors?: [string, string];
+	duotoneColors?: [string, string] | undefined;
 }
 
 export interface DrawPoint {

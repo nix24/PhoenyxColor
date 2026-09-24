@@ -3,10 +3,21 @@
  * Advanced color ordering based on perceptual color science
  */
 
+/** sRGB channels, 0-255. */
+export type Rgb = { r: number; g: number; b: number };
+/** CIE 1931 tristimulus values, D65 / 2° observer. */
+type Xyz = { x: number; y: number; z: number };
+/** CIELAB coordinates. */
+type Lab = { l: number; a: number; b: number };
+/** CIELCH coordinates (lightness, chroma, hue in degrees). */
+type Lch = { l: number; c: number; h: number };
+/** HSL with hue in degrees and saturation/lightness as percentages. */
+export type Hsl = { h: number; s: number; l: number };
+
 /**
  * Convert hex color to RGB values
  */
-export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+export function hexToRgb(hex: string): Rgb | null {
 	const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
 	if (!result || !result[1] || !result[2] || !result[3]) return null;
 	return {
@@ -35,7 +46,7 @@ export function rgbToHex(r: number, g: number, b: number): string {
 /**
  * Convert RGB to XYZ color space (D65 illuminant)
  */
-function rgbToXyz(r: number, g: number, b: number): { x: number; y: number; z: number } {
+function rgbToXyz(r: number, g: number, b: number): Xyz {
 	// Normalize RGB values to 0-1
 	let rNorm = r / 255;
 	let gNorm = g / 255;
@@ -57,7 +68,7 @@ function rgbToXyz(r: number, g: number, b: number): { x: number; y: number; z: n
 /**
  * Convert XYZ to CIELAB color space
  */
-function xyzToLab(x: number, y: number, z: number): { l: number; a: number; b: number } {
+function xyzToLab(x: number, y: number, z: number): Lab {
 	// D65 illuminant reference values
 	const xn = 95.047;
 	const yn = 100.0;
@@ -81,7 +92,7 @@ function xyzToLab(x: number, y: number, z: number): { l: number; a: number; b: n
 /**
  * Convert RGB to CIELAB color space
  */
-function rgbToLab(r: number, g: number, b: number): { l: number; a: number; b: number } {
+function rgbToLab(r: number, g: number, b: number): Lab {
 	const xyz = rgbToXyz(r, g, b);
 	return xyzToLab(xyz.x, xyz.y, xyz.z);
 }
@@ -89,7 +100,7 @@ function rgbToLab(r: number, g: number, b: number): { l: number; a: number; b: n
 /**
  * Convert hex color to CIELAB
  */
-function hexToLab(hex: string): { l: number; a: number; b: number } | null {
+function hexToLab(hex: string): Lab | null {
 	const rgb = hexToRgb(hex);
 	if (!rgb) return null;
 	return rgbToLab(rgb.r, rgb.g, rgb.b);
@@ -98,7 +109,7 @@ function hexToLab(hex: string): { l: number; a: number; b: number } | null {
 /**
  * Convert CIELAB to LCH (Lightness, Chroma, Hue)
  */
-function labToLch(l: number, a: number, b: number): { l: number; c: number; h: number } {
+function labToLch(l: number, a: number, b: number): Lch {
 	const c = Math.sqrt(a * a + b * b);
 	let h = Math.atan2(b, a) * (180 / Math.PI);
 	if (h < 0) h += 360;
@@ -108,7 +119,7 @@ function labToLch(l: number, a: number, b: number): { l: number; c: number; h: n
 /**
  * Convert hex color to LCH
  */
-function hexToLch(hex: string): { l: number; c: number; h: number } | null {
+function hexToLch(hex: string): Lch | null {
 	const lab = hexToLab(hex);
 	if (!lab) return null;
 	return labToLch(lab.l, lab.a, lab.b);
@@ -222,12 +233,10 @@ function orderColorsForGradient(colors: string[]): string[] {
 	if (colors.length <= 2) return colors;
 
 	// Convert all colors to LAB color space
-	const labColors = colors
-		.map((color) => {
-			const lab = hexToLab(color);
-			return lab ? { hex: color, lab } : null;
-		})
-		.filter(Boolean) as Array<{ hex: string; lab: { l: number; a: number; b: number } }>;
+	const labColors = colors.flatMap((color) => {
+		const lab = hexToLab(color);
+		return lab ? [{ hex: color, lab }] : [];
+	});
 
 	if (labColors.length <= 2) return colors;
 
@@ -294,12 +303,10 @@ function orderColorsByHueLightness(colors: string[]): string[] {
 	if (colors.length <= 2) return colors;
 
 	// Convert to LCH and filter valid colors
-	const lchColors = colors
-		.map((color) => {
-			const lch = hexToLch(color);
-			return lch ? { hex: color, lch } : null;
-		})
-		.filter(Boolean) as Array<{ hex: string; lch: { l: number; c: number; h: number } }>;
+	const lchColors = colors.flatMap((color) => {
+		const lch = hexToLch(color);
+		return lch ? [{ hex: color, lch }] : [];
+	});
 
 	if (lchColors.length <= 2) return colors;
 
@@ -340,7 +347,7 @@ function getColorBrightness(color: string): number {
 /**
  * Convert RGB to HSL to get lightness value
  */
-export function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+export function rgbToHsl(r: number, g: number, b: number): Hsl {
 	r /= 255;
 	g /= 255;
 	b /= 255;

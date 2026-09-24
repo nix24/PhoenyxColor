@@ -55,6 +55,8 @@ export async function extractPalette(
 
 	// 3. Convert centroids back to CSS strings
 	return centroids.map((c) => {
+		// SAFETY: the literal supplies every `Oklab` field; the assertion only pins `mode`
+		// to the literal type `"oklab"` rather than `string`.
 		const color = { mode: "oklab", l: c.l, a: c.a, b: c.b } as Oklab;
 		const rgb = toRgb(color);
 		// Validate RGB values to prevent NaN in CSS output

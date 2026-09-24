@@ -1,15 +1,15 @@
 <script lang="ts">
 import { cn } from "$lib/utils/cn";
+import type { HTMLAttributes } from "svelte/elements";
 
 type Intensity = "low" | "medium" | "high";
 
-interface Props {
+interface Props extends HTMLAttributes<HTMLDivElement> {
 	children: import("svelte").Snippet;
 	class?: string;
 	hoverEffect?: boolean;
 	intensity?: Intensity;
 	island?: boolean;
-	[key: string]: unknown;
 }
 
 let {
@@ -23,11 +23,11 @@ let {
 
 const baseStyles = "glass-panel transition-all duration-300 relative overflow-hidden";
 
-const intensities: Record<Intensity, string> = {
+const intensities = {
 	low: "bg-opacity-40 backdrop-blur-md",
 	medium: "bg-opacity-60 backdrop-blur-xl",
 	high: "bg-opacity-80 backdrop-blur-2xl",
-};
+} satisfies Record<Intensity, string>;
 
 const hoverStyles = $derived(
 	hoverEffect

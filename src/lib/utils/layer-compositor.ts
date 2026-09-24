@@ -5,7 +5,7 @@
 
 import type { ImageLayer, BlendMode } from "$lib/types/image-editor";
 
-const BLEND_MODE_MAP: Record<BlendMode, GlobalCompositeOperation> = {
+const BLEND_MODE_MAP = {
 	normal: "source-over",
 	multiply: "multiply",
 	screen: "screen",
@@ -22,7 +22,7 @@ const BLEND_MODE_MAP: Record<BlendMode, GlobalCompositeOperation> = {
 	saturation: "saturation",
 	color: "color",
 	luminosity: "luminosity",
-};
+} satisfies Record<BlendMode, GlobalCompositeOperation>;
 
 function toCompositeOp(blendMode: BlendMode): GlobalCompositeOperation {
 	return BLEND_MODE_MAP[blendMode] ?? "source-over";

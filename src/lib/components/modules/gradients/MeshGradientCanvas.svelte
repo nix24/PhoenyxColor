@@ -209,7 +209,10 @@ function drawHandles() {
 	}
 }
 
-function getCanvasCoordinates(e: MouseEvent): { x: number; y: number } {
+/** A point in canvas pixel coordinates. */
+type CanvasPoint = { x: number; y: number };
+
+function getCanvasCoordinates(e: MouseEvent): CanvasPoint {
 	const rect = canvas.getBoundingClientRect();
 	return { x: e.clientX - rect.left, y: e.clientY - rect.top };
 }

@@ -28,6 +28,8 @@ let imageFailed = $state(false);
 let triedOriginal = $state(false);
 
 function handleImageError(event: Event) {
+	// SAFETY: this handler is bound only to the `<img>` below, so `currentTarget` is
+	// always that image element.
 	const image = event.currentTarget as HTMLImageElement;
 	if (!triedOriginal && reference.thumbnailSrc && reference.thumbnailSrc !== reference.src) {
 		triedOriginal = true;

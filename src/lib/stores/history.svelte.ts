@@ -52,6 +52,8 @@ export class HistoryStore<T> {
 }
 
 function snapshotStoreState<T>(state: T): T {
+	// SAFETY: `$state.snapshot` returns a deep clone of the same value; its declared
+	// `Snapshot<T>` return type only strips reactivity, not structure.
 	return $state.snapshot(state) as T;
 }
 

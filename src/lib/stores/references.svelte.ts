@@ -71,13 +71,15 @@ export class ReferenceStore {
 	private queueSave() {
 		this.saveQueue = this.saveQueue
 			.then(() => this.save())
-			.catch((error: unknown) => {
-				console.error("Failed to save references:", error);
+			.catch((cause: unknown) => {
+				console.error("Failed to save references:", cause);
 				this.saveError = "Changes are visible, but could not be saved on this device.";
 			});
 	}
 
 	add(ref: Omit<ValidatedReferenceImage, "id" | "createdAt">) {
+		// SAFETY: `ReferenceId` brands a UUID string, which is exactly what
+		// `crypto.randomUUID()` produces.
 		const newRef: ValidatedReferenceImage = {
 			...ref,
 			id: crypto.randomUUID() as ReferenceId,

@@ -58,6 +58,8 @@ export class GradientStore {
 	}
 
 	add(gradient: Omit<ValidatedGradient, "id" | "createdAt">) {
+		// SAFETY: `GradientId` brands a UUID string, which is exactly what
+		// `crypto.randomUUID()` produces.
 		const newGradient: ValidatedGradient = {
 			...gradient,
 			id: crypto.randomUUID() as GradientId,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ReferenceId, PaletteId, GradientId } from "$lib/types/brands";
+import { BLEND_MODE_VALUES } from "$lib/types/image-editor";
 
 // Color validation
 const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
@@ -68,7 +69,11 @@ export const ReferenceImageSchema = z.object({
 	id: z
 		.string()
 		.uuid()
-		.transform((val) => val as ReferenceId),
+		.transform((val) => {
+			// SAFETY: `.uuid()` has already established the brand's invariant (a valid
+			// UUID string) for `val`, so branding it as `ReferenceId` is sound here.
+			return val as ReferenceId;
+		}),
 	src: z.string().url("Invalid image URL"),
 	thumbnailSrc: z.string().url("Invalid thumbnail URL").optional(),
 	name: z.string().min(1, "Image name is required").max(100, "Name too long"),
@@ -118,7 +123,7 @@ export const ReferenceImageSchema = z.object({
 				src: z.string().optional(),
 				thumbnailSrc: z.string().optional(),
 				opacity: z.number().min(0).max(1),
-				blendMode: z.string(),
+				blendMode: z.enum(BLEND_MODE_VALUES),
 				visible: z.boolean(),
 				locked: z.boolean(),
 			}),
@@ -155,7 +160,11 @@ const GradientSchema = z.object({
 	id: z
 		.string()
 		.uuid()
-		.transform((val) => val as GradientId),
+		.transform((val) => {
+			// SAFETY: `.uuid()` has already established the brand's invariant (a valid
+			// UUID string) for `val`, so branding it as `GradientId` is sound here.
+			return val as GradientId;
+		}),
 	name: z.string().min(1, "Gradient name is required").max(50, "Name too long"),
 	type: z.enum(["linear", "radial", "conic", "mesh"]),
 	stops: z.array(GradientStopSchema).min(2, "Gradient must have at least 2 color stops"),
@@ -175,7 +184,11 @@ const ColorPaletteSchema = z.object({
 	id: z
 		.string()
 		.uuid()
-		.transform((val) => val as PaletteId),
+		.transform((val) => {
+			// SAFETY: `.uuid()` has already established the brand's invariant (a valid
+			// UUID string) for `val`, so branding it as `PaletteId` is sound here.
+			return val as PaletteId;
+		}),
 	name: z.string().min(1, "Palette name is required").max(50, "Name too long"),
 	colors: z.array(ColorSchema).max(50, "Too many colors in palette"),
 	maxSlots: z.number().min(3, "Minimum 3 slots").max(50, "Maximum 50 slots"),
@@ -209,13 +222,12 @@ const AppSettingsSchema = z.object({
 	autoSaveInterval: z.number().min(1).max(60),
 });
 
-// Tutorial state validation
-const TutorialStateSchema = z.object({
-	isActive: z.boolean(),
-	currentStep: z.number().min(0),
-	currentModule: z.string().nullable(),
-	completedTutorials: z.array(z.string()),
-	showHints: z.boolean(),
+// Tutorial progress validation — the flags an export actually carries
+const TutorialProgressSchema = z.object({
+	hasSeenWelcome: z.boolean(),
+	hasSeenPaletteTutorial: z.boolean(),
+	hasSeenGradientTutorial: z.boolean(),
+	hasSeenReferenceTutorial: z.boolean(),
 });
 
 // File export validation
@@ -227,66 +239,127 @@ const ExportDataSchema = z.object({
 		palettes: z.array(ColorPaletteSchema),
 		gradients: z.array(GradientSchema),
 		settings: AppSettingsSchema,
-		tutorialState: TutorialStateSchema,
+		tutorialState: TutorialProgressSchema,
 	}),
 });
 
 // Validation helper functions
-export function validateColor(color: string): { valid: boolean; error?: string } {
+type ValidationResult<TData = never> = {
+	valid: boolean;
+	error?: string;
+	data?: TData;
+};
+
+function firstIssueMessage(cause: unknown, fallback: string): string {
+	return cause instanceof z.ZodError ? (cause.issues[0]?.message ?? fallback) : fallback;
+}
+
+export function validateColor(color: string): ValidationResult {
 	try {
 		ColorSchema.parse(color);
 		return { valid: true };
-	} catch (error) {
+	} catch {
 		return { valid: false, error: "Invalid hex color format (use #RGB or #RRGGBB)" };
 	}
 }
 
-export function validateGradient(gradient: unknown): {
-	valid: boolean;
-	error?: string;
-	data?: z.infer<typeof GradientSchema>;
-} {
+export function validateGradient(
+	gradient: z.input<typeof GradientSchema>,
+): ValidationResult<z.infer<typeof GradientSchema>> {
 	try {
-		const validatedGradient = GradientSchema.parse(gradient);
-		return { valid: true, data: validatedGradient };
+		return { valid: true, data: GradientSchema.parse(gradient) };
 	} catch (error) {
-		if (error instanceof z.ZodError) {
-			return { valid: false, error: error.issues[0]?.message || "Invalid gradient data" };
-		}
-		return { valid: false, error: "Unknown validation error" };
+		return { valid: false, error: firstIssueMessage(error, "Invalid gradient data") };
 	}
 }
 
-export function validatePalette(palette: unknown): {
-	valid: boolean;
-	error?: string;
-	data?: z.infer<typeof ColorPaletteSchema>;
-} {
+export function validatePalette(
+	palette: z.input<typeof ColorPaletteSchema>,
+): ValidationResult<z.infer<typeof ColorPaletteSchema>> {
 	try {
-		const validatedPalette = ColorPaletteSchema.parse(palette);
-		return { valid: true, data: validatedPalette };
+		return { valid: true, data: ColorPaletteSchema.parse(palette) };
 	} catch (error) {
-		if (error instanceof z.ZodError) {
-			return { valid: false, error: error.issues[0]?.message || "Invalid palette data" };
-		}
-		return { valid: false, error: "Unknown validation error" };
+		return { valid: false, error: firstIssueMessage(error, "Invalid palette data") };
 	}
 }
 
-export function validateAppData(data: unknown): {
-	valid: boolean;
-	error?: string;
-	data?: z.infer<typeof ExportDataSchema>;
-} {
+export function validateAppData(
+	data: z.input<typeof ExportDataSchema>,
+): ValidationResult<z.infer<typeof ExportDataSchema>> {
 	try {
-		const validatedData = ExportDataSchema.parse(data);
-		return { valid: true, data: validatedData };
+		return { valid: true, data: ExportDataSchema.parse(data) };
 	} catch (error) {
-		if (error instanceof z.ZodError) {
-			return { valid: false, error: error.issues[0]?.message || "Invalid export data format" };
-		}
-		return { valid: false, error: "Unknown validation error" };
+		return { valid: false, error: firstIssueMessage(error, "Invalid export data format") };
 	}
+}
+
+/** An exported file's timestamps arrive as JSON strings; missing ones fall back to now. */
+const ImportedDateSchema = z.coerce.date().catch(() => new Date());
+
+const ImportedReferenceSchema = ReferenceImageSchema.extend({ createdAt: ImportedDateSchema });
+const ImportedPaletteSchema = ColorPaletteSchema.extend({ createdAt: ImportedDateSchema });
+const ImportedGradientSchema = GradientSchema.extend({ createdAt: ImportedDateSchema });
+
+/**
+ * The envelope of an exported file. Collections stay unparsed here so a single corrupt
+ * record can be dropped instead of voiding the whole import.
+ */
+const ImportEnvelopeSchema = z.object({
+	version: z.string(),
+	data: z.object({
+		references: z.array(z.unknown()).optional(),
+		palettes: z.array(z.unknown()).optional(),
+		gradients: z.array(z.unknown()).optional(),
+		settings: AppSettingsSchema.optional(),
+		tutorialState: TutorialProgressSchema.optional(),
+	}),
+});
+
+export type ImportedState = {
+	version: string;
+	references?: ValidatedReferenceImage[] | undefined;
+	palettes?: ValidatedColorPalette[] | undefined;
+	gradients?: ValidatedGradient[] | undefined;
+	settings?: ValidatedAppSettings | undefined;
+	tutorialState?: z.infer<typeof TutorialProgressSchema> | undefined;
+};
+
+/** Keep only the entries that satisfy `schema`; drop the rest. */
+function parseEntries<TSchema extends z.ZodType>(
+	schema: TSchema,
+	entries: readonly unknown[] | undefined,
+): z.infer<TSchema>[] | undefined {
+	if (entries === undefined) return undefined;
+	return entries.flatMap((entry) => {
+		const parsed = schema.safeParse(entry);
+		return parsed.success ? [parsed.data] : [];
+	});
+}
+
+/**
+ * Parse the raw text of an exported JSON file into the app state it can restore.
+ * Returns null when the file is not JSON or does not match the export envelope.
+ */
+export function parseImportedState(fileText: string): ImportedState | null {
+	let payload: ReturnType<typeof JSON.parse>;
+	try {
+		payload = JSON.parse(fileText);
+	} catch {
+		return null;
+	}
+
+	const envelope = ImportEnvelopeSchema.safeParse(payload);
+	if (!envelope.success) return null;
+
+	const { version, data } = envelope.data;
+	return {
+		version,
+		references: parseEntries(ImportedReferenceSchema, data.references),
+		palettes: parseEntries(ImportedPaletteSchema, data.palettes),
+		gradients: parseEntries(ImportedGradientSchema, data.gradients),
+		settings: data.settings,
+		tutorialState: data.tutorialState,
+	};
 }
 
 // Runtime type guards
@@ -297,5 +370,5 @@ type ValidatedNoiseConfig = z.infer<typeof NoiseConfigSchema>;
 export type ValidatedGradient = z.infer<typeof GradientSchema>;
 export type ValidatedColorPalette = z.infer<typeof ColorPaletteSchema>;
 export type ValidatedAppSettings = z.infer<typeof AppSettingsSchema>;
-type ValidatedTutorialState = z.infer<typeof TutorialStateSchema>;
+type ValidatedTutorialProgress = z.infer<typeof TutorialProgressSchema>;
 type ValidatedExportData = z.infer<typeof ExportDataSchema>;

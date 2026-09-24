@@ -1,3 +1,4 @@
+import type { Rgb } from "$lib/utils/colorUtils";
 import { wasm } from "$lib/services/wasm";
 
 /**
@@ -217,7 +218,7 @@ export function applyEffect(
 }
 
 // Helper function to convert hex to RGB
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
+function hexToRgb(hex: string): Rgb {
 	const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
 	if (!result || !result[1] || !result[2] || !result[3]) {
 		return { r: 0, g: 0, b: 0 };

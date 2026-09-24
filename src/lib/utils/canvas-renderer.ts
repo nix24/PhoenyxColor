@@ -184,7 +184,7 @@ export async function renderCanvasImage(
 				ctx,
 				width,
 				height,
-				effect.type as EffectType,
+				effect.type,
 				effect.intensity,
 				effect.duotoneColors,
 			);

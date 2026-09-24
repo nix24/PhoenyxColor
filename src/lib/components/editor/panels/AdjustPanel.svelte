@@ -10,8 +10,13 @@ let { editorState, onUpdate } = $props<{
 
 let activeSection = $state<"light" | "color" | "effects" | "detail">("light");
 
+/** The `ImageEditorState` fields a slider can drive — the numeric ones. */
+type NumericStateKey = {
+	[K in keyof ImageEditorState]: ImageEditorState[K] extends number ? K : never;
+}[keyof ImageEditorState];
+
 interface SliderConfig {
-	key: keyof ImageEditorState;
+	key: NumericStateKey;
 	label: string;
 	min: number;
 	max: number;
@@ -116,9 +121,8 @@ function isDefaultValue(value: number, defaultVal: number): boolean {
 	return Math.abs(value - defaultVal) < 0.01;
 }
 
-function getStateValue(key: keyof ImageEditorState): number {
-	const val = editorState[key];
-	return typeof val === "number" ? val : 0;
+function getStateValue(key: NumericStateKey): number {
+	return editorState[key];
 }
 
 // Check if any slider in a section has been modified

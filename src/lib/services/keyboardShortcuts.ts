@@ -144,7 +144,9 @@ class KeyboardShortcutsService {
 	}
 
 	private handleKeyDown = (event: KeyboardEvent) => {
-		// Don't trigger shortcuts when typing in inputs
+		// Don't trigger shortcuts when typing in inputs.
+		// SAFETY: this is a document keydown listener, so the target is the focused DOM
+		// element; reading `tagName`/`isContentEditable` off it is the point of the check.
 		const target = event.target as HTMLElement;
 		if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
 			return;

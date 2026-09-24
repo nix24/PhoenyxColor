@@ -33,7 +33,10 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_FILES_AT_ONCE = 20;
 
-function validateFile(file: File): { valid: boolean; error?: string } {
+/** Whether a dropped or selected file is an image this module will accept. */
+type FileAcceptance = { valid: boolean; error?: string };
+
+function validateFile(file: File): FileAcceptance {
 	if (!ALLOWED_TYPES.includes(file.type)) {
 		return { valid: false, error: `Unsupported file type: ${file.type}` };
 	}
@@ -47,9 +50,12 @@ function validateFile(file: File): { valid: boolean; error?: string } {
 }
 
 function handleFileSelect(event: Event) {
-	const files = (event.target as HTMLInputElement).files;
+	// SAFETY: this handler is bound only to the hidden `<input type="file">` below, so
+	// the event target is always that input.
+	const input = event.target as HTMLInputElement;
+	const files = input.files;
 	if (files) addFiles(Array.from(files));
-	if (event.target) (event.target as HTMLInputElement).value = "";
+	input.value = "";
 }
 
 function handleDrop(event: DragEvent) {
@@ -67,6 +73,8 @@ function handleDragOver(event: DragEvent) {
 }
 
 function handleDragLeave(event: DragEvent) {
+	// SAFETY: `currentTarget` is the element this handler is attached to — the drop zone
+	// `<div>` — which is always an HTMLElement.
 	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
 	const { clientX: x, clientY: y } = event;
 	if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
@@ -123,6 +131,7 @@ async function processFile(file: File): Promise<boolean> {
 
 		const imageUrl = await new Promise<string>((resolve, reject) => {
 			const reader = new FileReader();
+			// SAFETY: `readAsDataURL` always yields a string result on success.
 			reader.onload = () => resolve(reader.result as string);
 			reader.onerror = () => reject(new Error("Failed to read optimized image"));
 			reader.readAsDataURL(optimized);

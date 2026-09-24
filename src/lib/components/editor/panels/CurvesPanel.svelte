@@ -33,12 +33,12 @@ let selectedPointIndex = $state<number | null>(null);
 const CANVAS_SIZE = 180;
 const DATA_RANGE = 255;
 const SCALE_FACTOR = CANVAS_SIZE / DATA_RANGE;
-const channelColors: Record<CurveChannel, string> = {
+const channelColors = {
 	rgb: "#ffffff",
 	red: "#ff4444",
 	green: "#44ff44",
 	blue: "#4444ff",
-};
+} satisfies Record<CurveChannel, string>;
 
 // Generate histogram from image
 async function generateHistogram() {

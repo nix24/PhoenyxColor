@@ -1,0 +1,20 @@
+{
+	"ignorePatterns": [
+		".agent/**",
+		".agents/**",
+		".claude/**",
+		".codex/**",
+		".continue/**",
+		".cursor/**",
+		".gemini/**",
+		".opencode/**",
+		".pi/**",
+		".roo/**",
+		".windsurf/**",
+		"tools/oxlint/anti-slop/**"
+	],
+	"indentStyle": "tab",
+	"lineWidth": 100,
+	"quoteStyle": "double",
+	"trailingComma": "es5"
+}

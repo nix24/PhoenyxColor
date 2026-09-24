@@ -5,7 +5,8 @@ import type { ValidatedGradient } from "$lib/schemas/validation";
 import type { ValidatedAppSettings } from "$lib/schemas/validation";
 import { toast } from "svelte-sonner";
 import { browser } from "$app/environment";
-import { validateAppData } from "$lib/schemas/validation";
+import { validateAppData, parseImportedState } from "$lib/schemas/validation";
+import type { ImportedState } from "$lib/schemas/validation";
 import pkg from "file-saver";
 
 const { saveAs } = pkg;
@@ -103,7 +104,7 @@ export class PersistenceService {
 	/**
 	 * Import application data from JSON file with validation
 	 */
-	async importData(): Promise<Partial<StorageData["data"]> | null> {
+	async importData(): Promise<ImportedState | null> {
 		if (!browser) return null;
 
 		return new Promise((resolve) => {
@@ -113,39 +114,32 @@ export class PersistenceService {
 				input.accept = ".json";
 
 				input.onchange = async (e) => {
-					const file = (e.target as HTMLInputElement).files?.[0];
+					// SAFETY: `e` is the change event of the `input` element created above, so
+					// `e.target` is that same `HTMLInputElement`.
+					const target = e.target as HTMLInputElement;
+					const file = target.files?.[0];
 					if (!file) {
 						resolve(null);
 						return;
 					}
 
 					try {
-						const text = await file.text();
-						const importData = JSON.parse(text);
-
-						// Validate import data structure
-						if (!importData.data || !importData.version) {
+						const imported = parseImportedState(await file.text());
+						if (!imported) {
 							toast.error("Invalid import file format");
 							resolve(null);
 							return;
 						}
 
-						// Check version compatibility
-						if (importData.version !== STORAGE_VERSION) {
-							console.warn(`Import version mismatch: ${importData.version} vs ${STORAGE_VERSION}`);
+						if (imported.version !== STORAGE_VERSION) {
+							console.warn(`Import version mismatch: ${imported.version} vs ${STORAGE_VERSION}`);
 						}
 
-						const validatedState = this.validateAndSanitizeState(importData.data);
-						if (validatedState) {
-							toast.success("Data imported successfully");
-							resolve(validatedState);
-						} else {
-							toast.error("Import data validation failed");
-							resolve(null);
-						}
-					} catch (parseError) {
-						console.error("Failed to parse import file:", parseError);
-						toast.error("Invalid JSON file");
+						toast.success("Data imported successfully");
+						resolve(imported);
+					} catch (readError) {
+						console.error("Failed to read import file:", readError);
+						toast.error("Could not read the selected file");
 						resolve(null);
 					}
 				};
@@ -157,81 +151,6 @@ export class PersistenceService {
 				resolve(null);
 			}
 		});
-	}
-
-	private validateAndSanitizeState(data: any): Partial<StorageData["data"]> | null {
-		try {
-			const sanitized: Partial<StorageData["data"]> = {};
-
-			// Validate and sanitize references
-			if (Array.isArray(data.references)) {
-				sanitized.references = data.references
-					.filter((ref: any) => {
-						return ref && typeof ref.id === "string" && typeof ref.src === "string";
-					})
-					.map((ref: any) => ({
-						...ref,
-						createdAt: new Date(ref.createdAt || Date.now()),
-					}));
-			}
-
-			// Validate and sanitize palettes
-			if (Array.isArray(data.palettes)) {
-				sanitized.palettes = data.palettes
-					.filter((palette: any) => {
-						return (
-							palette &&
-							typeof palette.id === "string" &&
-							typeof palette.name === "string" &&
-							Array.isArray(palette.colors)
-						);
-					})
-					.map((palette: any) => ({
-						...palette,
-						createdAt: new Date(palette.createdAt || Date.now()),
-					}));
-			}
-
-			// Validate and sanitize gradients
-			if (Array.isArray(data.gradients)) {
-				sanitized.gradients = data.gradients
-					.filter((gradient: any) => {
-						return (
-							gradient &&
-							typeof gradient.id === "string" &&
-							typeof gradient.name === "string" &&
-							Array.isArray(gradient.stops)
-						);
-					})
-					.map((gradient: any) => ({
-						...gradient,
-						createdAt: new Date(gradient.createdAt || Date.now()),
-					}));
-			}
-
-			// Validate settings
-			if (data.settings && typeof data.settings === "object") {
-				sanitized.settings = {
-					...data.settings,
-					theme: data.settings.theme === "dark" ? "dark" : "light",
-				};
-			}
-
-			// Validate tutorial state
-			if (data.tutorialState && typeof data.tutorialState === "object") {
-				sanitized.tutorialState = {
-					...data.tutorialState,
-					isActive: false, // Don't import active tutorial state
-					currentStep: 0,
-					currentModule: null,
-				};
-			}
-
-			return sanitized;
-		} catch (error) {
-			console.error("State validation failed:", error);
-			return null;
-		}
 	}
 
 	/**

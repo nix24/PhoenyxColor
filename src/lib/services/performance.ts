@@ -14,6 +14,38 @@ interface ThumbnailOptions {
 	quality?: number;
 }
 
+/** Pixel dimensions of a rendered or resized image. */
+interface PixelDimensions {
+	width: number;
+	height: number;
+}
+
+/** How many entries each in-memory cache currently holds. */
+interface CacheStats {
+	imageCache: number;
+	thumbnailCache: number;
+}
+
+/** JS heap figures, empty when the browser does not expose `performance.memory`. */
+interface MemoryUsage {
+	used?: number;
+	total?: number;
+	percentage?: number;
+}
+
+/** Chrome-only heap counters; absent in every other engine. */
+interface HeapMemory {
+	usedJSHeapSize: number;
+	totalJSHeapSize: number;
+}
+
+function readHeapMemory(): HeapMemory | null {
+	if (!("memory" in performance)) return null;
+	// SAFETY: `performance.memory` is a non-standard Chrome extension missing from the
+	// DOM lib; the `in` check above confirms this engine provides it.
+	return performance.memory as HeapMemory;
+}
+
 class PerformanceService {
 	private static instance: PerformanceService;
 	private imageCache = new Map<string, string>();
@@ -174,7 +206,7 @@ class PerformanceService {
 		originalHeight: number,
 		maxWidth: number,
 		maxHeight: number,
-	): { width: number; height: number } {
+	): PixelDimensions {
 		const aspectRatio = originalWidth / originalHeight;
 
 		let width = originalWidth;
@@ -301,7 +333,7 @@ class PerformanceService {
 	/**
 	 * Get cache statistics
 	 */
-	getCacheStats(): { imageCache: number; thumbnailCache: number } {
+	getCacheStats(): CacheStats {
 		return {
 			imageCache: this.imageCache.size,
 			thumbnailCache: this.thumbnailCache.size,
@@ -365,16 +397,14 @@ class PerformanceService {
 	/**
 	 * Monitor memory usage (if available)
 	 */
-	getMemoryUsage(): { used?: number; total?: number; percentage?: number } {
-		if ("memory" in performance) {
-			const memory = (performance as any).memory;
-			return {
-				used: memory.usedJSHeapSize,
-				total: memory.totalJSHeapSize,
-				percentage: (memory.usedJSHeapSize / memory.totalJSHeapSize) * 100,
-			};
-		}
-		return {};
+	getMemoryUsage(): MemoryUsage {
+		const memory = readHeapMemory();
+		if (!memory) return {};
+		return {
+			used: memory.usedJSHeapSize,
+			total: memory.totalJSHeapSize,
+			percentage: (memory.usedJSHeapSize / memory.totalJSHeapSize) * 100,
+		};
 	}
 }
 

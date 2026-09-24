@@ -34,7 +34,7 @@ export interface PageMetadata {
 	noIndex?: boolean;
 }
 
-export const PAGE_METADATA: Record<string, PageMetadata> = {
+export const PAGE_METADATA = {
 	home: {
 		title: "PhoenyxColor - Color Management Suite",
 		description: SITE_CONFIG.description,
@@ -64,7 +64,7 @@ export const PAGE_METADATA: Record<string, PageMetadata> = {
 		path: "/settings",
 		noIndex: true, // Settings page doesn't need to be indexed
 	},
-};
+} satisfies Record<string, PageMetadata>;
 
 /**
  * Generates a full URL from a path

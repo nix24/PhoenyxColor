@@ -122,6 +122,8 @@ let imageElement: HTMLImageElement | null = $state(null);
 let imageLoadError = $state(false);
 
 function handleImageLoad(e: Event) {
+	// SAFETY: this handler is bound only to the reference `<img>`, so the load event's
+	// target is always that image element.
 	const img = e.target as HTMLImageElement;
 	imageLoadError = false;
 	onImageLoad(img.naturalWidth, img.naturalHeight);
@@ -129,6 +131,8 @@ function handleImageLoad(e: Event) {
 
 function handlePointerDown(e: PointerEvent) {
 	if (isDrawing) {
+		// SAFETY: this handler is bound to the canvas container `<div>`, so `currentTarget`
+		// is always an HTMLElement.
 		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 		onDrawStart(e);
 		return;

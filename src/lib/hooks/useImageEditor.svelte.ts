@@ -11,7 +11,6 @@ import {
 	DEFAULT_EDITOR_STATE,
 	type ImageEditorState,
 	type AppliedEffect,
-	type QuickEffectType,
 } from "$lib/components/editor/EditorHistory.svelte";
 import { renderCanvasImage, loadImage } from "$lib/utils/canvas-renderer";
 import {
@@ -24,6 +23,28 @@ import { buildCSSFilterString, buildTransformString } from "$lib/utils/image-fil
 import { generateLayerThumbnail } from "$lib/utils/layer-compositor";
 import type { ImageLayer } from "$lib/types/image-editor";
 import type { QuickEffect } from "$lib/types/effects";
+
+/** Adjustments whose preset value is interpolated from the editor default by intensity. */
+const BLENDABLE_ADJUSTMENTS = [
+	"brightness",
+	"contrast",
+	"saturation",
+	"hueRotate",
+	"blur",
+	"opacity",
+	"sepia",
+	"invert",
+	"shadows",
+	"highlights",
+	"vibrance",
+	"temperature",
+	"tint",
+	"clarity",
+	"vignette",
+	"gradientMapOpacity",
+] as const;
+
+type BlendableAdjustment = (typeof BLENDABLE_ADJUSTMENTS)[number];
 
 const CANVAS_REQUIRED_EFFECTS: QuickEffect[] = [
 	"posterize",
@@ -159,11 +180,10 @@ export function useImageEditor(getImageId: () => string) {
 				vignette: img.vignette ?? 0,
 				curves: img.curves ?? DEFAULT_EDITOR_STATE.curves,
 				cropRect: img.cropRect ?? null,
-				appliedEffects: (img.appliedEffects ?? []) as AppliedEffect[],
+				appliedEffects: img.appliedEffects ?? [],
 				drawStrokes: img.drawStrokes ?? [],
-				layers: ((img as Record<string, unknown>).layers as ImageLayer[] | undefined) ?? [],
-				activeLayerId:
-					((img as Record<string, unknown>).activeLayerId as string | null | undefined) ?? null,
+				layers: img.layers ?? [],
+				activeLayerId: img.activeLayerId ?? null,
 			});
 		});
 	}
@@ -200,7 +220,7 @@ export function useImageEditor(getImageId: () => string) {
 			drawStrokes: s.drawStrokes,
 			layers: s.layers,
 			activeLayerId: s.activeLayerId,
-		} as Record<string, unknown>);
+		});
 	}
 
 	function handleStateUpdate(updates: Partial<ImageEditorState>) {
@@ -238,26 +258,24 @@ export function useImageEditor(getImageId: () => string) {
 			return;
 		}
 
-		const blended: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(preset)) {
-			const defaultVal = DEFAULT_EDITOR_STATE[key as keyof ImageEditorState];
-			if (typeof value === "number" && typeof defaultVal === "number") {
-				blended[key] = defaultVal + (value - defaultVal) * (intensity / 100);
-			} else {
-				blended[key] = value;
-			}
+		const blended: Partial<Record<BlendableAdjustment, number>> = {};
+		for (const key of BLENDABLE_ADJUSTMENTS) {
+			const target = preset[key];
+			if (target === undefined) continue;
+			const origin = DEFAULT_EDITOR_STATE[key];
+			blended[key] = origin + (target - origin) * (intensity / 100);
 		}
-		handleStateUpdate({ ...baseState, ...(blended as Partial<ImageEditorState>) });
+		handleStateUpdate({ ...baseState, ...preset, ...blended });
 	}
 
 	function handleApplyEffect() {
 		if (quickEffect === "none") return;
 		const newEffect: AppliedEffect = {
-			type: quickEffect as QuickEffectType,
+			type: quickEffect,
 			intensity: effectIntensity,
 		};
 		if (quickEffect === "duotone") {
-			newEffect.duotoneColors = [...duotoneColors] as [string, string];
+			newEffect.duotoneColors = [duotoneColors[0], duotoneColors[1]];
 		}
 		const currentEffects = history.currentState.appliedEffects || [];
 		handleStateUpdate({ appliedEffects: [...currentEffects, newEffect] });

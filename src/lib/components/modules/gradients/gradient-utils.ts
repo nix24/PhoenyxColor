@@ -46,6 +46,13 @@ interface NoiseConfig {
 
 export type MoodType = "calm" | "energetic" | "corporate" | "playful" | "luxury" | "natural";
 
+/** The generation envelope a mood imposes on the colors derived from a seed. */
+interface MoodConfig {
+	saturationRange: [number, number];
+	lightnessRange: [number, number];
+	hueShift: number;
+}
+
 // --- Constants ---
 
 export const INTERPOLATION_MODES: { id: InterpolationMode; name: string; description: string }[] = [
@@ -432,23 +439,23 @@ export function generateTailwindGradient(gradient: ValidatedGradient): string {
 	const lastColor = sortedStops[sortedStops.length - 1]?.color || "#fff";
 
 	// Convert angle to Tailwind direction
-	const angleToDirection: Record<number, string> = {
-		0: "to-t",
-		45: "to-tr",
-		90: "to-r",
-		135: "to-br",
-		180: "to-b",
-		225: "to-bl",
-		270: "to-l",
-		315: "to-tl",
-	};
+	const angleToDirection = new Map([
+		[0, "to-t"],
+		[45, "to-tr"],
+		[90, "to-r"],
+		[135, "to-br"],
+		[180, "to-b"],
+		[225, "to-bl"],
+		[270, "to-l"],
+		[315, "to-tl"],
+	]);
 
 	const angle = gradient.angle || 45;
-	const closestAngle = Object.keys(angleToDirection)
-		.map(Number)
-		.reduce((prev, curr) => (Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev));
+	const closestAngle = [...angleToDirection.keys()].reduce((prev, curr) =>
+		Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev,
+	);
 
-	const direction = angleToDirection[closestAngle] || "to-r";
+	const direction = angleToDirection.get(closestAngle) || "to-r";
 
 	return `bg-gradient-${direction} from-[${firstColor}] to-[${lastColor}]`;
 }
@@ -486,6 +493,9 @@ function interpolateGradientColors(
 
 	try {
 		const chromaMode = mode === "oklch" ? "lch" : mode === "oklab" ? "lab" : mode;
+		// SAFETY: chroma's `mode` parameter is typed as a closed union of its own
+		// interpolation-space names; `chromaMode` holds one of those names, but the union
+		// is not exported for us to annotate against.
 		return chroma
 			.scale(colors)
 			.mode(chromaMode as any)
@@ -531,17 +541,14 @@ export function distributeStopsEvenly(stops: ValidatedGradientStop[]): Validated
 export function generateMoodGradient(mood: MoodType, baseColor?: string, colorCount = 3): string[] {
 	const seed = baseColor || getRandomColor();
 
-	const moodConfigs: Record<
-		MoodType,
-		{ saturationRange: [number, number]; lightnessRange: [number, number]; hueShift: number }
-	> = {
+	const moodConfigs = {
 		calm: { saturationRange: [0.3, 0.5], lightnessRange: [0.6, 0.85], hueShift: 30 },
 		energetic: { saturationRange: [0.8, 1], lightnessRange: [0.4, 0.6], hueShift: 60 },
 		corporate: { saturationRange: [0.4, 0.6], lightnessRange: [0.3, 0.5], hueShift: 20 },
 		playful: { saturationRange: [0.7, 0.9], lightnessRange: [0.5, 0.7], hueShift: 90 },
 		luxury: { saturationRange: [0.2, 0.4], lightnessRange: [0.1, 0.3], hueShift: 15 },
 		natural: { saturationRange: [0.4, 0.6], lightnessRange: [0.4, 0.6], hueShift: 40 },
-	};
+	} satisfies Record<MoodType, MoodConfig>;
 
 	const config = moodConfigs[mood];
 	const baseHsl = chroma(seed).hsl();

@@ -197,7 +197,7 @@ function handleBuiltInClick(preset: (typeof builtInPresets)[0]) {
 
 function handleCustomPresetClick(preset: FilterPreset) {
 	activePresetId = preset.id;
-	onApplyPreset(preset.settings as Partial<ImageEditorState>, presetIntensity);
+	onApplyPreset(preset.settings, presetIntensity);
 }
 
 function handleIntensityChange(value: number) {
@@ -209,7 +209,7 @@ function handleIntensityChange(value: number) {
 		];
 		const preset = allPresets.find((p) => p.id === activePresetId);
 		if (preset) {
-			onApplyPreset(preset.settings as Partial<ImageEditorState>, value);
+			onApplyPreset(preset.settings, value);
 		}
 	}
 }

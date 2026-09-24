@@ -51,6 +51,8 @@ export class PaletteStore {
 
 	// Actions
 	add(palette: Omit<ValidatedColorPalette, "id" | "createdAt">) {
+		// SAFETY: `PaletteId` brands a UUID string, which is exactly what
+		// `crypto.randomUUID()` produces.
 		const newPalette: ValidatedColorPalette = {
 			...palette,
 			id: crypto.randomUUID() as PaletteId,

@@ -11,10 +11,10 @@ let { imageName, extractedPalette, getEditedImageData } = $props<{
 	getEditedImageData: () => Promise<string>;
 }>();
 
-// Export settings
-let format = $state<"png" | "jpeg" | "webp">(
-	(app.settings.state.exportPreferences.defaultFormat as "png" | "jpeg" | "webp") || "png",
-);
+// Export settings. The saved preference may be "svg", which this panel cannot emit.
+type RasterFormat = "png" | "jpeg" | "webp";
+const savedFormat = app.settings.state.exportPreferences.defaultFormat;
+let format = $state<RasterFormat>(savedFormat === "svg" ? "png" : savedFormat);
 let scale = $state(app.settings.state.exportPreferences.defaultScale || 1);
 let quality = $state(90);
 let includeBackground = $state(true);

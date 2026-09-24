@@ -51,8 +51,8 @@ export class FilterPresetStore {
 			category: preset.category,
 			settings: preset.settings,
 			createdAt: new Date(),
-			...(preset.thumbnail ? { thumbnail: preset.thumbnail } : {}),
 		};
+		if (preset.thumbnail) newPreset.thumbnail = preset.thumbnail;
 
 		const prevState = $state.snapshot(this.presets);
 		this.presets.push(newPreset);

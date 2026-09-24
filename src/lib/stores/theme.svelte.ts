@@ -1,3 +1,4 @@
+import { browser } from "$app/environment";
 import { ColorEngine, type ThemePalette } from "$lib/services/color-engine";
 
 export class ThemeStore {
@@ -36,7 +37,7 @@ export class ThemeStore {
 	}
 
 	applyToCss() {
-		if (typeof document === "undefined") return;
+		if (!browser) return;
 
 		const root = document.documentElement;
 		root.style.setProperty("--color-primary", this.current.primary);

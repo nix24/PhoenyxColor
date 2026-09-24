@@ -39,7 +39,10 @@ function addToColorHistory(color: string) {
 	}
 }
 
-function validatePaletteName(name: string): { valid: boolean; error?: string } {
+/** Whether a proposed palette name is usable, and why not when it is not. */
+type PaletteNameCheck = { valid: boolean; error?: string };
+
+function validatePaletteName(name: string): PaletteNameCheck {
 	const trimmed = name.trim();
 	if (!trimmed) return { valid: false, error: "Palette name cannot be empty" };
 	if (trimmed.length > 50)

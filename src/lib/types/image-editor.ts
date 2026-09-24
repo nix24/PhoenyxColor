@@ -3,23 +3,26 @@
  * Layer system, blend modes, filter presets, and shared editor types.
  */
 
-export type BlendMode =
-	| "normal"
-	| "multiply"
-	| "screen"
-	| "overlay"
-	| "darken"
-	| "lighten"
-	| "color-dodge"
-	| "color-burn"
-	| "hard-light"
-	| "soft-light"
-	| "difference"
-	| "exclusion"
-	| "hue"
-	| "saturation"
-	| "color"
-	| "luminosity";
+export const BLEND_MODE_VALUES = [
+	"normal",
+	"multiply",
+	"screen",
+	"overlay",
+	"darken",
+	"lighten",
+	"color-dodge",
+	"color-burn",
+	"hard-light",
+	"soft-light",
+	"difference",
+	"exclusion",
+	"hue",
+	"saturation",
+	"color",
+	"luminosity",
+] as const;
+
+export type BlendMode = (typeof BLEND_MODE_VALUES)[number];
 
 export const BLEND_MODES: { value: BlendMode; label: string }[] = [
 	{ value: "normal", label: "Normal" },
@@ -51,8 +54,8 @@ export interface ImageLayer {
 	id: string;
 	name: string;
 	type: "image" | "adjustment" | "overlay";
-	src?: string;
-	thumbnailSrc?: string;
+	src?: string | undefined;
+	thumbnailSrc?: string | undefined;
 	opacity: number;
 	blendMode: BlendMode;
 	visible: boolean;

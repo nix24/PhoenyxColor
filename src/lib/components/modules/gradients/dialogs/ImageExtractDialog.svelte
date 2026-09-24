@@ -20,6 +20,8 @@ let colorCount = $state(5);
 let isExtracting = $state(false);
 
 function handleImageSelect(event: Event) {
+	// SAFETY: this handler is bound only to the file `<input>` below, so the change
+	// event's target is always that input.
 	const input = event.target as HTMLInputElement;
 	const selected = input.files?.[0];
 	if (!selected) return;
