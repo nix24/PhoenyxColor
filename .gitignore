@@ -35,3 +35,7 @@ repomix*
 #zig files
 zig-out/
 .zig-cache/
+
+# Vitest browser-mode failure screenshots
+__screenshots__/
+.vitest-attachments/

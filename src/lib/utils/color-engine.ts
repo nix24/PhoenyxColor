@@ -1,67 +1,6 @@
-import { converter, formatHex, type Oklab, parse } from "culori";
-import { wasm } from "$lib/services/wasm";
-
-// --- Types ---
-
-export interface PaletteOptions {
-	colorCount: number;
-	quality: "fast" | "balanced" | "best"; // Controls downsampling size and iterations
-}
-
-// --- Constants ---
-
-const DOWNSAMPLE_SIZES = {
-	fast: 64,
-	balanced: 128,
-	best: 256,
-};
-
-const KMEANS_ITERATIONS = {
-	fast: 5,
-	balanced: 10,
-	best: 20,
-};
-
-// --- Converters ---
+import { converter, type Oklab, parse } from "culori";
 
 const toOklab = converter("oklab");
-const toRgb = converter("rgb");
-
-// --- Core Functions ---
-
-/**
- * Extracts a representative color palette from an image using K-Means clustering in Oklab space.
- */
-export async function extractPalette(
-	imageSrc: string,
-	options: PaletteOptions = { colorCount: 5, quality: "balanced" }
-): Promise<string[]> {
-	// 1. Load Image and Downsample
-	const pixelData = await getDownsampledPixelData(imageSrc, DOWNSAMPLE_SIZES[options.quality]);
-
-	// 2. K-Means Clustering (WASM)
-	let centroids: { l: number; a: number; b: number }[] = [];
-	try {
-		centroids = wasm.runKMeans(pixelData, options.colorCount, KMEANS_ITERATIONS[options.quality]);
-	} catch (e) {
-		console.error("WASM K-Means failed", e);
-		return ["#000000"];
-	}
-
-	// 3. Convert centroids back to CSS strings
-	return centroids.map((c) => {
-		// SAFETY: the literal supplies every `Oklab` field; the assertion only pins `mode`
-		// to the literal type `"oklab"` rather than `string`.
-		const color = { mode: "oklab", l: c.l, a: c.a, b: c.b } as Oklab;
-		const rgb = toRgb(color);
-		// Validate RGB values to prevent NaN in CSS output
-		if (!rgb || Number.isNaN(rgb.r) || Number.isNaN(rgb.g) || Number.isNaN(rgb.b)) {
-			return "#000000";
-		}
-		const hex = formatHex(rgb);
-		return hex || "#000000";
-	});
-}
 
 /**
  * Sorts a palette of colors to create the smoothest possible gradient.
@@ -129,41 +68,4 @@ export function sortPalette(colors: string[]): string[] {
 	}
 
 	return sortedIndices.map((i) => colors[i]).filter((c): c is string => c !== undefined);
-}
-
-// --- Helper Functions ---
-
-async function getDownsampledPixelData(src: string, maxSize: number): Promise<Uint8ClampedArray> {
-	return new Promise((resolve, reject) => {
-		const img = new Image();
-		img.crossOrigin = "Anonymous";
-		img.onload = () => {
-			const canvas = document.createElement("canvas");
-			let width = img.width;
-			let height = img.height;
-
-			if (width > maxSize || height > maxSize) {
-				if (width > height) {
-					height = Math.round((height * maxSize) / width);
-					width = maxSize;
-				} else {
-					width = Math.round((width * maxSize) / height);
-					height = maxSize;
-				}
-			}
-
-			canvas.width = width;
-			canvas.height = height;
-			const ctx = canvas.getContext("2d", { willReadFrequently: true });
-			if (!ctx) {
-				reject(new Error("Could not get canvas context"));
-				return;
-			}
-
-			ctx.drawImage(img, 0, 0, width, height);
-			resolve(ctx.getImageData(0, 0, width, height).data);
-		};
-		img.onerror = reject;
-		img.src = src;
-	});
 }

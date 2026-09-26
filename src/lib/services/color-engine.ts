@@ -1,4 +1,5 @@
-import { converter, type Oklch, type Rgb } from "culori";
+import { converter, type Oklch } from "culori";
+import { extractPalette } from "$lib/features/references";
 
 // Initialize converters
 const toOklch = converter("oklch");
@@ -18,10 +19,9 @@ export const ColorEngine = {
 	 * Uses OkLCH color space for perceptual uniformity.
 	 */
 	async extractTheme(imageSrc: string): Promise<ThemePalette> {
-		const pixels = await this.getImagePixels(imageSrc);
-		const colors = this.quantizeColors(pixels, 16);
+		const colors = await extractPalette(await (await fetch(imageSrc)).blob(), 16);
 		// SAFETY: `toOklch` returns an `Oklch` for every color culori can parse; the inputs
-		// here are hex strings produced by `quantizeColors`.
+		// here are `#rrggbb` strings produced by `extractPalette`.
 		const oklchColors = colors.map((c) => toOklch(c) as Oklch);
 
 		// Filter for high chroma (vibrant) colors
@@ -80,57 +80,6 @@ export const ColorEngine = {
 	formatCss(color: Oklch): string {
 		// Return as oklch() CSS string
 		return `oklch(${((color.l || 0) * 100).toFixed(2)}% ${color.c.toFixed(3)} ${color.h?.toFixed(2) || 0})`;
-	},
-
-	async getImagePixels(src: string): Promise<Rgb[]> {
-		return new Promise((resolve, reject) => {
-			const img = new Image();
-			img.crossOrigin = "Anonymous";
-			img.onload = () => {
-				const canvas = document.createElement("canvas");
-				const ctx = canvas.getContext("2d");
-				if (!ctx) {
-					reject(new Error("Could not get canvas context"));
-					return;
-				}
-
-				// Downscale for performance
-				const width = 100;
-				const height = (img.height / img.width) * width;
-				canvas.width = width;
-				canvas.height = height;
-
-				ctx.drawImage(img, 0, 0, width, height);
-				const data = ctx.getImageData(0, 0, width, height).data;
-				const pixels: Rgb[] = [];
-
-				for (let i = 0; i < data.length; i += 4) {
-					const r = data[i];
-					const g = data[i + 1];
-					const b = data[i + 2];
-
-					if (r !== undefined && g !== undefined && b !== undefined) {
-						pixels.push({ mode: "rgb", r: r / 255, g: g / 255, b: b / 255 });
-					}
-				}
-				resolve(pixels);
-			};
-			img.onerror = reject;
-			img.src = src;
-		});
-	},
-
-	// Simple quantization (just taking every Nth pixel for now, can be improved with K-Means)
-	quantizeColors(pixels: Rgb[], maxColors: number): Rgb[] {
-		const step = Math.floor(pixels.length / maxColors);
-		const quantized: Rgb[] = [];
-		for (let i = 0; i < pixels.length; i += step) {
-			const pixel = pixels[i];
-			if (pixel) {
-				quantized.push(pixel);
-			}
-		}
-		return quantized;
 	},
 
 	// Fast Hilbert curve approximation for 3D RGB space

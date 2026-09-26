@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
 	contrastRatio,
 	cssToLinearRgb,
+	cssToOklab,
+	cssToSrgb,
+	mixOklab,
+	oklabToSrgb,
 	oklabToHex,
 	oklchToHex,
 	parseColor,
@@ -74,5 +78,31 @@ describe("contrastRatio", () => {
 
 	it("is undefined for unparseable input", () => {
 		expect(contrastRatio("nope", "#fff")).toBeUndefined();
+	});
+});
+
+describe("encoded sRGB and OKLab mixing", () => {
+	it("reads encoded channels, not linear ones", () => {
+		// Gamut mapping round-trips through OKLCH, so compare at 8-bit precision.
+		const levels = (cssToSrgb("#808000") ?? []).map((channel) => Math.round(channel * 255));
+		expect(levels).toEqual([128, 128, 0]);
+		expect(cssToSrgb("nope")).toBeUndefined();
+	});
+
+	it("round-trips a color through OKLab", () => {
+		const oklab = cssToOklab("#3b82f6");
+		if (!oklab) throw new Error("unparseable");
+		oklabToSrgb(oklab).forEach((channel, c) =>
+			expect(channel).toBeCloseTo((cssToSrgb("#3b82f6") ?? [])[c] ?? Number.NaN, 5)
+		);
+	});
+
+	it("mixes at the ends and halfway in lightness", () => {
+		const black = cssToOklab("black");
+		const white = cssToOklab("white");
+		if (!black || !white) throw new Error("unparseable");
+		expect(mixOklab(black, white, 0)).toEqual(black);
+		expect(mixOklab(black, white, 1).l).toBeCloseTo(white.l, 10);
+		expect(mixOklab(black, white, 0.5).l).toBeCloseTo((black.l + white.l) / 2, 10);
 	});
 });

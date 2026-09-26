@@ -1,6 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 import { sveltekit } from "@sveltejs/kit/vite";
-import { defineConfig } from "vitest/config";
+import { playwright } from "@vitest/browser-playwright";
+import { configDefaults, defineConfig } from "vitest/config";
 import devtoolsJson from "vite-plugin-devtools-json";
 
 export default defineConfig({
@@ -9,11 +10,34 @@ export default defineConfig({
 		conditions: ["browser"],
 	},
 	test: {
-		environment: "jsdom",
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "unit",
+					environment: "jsdom",
+					exclude: [...configDefaults.exclude, "**/*.browser.test.ts"],
+				},
+			},
+			{
+				// Real Chromium for what jsdom cannot do: image decoding, OffscreenCanvas, WebGL2.
+				extends: true,
+				test: {
+					name: "browser",
+					include: ["src/**/*.browser.test.ts"],
+					browser: {
+						enabled: true,
+						headless: true,
+						provider: playwright(),
+						instances: [{ browser: "chromium" }],
+					},
+				},
+			},
+		],
 	},
 	optimizeDeps: {
 		// Pre-bundle these dependencies for faster dev startup
-		include: ["svelte-sonner", "chroma-js", "colord", "culori", "file-saver", "idb"],
+		include: ["svelte-sonner", "chroma-js", "colord", "culori", "idb"],
 	},
 	build: {
 		// Generate source maps for production debugging (optional, can be disabled)
@@ -33,10 +57,6 @@ export default defineConfig({
 						// Storage libraries
 						if (id.includes("idb")) {
 							return "vendor-storage";
-						}
-						// File handling
-						if (id.includes("file-saver")) {
-							return "vendor-file";
 						}
 						// UI components from external packages
 						if (id.includes("svelte-sonner") || id.includes("svelte-dnd-action")) {

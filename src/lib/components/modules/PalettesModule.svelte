@@ -6,7 +6,7 @@ import type { ValidatedColorPalette, ValidatedReferenceImage } from "$lib/schema
 import { downloadBlob } from "$lib/core/download";
 import Icon from "@iconify/svelte";
 import { toast } from "svelte-sonner";
-import { extractPalette } from "$lib/utils/color-engine";
+import { extractPalette } from "$lib/features/references";
 import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
 import { cn } from "$lib/utils/cn";
 import { validatePalette } from "$lib/schemas/validation";
@@ -224,11 +224,8 @@ async function extractColorsFromTransformedImage(
 			ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
 			try {
-				const dataUrl = canvas.toDataURL();
-				const colors = await extractPalette(dataUrl, {
-					colorCount: numColors,
-					quality: "balanced",
-				});
+				const image = await (await fetch(canvas.toDataURL())).blob();
+				const colors = await extractPalette(image, numColors);
 				resolve(colors);
 			} catch (error) {
 				reject(error);

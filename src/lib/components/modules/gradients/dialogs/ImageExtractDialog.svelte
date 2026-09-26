@@ -49,11 +49,8 @@ async function handleExtract() {
 
 	isExtracting = true;
 	try {
-		const { extractPalette } = await import("$lib/utils/color-engine");
-		const colors = await extractPalette(preview, {
-			colorCount,
-			quality: "balanced",
-		});
+		const { extractPalette } = await import("$lib/features/references");
+		const colors = await extractPalette(file, colorCount);
 		const sortedColors = sortPalette(colors);
 		const stops: ValidatedGradientStop[] = sortedColors.map((color, index) => ({
 			color,

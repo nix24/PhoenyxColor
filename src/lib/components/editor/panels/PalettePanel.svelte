@@ -2,7 +2,8 @@
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
 import { app } from "$lib/stores/root.svelte";
-import { extractPalette, sortPalette } from "$lib/utils/color-engine";
+import { extractPalette } from "$lib/features/references";
+import { sortPalette } from "$lib/utils/color-engine";
 import { toast } from "svelte-sonner";
 import type { ValidatedGradient, ValidatedColorPalette } from "$lib/schemas/validation";
 import chroma from "chroma-js";
@@ -66,10 +67,8 @@ async function handleExtractPalette() {
 	try {
 		// Get the edited image data (with filters applied)
 		const editedSrc = await getEditedImageData();
-		const colors = await extractPalette(editedSrc, {
-			colorCount: extractColorCount,
-			quality: "balanced",
-		});
+		const image = await (await fetch(editedSrc)).blob();
+		const colors = await extractPalette(image, extractColorCount);
 		extractedPalette = colors;
 		// Generate default color names
 		paletteNames = colors.map((_, i) => `Color ${i + 1}`);

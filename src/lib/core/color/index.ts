@@ -28,6 +28,8 @@ export type Oklch = { l: number; c: number; h: number };
 export type Oklab = { l: number; a: number; b: number };
 /** Linear-light sRGB channels, 0–1. The form shaders consume. */
 export type LinearRgb = [r: number, g: number, b: number];
+/** Encoded (gamma) sRGB channels, 0–1: the levels an 8-bit pixel stores, divided by 255. */
+export type SrgbChannels = [r: number, g: number, b: number];
 
 function fromOklch(color: Oklch): Color {
 	return { mode: "oklch", ...color };
@@ -63,6 +65,37 @@ export function cssToLinearRgb(css: string): LinearRgb | undefined {
 	if (!parsed) return undefined;
 	const { r, g, b } = toLrgb(toSrgbGamut(parsed));
 	return [r, g, b];
+}
+
+/** Encoded sRGB of a CSS color, gamut-mapped. Undefined for unparseable input. */
+export function cssToSrgb(css: string): SrgbChannels | undefined {
+	const parsed = parse(css);
+	if (!parsed) return undefined;
+	const { r, g, b } = toRgb(toSrgbGamut(parsed));
+	return [r, g, b];
+}
+
+/** OKLab coordinates of a CSS color. Undefined for unparseable input. */
+export function cssToOklab(css: string): Oklab | undefined {
+	const parsed = parse(css);
+	if (!parsed) return undefined;
+	const { l, a, b } = toOklab(parsed);
+	return { l, a, b };
+}
+
+/** Encoded sRGB of an OKLab color, gamut-mapped. */
+export function oklabToSrgb(color: Oklab): SrgbChannels {
+	const { r, g, b } = toRgb(toSrgbGamut({ mode: "oklab", ...color }));
+	return [r, g, b];
+}
+
+/** The OKLab color `t` (0–1) of the way from `from` to `to`: a perceptually even blend. */
+export function mixOklab(from: Oklab, to: Oklab, t: number): Oklab {
+	return {
+		l: from.l + (to.l - from.l) * t,
+		a: from.a + (to.a - from.a) * t,
+		b: from.b + (to.b - from.b) * t,
+	};
 }
 
 /** Normalize any CSS color to `#rrggbb`. Undefined for unparseable input. */

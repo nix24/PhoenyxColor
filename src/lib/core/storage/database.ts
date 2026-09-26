@@ -38,3 +38,15 @@ export function openDatabase(name = DATABASE_NAME): Promise<PhoenyxDatabase> {
 		},
 	});
 }
+
+let appDatabasePromise: Promise<PhoenyxDatabase> | undefined;
+
+/** The app's one connection to the v2 database, opened on first use. */
+export function appDatabase(): Promise<PhoenyxDatabase> {
+	appDatabasePromise ??= openDatabase().catch((cause: unknown) => {
+		// Let the next caller retry instead of reusing a failed open.
+		appDatabasePromise = undefined;
+		throw cause;
+	});
+	return appDatabasePromise;
+}

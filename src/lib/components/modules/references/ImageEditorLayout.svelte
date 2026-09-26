@@ -27,7 +27,7 @@ import CurvesPanel from "$lib/components/editor/panels/CurvesPanel.svelte";
 
 import { useImageEditor } from "$lib/hooks/useImageEditor.svelte";
 import { usePanZoom } from "$lib/hooks/usePanZoom.svelte";
-import { extractPalette } from "$lib/utils/color-engine";
+import { extractPalette } from "$lib/features/references";
 import { loadImage } from "$lib/utils/canvas-renderer";
 
 let { imageId, onClose } = $props<{ imageId: string; onClose: () => void }>();
@@ -173,8 +173,8 @@ async function handleExtractFromRegion() {
 			cropRect.width,
 			cropRect.height,
 		);
-		const dataUrl = canvas.toDataURL();
-		const colors = await extractPalette(dataUrl, { colorCount: 8, quality: "balanced" });
+		const image = await (await fetch(canvas.toDataURL())).blob();
+		const colors = await extractPalette(image, 8);
 		editor.extractedPalette = colors;
 		toast.success("Extracted palette from selection!");
 		activeTool = "palette";
