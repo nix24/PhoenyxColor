@@ -1,29 +1,29 @@
 <script lang="ts">
-import type { ValidatedReferenceImage } from "$lib/schemas/validation";
+import type { LibraryItem } from "$lib/features/references";
+import type { ReferenceId } from "$lib/types/brands";
 import type { SortMode, ViewMode } from "$lib/types/image-editor";
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
 import ImageCard from "./ImageCard.svelte";
 import SkeletonCard from "$lib/components/ui/SkeletonCard.svelte";
-import { buildReferenceFilterString } from "$lib/utils/image-filters";
 
 interface Props {
-	references: ValidatedReferenceImage[];
+	items: LibraryItem[];
 	selectedImageId: string | null;
 	isLoading: boolean;
 	loadError: string | null;
 	isDragOver: boolean;
 	onAddFiles: () => void;
 	onClearAll: () => void;
-	onEdit: (id: string) => void;
-	onDuplicate: (id: string) => void;
-	onDelete: (id: string) => void;
-	onContextMenu: (e: MouseEvent, ref: ValidatedReferenceImage) => void;
+	onEdit: (id: ReferenceId) => void;
+	onDuplicate: (id: ReferenceId) => void;
+	onDelete: (id: ReferenceId) => void;
+	onContextMenu: (e: MouseEvent, item: LibraryItem) => void;
 	onRetry: () => void;
 }
 
 const {
-	references,
+	items,
 	selectedImageId,
 	isLoading,
 	loadError,
@@ -41,22 +41,22 @@ let searchTerm = $state("");
 let sortMode = $state<SortMode>("date");
 let viewMode = $state<ViewMode>("grid");
 
-const filteredReferences = $derived.by(() => {
-	let result = references;
+const filteredItems = $derived.by(() => {
+	let result = items;
 
 	// Filter by search
 	if (searchTerm.trim()) {
 		const term = searchTerm.toLowerCase();
-		result = result.filter((ref) => ref.name.toLowerCase().includes(term));
+		result = result.filter(({ reference }) => reference.name.toLowerCase().includes(term));
 	}
 
 	// Sort
 	result = [...result].sort((a, b) => {
 		switch (sortMode) {
 			case "name":
-				return a.name.localeCompare(b.name);
+				return a.reference.name.localeCompare(b.reference.name);
 			case "date":
-				return b.createdAt.getTime() - a.createdAt.getTime();
+				return b.reference.createdAt.localeCompare(a.reference.createdAt);
 			default:
 				return 0;
 		}
@@ -65,7 +65,7 @@ const filteredReferences = $derived.by(() => {
 	return result;
 });
 
-const refCount = $derived(references.length);
+const refCount = $derived(items.length);
 </script>
 
 <div class="flex flex-col h-full gap-3">
@@ -169,7 +169,7 @@ const refCount = $derived(references.length);
 		</div>
 	{/if}
 
-	{#if loadError && references.length > 0 && !isLoading}
+	{#if loadError && items.length > 0 && !isLoading}
 		<div role="alert" class="mx-4 mb-3 flex items-center gap-3 rounded-xl border border-amber-300/20 bg-amber-300/8 px-4 py-3 text-sm text-amber-100 @md:mx-6">
 			<Icon icon="material-symbols:warning-outline" class="h-5 w-5 shrink-0" />
 			<p class="min-w-0 flex-1 leading-relaxed">{loadError}</p>
@@ -192,7 +192,7 @@ const refCount = $derived(references.length);
 					{/each}
 				</div>
 			</div>
-		{:else if loadError && references.length === 0}
+		{:else if loadError && items.length === 0}
 			<div class="flex items-center justify-center h-full p-6">
 				<div role="alert" class="w-full max-w-md rounded-2xl border border-red-400/20 bg-red-400/8 p-6 text-center">
 					<div class="w-12 h-12 rounded-xl bg-red-400/10 flex items-center justify-center mx-auto mb-4">
@@ -206,16 +206,16 @@ const refCount = $derived(references.length);
 					</button>
 				</div>
 			</div>
-		{:else if filteredReferences.length > 0}
+		{:else if filteredItems.length > 0}
 			{#if viewMode === "grid"}
 				<!-- Grid View -->
 				<div class="h-full overflow-y-auto px-4 @md:px-6 pb-4 custom-scrollbar">
 					<div class="grid grid-cols-2 @sm:grid-cols-3 @md:grid-cols-4 @lg:grid-cols-5 gap-3">
-						{#each filteredReferences as reference, idx (reference.id)}
+						{#each filteredItems as item, idx (item.reference.id)}
 							<ImageCard
-								{reference}
-								isSelected={selectedImageId === reference.id}
-								isFeatured={idx === 0 && filteredReferences.length > 4}
+								{item}
+								isSelected={selectedImageId === item.reference.id}
+								isFeatured={idx === 0 && filteredItems.length > 4}
 								{onEdit}
 								{onDuplicate}
 								{onDelete}
@@ -254,7 +254,8 @@ const refCount = $derived(references.length);
 				<!-- List View -->
 				<div class="h-full overflow-y-auto px-4 @md:px-6 pb-4 custom-scrollbar">
 					<div class="flex flex-col gap-1.5">
-						{#each filteredReferences as reference (reference.id)}
+						{#each filteredItems as item (item.reference.id)}
+							{@const reference = item.reference}
 							{@const isSelected = selectedImageId === reference.id}
 							<div
 								class={cn(
@@ -263,7 +264,7 @@ const refCount = $derived(references.length);
 									isSelected && "bg-phoenix-primary/10 border border-phoenix-primary/20"
 								)}
 								onclick={() => onEdit(reference.id)}
-								oncontextmenu={(e) => onContextMenu(e, reference)}
+								oncontextmenu={(e) => onContextMenu(e, item)}
 								role="button"
 								tabindex="0"
 								onkeydown={(e) => {
@@ -276,10 +277,9 @@ const refCount = $derived(references.length);
 								<!-- Thumbnail -->
 								<div class="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-white/5">
 									<img
-										src={reference.thumbnailSrc || reference.src}
+										src={item.thumbnailUrl}
 										alt={reference.name}
 										class="w-full h-full object-cover"
-										style:filter={buildReferenceFilterString(reference)}
 										loading="lazy"
 									/>
 								</div>
@@ -293,7 +293,7 @@ const refCount = $derived(references.length);
 										{reference.name}
 									</p>
 									<p class="text-[10px] text-text-muted/50">
-										{reference.dimensions ? `${reference.dimensions.width}×${reference.dimensions.height}` : "Image"}
+										{`${reference.width}×${reference.height}`}
 									</p>
 								</div>
 

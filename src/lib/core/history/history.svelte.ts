@@ -71,21 +71,27 @@ export class History<T> {
 	}
 
 	undo(): void {
-		this.cancelPreview();
-		const entry = this.#past.at(-1);
-		if (!entry) return;
-		this.#past = this.#past.slice(0, -1);
-		this.#future = [...this.#future, { label: entry.label, state: clone(this.present) }];
-		this.present = clone(entry.state);
+		const moved = this.#step(this.#past, this.#future);
+		if (moved) [this.#past, this.#future] = moved;
 	}
 
 	redo(): void {
+		const moved = this.#step(this.#future, this.#past);
+		if (moved) [this.#future, this.#past] = moved;
+	}
+
+	/**
+	 * Undo and redo are mirror images: the newest entry of `from` becomes `present`, and the
+	 * current state goes onto `to`. Returns both stacks as they should be, or null when `from`
+	 * is empty.
+	 */
+	#step(from: Entry<T>[], to: Entry<T>[]): [from: Entry<T>[], to: Entry<T>[]] | null {
 		this.cancelPreview();
-		const entry = this.#future.at(-1);
-		if (!entry) return;
-		this.#future = this.#future.slice(0, -1);
-		this.#past = [...this.#past, { label: entry.label, state: clone(this.present) }];
+		const entry = from.at(-1);
+		if (!entry) return null;
+		const nextTo = [...to, { label: entry.label, state: clone(this.present) }];
 		this.present = clone(entry.state);
+		return [from.slice(0, -1), nextTo];
 	}
 
 	/** Start over from `state` with empty history (e.g. after opening another document). */

@@ -2,11 +2,12 @@
 import { scale } from "svelte/transition";
 import { elasticOut } from "svelte/easing";
 import { app } from "$lib/stores/root.svelte";
-import type { ValidatedColorPalette, ValidatedReferenceImage } from "$lib/schemas/validation";
+import type { ValidatedColorPalette } from "$lib/schemas/validation";
+import type { ReferenceId } from "$lib/types/brands";
 import { downloadBlob } from "$lib/core/download";
 import Icon from "@iconify/svelte";
 import { toast } from "svelte-sonner";
-import { extractPalette } from "$lib/features/references";
+import { extractPalette, referenceLibrary, type ReferenceLibrary } from "$lib/features/references";
 import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
 import { cn } from "$lib/utils/cn";
 import { validatePalette } from "$lib/schemas/validation";
@@ -30,7 +31,8 @@ let searchTerm = $state("");
 let showExtractDialog = $state(false);
 let showImagePicker = $state(false);
 let extractSlots = $state(5);
-let extractingFrom: string | null = $state(null);
+let extractingFrom: ReferenceId | null = $state(null);
+const library: ReferenceLibrary = referenceLibrary();
 
 function addToColorHistory(color: string) {
 	if (!colorHistory.includes(color)) {
@@ -174,72 +176,8 @@ function exportPaletteAsImage(palette: ValidatedColorPalette) {
 }
 
 // Color extraction functions
-function buildFilterString(reference: ValidatedReferenceImage): string {
-	const filters: string[] = [];
-	if (reference.isGrayscale) filters.push("grayscale(100%)");
-	if (reference.brightness !== undefined && reference.brightness !== 100) {
-		filters.push(`brightness(${reference.brightness}%)`);
-	}
-	if (reference.contrast !== undefined && reference.contrast !== 100) {
-		filters.push(`contrast(${reference.contrast}%)`);
-	}
-	if (reference.saturation !== undefined && reference.saturation !== 100) {
-		filters.push(`saturate(${reference.saturation}%)`);
-	}
-	if (reference.hueRotate !== undefined && reference.hueRotate !== 0) {
-		filters.push(`hue-rotate(${reference.hueRotate}deg)`);
-	}
-	if (reference.blur !== undefined && reference.blur !== 0) {
-		filters.push(`blur(${reference.blur}px)`);
-	}
-	return filters.length > 0 ? filters.join(" ") : "none";
-}
-
-async function extractColorsFromTransformedImage(
-	reference: ValidatedReferenceImage,
-	numColors: number,
-): Promise<string[]> {
-	return new Promise((resolve, reject) => {
-		const canvas = document.createElement("canvas");
-		const ctx = canvas.getContext("2d");
-		const img = new Image();
-
-		img.onload = async () => {
-			const maxSize = 200;
-			const scale = Math.min(maxSize / img.width, maxSize / img.height);
-			canvas.width = img.width * scale;
-			canvas.height = img.height * scale;
-
-			if (!ctx) {
-				reject(new Error("Failed to create canvas context"));
-				return;
-			}
-
-			const filterString = buildFilterString(reference);
-			if (filterString !== "none") {
-				ctx.filter = filterString;
-			}
-
-			ctx.globalAlpha = reference.opacity || 1;
-			ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-			try {
-				const image = await (await fetch(canvas.toDataURL())).blob();
-				const colors = await extractPalette(image, numColors);
-				resolve(colors);
-			} catch (error) {
-				reject(error);
-			}
-		};
-
-		img.onerror = () => reject(new Error("Failed to load image"));
-		img.crossOrigin = "anonymous";
-		img.src = reference.src;
-	});
-}
-
-async function startColorExtraction(referenceId: string) {
-	const reference = app.references.references.find((r) => r.id === referenceId);
+async function startColorExtraction(referenceId: ReferenceId) {
+	const reference = library.find(referenceId);
 	if (!reference) {
 		toast.error("Reference not found");
 		return;
@@ -251,7 +189,7 @@ async function startColorExtraction(referenceId: string) {
 async function createPaletteFromReference() {
 	if (!extractingFrom) return;
 
-	const reference = app.references.references.find((r) => r.id === extractingFrom);
+	const reference = library.find(extractingFrom)?.reference;
 	if (!reference) {
 		toast.error("Reference not found");
 		return;
@@ -259,7 +197,8 @@ async function createPaletteFromReference() {
 
 	try {
 		toast.info("Extracting colors from transformed image...");
-		const colors = await extractColorsFromTransformedImage(reference, extractSlots);
+		// The thumbnail is the edited render; extraction samples at most 128 px anyway.
+		const colors = await extractPalette(await library.thumbnail(reference.id), extractSlots);
 
 		const baseName = reference.name.split(".")[0] ?? reference.name;
 		const suffix = " Colors";
@@ -319,14 +258,14 @@ function deletePalette() {
 }
 
 function openImagePicker() {
-	if (!app.references?.references || app.references.references.length === 0) {
+	if (library.items.length === 0) {
 		toast.error("No reference images available. Add images in the References module first.");
 		return;
 	}
 	showImagePicker = true;
 }
 
-function selectImageForExtraction(refId: string) {
+function selectImageForExtraction(refId: ReferenceId) {
 	showImagePicker = false;
 	startColorExtraction(refId);
 }
@@ -586,13 +525,13 @@ function toggleInspector() {
 			<p class="text-sm text-base-content/70 mb-4">Choose an image to extract colors from.</p>
 
 			<div class="grid grid-cols-3 gap-3 max-h-64 overflow-y-auto mb-4">
-				{#if app.references?.references}
-					{#each app.references.references as ref}
+				{#if library.items}
+					{#each library.items as { reference: ref, thumbnailUrl }}
 						<button
 							class="aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-phoenix-primary transition-colors relative group"
 							onclick={() => selectImageForExtraction(ref.id)}
 						>
-							<img src={ref.src} alt={ref.name || "Reference"} class="w-full h-full object-cover" />
+							<img src={thumbnailUrl} alt={ref.name || "Reference"} class="w-full h-full object-cover" />
 							<div
 								class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
 							>

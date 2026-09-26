@@ -1,21 +1,21 @@
 <script lang="ts">
-import type { ValidatedReferenceImage } from "$lib/schemas/validation";
+import type { LibraryItem } from "$lib/features/references";
+import type { ReferenceId } from "$lib/types/brands";
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
-import { buildReferenceFilterString } from "$lib/utils/image-filters";
 
 interface Props {
-	reference: ValidatedReferenceImage;
+	item: LibraryItem;
 	isSelected: boolean;
 	isFeatured?: boolean;
-	onEdit: (id: string) => void;
-	onDuplicate: (id: string) => void;
-	onDelete: (id: string) => void;
-	onContextMenu: (e: MouseEvent, ref: ValidatedReferenceImage) => void;
+	onEdit: (id: ReferenceId) => void;
+	onDuplicate: (id: ReferenceId) => void;
+	onDelete: (id: ReferenceId) => void;
+	onContextMenu: (e: MouseEvent, item: LibraryItem) => void;
 }
 
 const {
-	reference,
+	item,
 	isSelected,
 	isFeatured = false,
 	onEdit,
@@ -24,20 +24,10 @@ const {
 	onContextMenu,
 }: Props = $props();
 
-let imageFailed = $state(false);
-let triedOriginal = $state(false);
+const reference = $derived(item.reference);
 
-function handleImageError(event: Event) {
-	// SAFETY: this handler is bound only to the `<img>` below, so `currentTarget` is
-	// always that image element.
-	const image = event.currentTarget as HTMLImageElement;
-	if (!triedOriginal && reference.thumbnailSrc && reference.thumbnailSrc !== reference.src) {
-		triedOriginal = true;
-		image.src = reference.src;
-		return;
-	}
-	imageFailed = true;
-}
+// Thumbnails are rendered with the edits baked in, so there is no filter or opacity to apply here.
+let imageFailed = $state(false);
 </script>
 
 <article
@@ -47,7 +37,7 @@ function handleImageError(event: Event) {
 		isFeatured && "@md:col-span-2 @md:row-span-2",
 		isSelected && "ring-2 ring-phoenix-primary ring-offset-1 ring-offset-void"
 	)}
-	oncontextmenu={(e) => onContextMenu(e, reference)}
+	oncontextmenu={(e) => onContextMenu(e, item)}
 >
 	<button
 		type="button"
@@ -58,20 +48,18 @@ function handleImageError(event: Event) {
 
 	<!-- Image -->
 	<div class={cn("relative overflow-hidden", isFeatured ? "aspect-4/3" : "aspect-square")}>
-		{#if imageFailed}
+		{#if imageFailed || !item.thumbnailUrl}
 			<div class="flex h-full w-full flex-col items-center justify-center gap-2 bg-white/4 px-4 text-center text-white/45" role="status">
 				<Icon icon="material-symbols:broken-image-outline" class="h-8 w-8" />
 				<span class="text-xs">Preview unavailable</span>
 			</div>
 		{:else}
 			<img
-				src={reference.thumbnailSrc || reference.src}
+				src={item.thumbnailUrl}
 				alt={reference.name}
 				class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-				style:opacity={reference.opacity}
-				style:filter={buildReferenceFilterString(reference)}
 				loading="lazy"
-				onerror={handleImageError}
+				onerror={() => (imageFailed = true)}
 			/>
 		{/if}
 

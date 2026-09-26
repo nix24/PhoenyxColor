@@ -104,6 +104,12 @@ export class RenderEngine {
 		return this.#source?.image.isDownscaled ?? false;
 	}
 
+	/** The source image's own size, before any GPU downscale; null before `setSource`. */
+	get sourceSize(): { width: number; height: number } | null {
+		const image = this.#source?.image;
+		return image ? { width: image.width, height: image.height } : null;
+	}
+
 	/** Uploads the original once; every later `render` reuses it. */
 	async setSource(image: Blob): Promise<void> {
 		const uploaded = await this.#uploadBlob(image, this.#source?.image);
@@ -115,6 +121,15 @@ export class RenderEngine {
 	async setLayerImage(blobId: BlobId, image: Blob): Promise<void> {
 		const uploaded = await this.#uploadBlob(image, this.#layerImages.get(blobId)?.image);
 		this.#layerImages.set(blobId, { blob: image, image: uploaded });
+	}
+
+	/** Frees the uploaded layer images whose blob ids are not in `blobIds`. */
+	retainLayerImages(blobIds: ReadonlySet<BlobId>): void {
+		for (const [blobId, uploaded] of this.#layerImages) {
+			if (blobIds.has(blobId)) continue;
+			if (!this.#isContextLost) this.#gl.deleteTexture(uploaded.image.texture);
+			this.#layerImages.delete(blobId);
+		}
 	}
 
 	/**

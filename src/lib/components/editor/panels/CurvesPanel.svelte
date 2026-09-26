@@ -2,13 +2,12 @@
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
 import { onMount } from "svelte";
-import { loadImage } from "$lib/utils/canvas-renderer";
-import { interpolateCurvePoints, readRgbPixel } from "$lib/utils/image-processing";
+import { sampleCurve } from "$lib/features/references";
 
 type CurveChannel = "rgb" | "red" | "green" | "blue";
 type CurvePoint = { x: number; y: number };
 
-let { imageSrc, curves, onCurvesChange } = $props<{
+let { imageSrc, curves, onCurvesChange, onCurvesPreview, onCurvesCommit } = $props<{
 	imageSrc: string;
 	curves: {
 		rgb: CurvePoint[];
@@ -16,12 +15,22 @@ let { imageSrc, curves, onCurvesChange } = $props<{
 		green: CurvePoint[];
 		blue: CurvePoint[];
 	};
+	/** One undo step (a reset, or a point removed). */
 	onCurvesChange: (curves: {
 		rgb: CurvePoint[];
 		red: CurvePoint[];
 		green: CurvePoint[];
 		blue: CurvePoint[];
 	}) => void;
+	/** A point being added or dragged: shown, not recorded. */
+	onCurvesPreview: (curves: {
+		rgb: CurvePoint[];
+		red: CurvePoint[];
+		green: CurvePoint[];
+		blue: CurvePoint[];
+	}) => void;
+	/** Records the previewed drag as one undo step (no-op when nothing moved). */
+	onCurvesCommit: () => void;
 }>();
 
 let activeChannel = $state<CurveChannel>("rgb");
@@ -42,25 +51,25 @@ const channelColors = {
 
 // Generate histogram from image
 async function generateHistogram() {
-	const img = await loadImage(imageSrc);
-
-	const canvas = document.createElement("canvas");
-	const ctx = canvas.getContext("2d");
-	if (!ctx) return;
+	const img = await createImageBitmap(await (await fetch(imageSrc)).blob(), {
+		imageOrientation: "from-image",
+	});
 
 	// Downsample for performance
 	const maxSize = 256;
-	let width = img.naturalWidth;
-	let height = img.naturalHeight;
+	let width = img.width;
+	let height = img.height;
 	if (width > maxSize || height > maxSize) {
 		const ratio = Math.min(maxSize / width, maxSize / height);
-		width = Math.round(width * ratio);
-		height = Math.round(height * ratio);
+		width = Math.max(1, Math.round(width * ratio));
+		height = Math.max(1, Math.round(height * ratio));
 	}
 
-	canvas.width = width;
-	canvas.height = height;
+	const canvas = new OffscreenCanvas(width, height);
+	const ctx = canvas.getContext("2d");
+	if (!ctx) return;
 	ctx.drawImage(img, 0, 0, width, height);
+	img.close();
 
 	const imageData = ctx.getImageData(0, 0, width, height);
 	const data = imageData.data;
@@ -68,7 +77,9 @@ async function generateHistogram() {
 
 	// Calculate luminance histogram
 	for (let i = 0; i < data.length; i += 4) {
-		const [r, g, b] = readRgbPixel(data, i);
+		const r = data[i] ?? 0;
+		const g = data[i + 1] ?? 0;
+		const b = data[i + 2] ?? 0;
 		const lum = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
 		histogram[lum] = (histogram[lum] ?? 0) + 1;
 	}
@@ -128,7 +139,7 @@ function drawCurve() {
 	ctx.beginPath();
 
 	// Simple Catmull-Rom spline for smooth curve
-	const curvePoints = interpolateCurvePoints(points);
+	const curvePoints = sampleCurve(points);
 	// Scale coordinates from 0-255 to 0-180
 	const scaledX0 = (curvePoints[0]?.x ?? 0) * SCALE_FACTOR;
 	const scaledY0 = size - (curvePoints[0]?.y ?? 0) * SCALE_FACTOR;
@@ -194,7 +205,7 @@ function handleMouseDown(e: MouseEvent) {
 	isDragging = true;
 
 	const newCurves = { ...curves, [activeChannel]: newPoints };
-	onCurvesChange(newCurves);
+	onCurvesPreview(newCurves);
 }
 
 function handleMouseMove(e: MouseEvent) {
@@ -227,10 +238,11 @@ function handleMouseMove(e: MouseEvent) {
 		}
 	}
 
-	onCurvesChange({ ...curves, [activeChannel]: points.sort((a, b) => a.x - b.x) });
+	onCurvesPreview({ ...curves, [activeChannel]: points.sort((a, b) => a.x - b.x) });
 }
 
 function handleMouseUp() {
+	if (isDragging) onCurvesCommit();
 	isDragging = false;
 }
 

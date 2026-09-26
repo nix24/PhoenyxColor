@@ -9,7 +9,7 @@ describe("ImageLibrary", () => {
 		const onRetry = vi.fn();
 		render(ImageLibrary, {
 			props: {
-				references: [],
+				items: [],
 				selectedImageId: null,
 				isLoading: false,
 				loadError: "Reference images could not be loaded.",

@@ -17,8 +17,6 @@ function performHistoryAction(action: "undo" | "redo"): void {
 	const path = window.location.pathname;
 	if (path.includes("/palettes")) {
 		app.palettes.history[action](app.palettes.palettes);
-	} else if (path.includes("/references")) {
-		app.references.history[action](app.references.references);
 	} else if (path.includes("/gradients")) {
 		app.gradients.history[action](app.gradients.gradients);
 	} else {
@@ -104,12 +102,9 @@ class KeyboardShortcutsService {
 				key: "s",
 				ctrlKey: true,
 				action: () => {
-					Promise.all([
-						app.palettes.save(),
-						app.references.save(),
-						app.gradients.save(),
-						app.settings.save(),
-					]).then(() => toast.success("Saved all changes"));
+					Promise.all([app.palettes.save(), app.gradients.save(), app.settings.save()]).then(() =>
+						toast.success("Saved all changes")
+					);
 				},
 				description: "Save",
 				category: "export",

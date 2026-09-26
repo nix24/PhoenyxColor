@@ -76,6 +76,32 @@ describe("ReferenceLibrary", () => {
 		]);
 	});
 
+	it("finds a recipe's layer images and deletes them with the reference", async () => {
+		const library = await openLibrary();
+		const { reference } = await library.importImage(imageFile("layered.png"));
+		const blobId = await library.storeLayerImage(new Blob(["layer"]));
+		const recipe: EditRecipe = {
+			...neutralRecipe(reference.id),
+			layers: [
+				{
+					kind: "image",
+					id: crypto.randomUUID(),
+					name: "overlay",
+					blobId,
+					opacity: 1,
+					blendMode: "normal",
+					isVisible: true,
+					isLocked: false,
+				},
+			],
+		};
+		await db.put("recipes", recipe);
+		expect(await (await library.layerImages(recipe)).get(blobId)?.text()).toBe("layer");
+
+		await library.remove(reference.id);
+		expect(await getBlob(db, blobId)).toBeUndefined();
+	});
+
 	it("deletes a reference with its recipe and images, and undo puts everything back", async () => {
 		const library = await openLibrary();
 		const { reference } = await library.importImage(imageFile("gone.png"));
@@ -106,10 +132,10 @@ describe("ReferenceLibrary", () => {
 		expect(await storedRecipe(copy.reference.id)).toEqual(neutralRecipe(copy.reference.id));
 	});
 
-	it("re-renders a thumbnail and swaps its blob", async () => {
+	it("swaps a thumbnail blob in one step", async () => {
 		const library = await openLibrary();
 		const { reference } = await library.importImage(imageFile("edit.png"));
-		await library.refreshThumbnail(reference.id);
+		await library.storeThumbnail(reference.id, new Blob(["edited thumbnail"]));
 
 		const updated = ReferenceSchema.parse(await db.get("references", reference.id));
 		expect(updated.thumbBlobId).not.toBe(reference.thumbBlobId);

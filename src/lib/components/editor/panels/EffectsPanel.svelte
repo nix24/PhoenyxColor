@@ -3,7 +3,7 @@ import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
 import { app } from "$lib/stores/root.svelte";
 import type { QuickEffect } from "$lib/types/effects";
-import type { AppliedEffect } from "../EditorHistory.svelte";
+import type { AppliedEffect } from "$lib/types/image-editor";
 
 let {
 	activeEffect = "none",

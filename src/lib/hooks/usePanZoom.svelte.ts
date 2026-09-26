@@ -9,6 +9,9 @@ export interface PanZoomOptions {
 	zoomStep?: number;
 }
 
+/** Leaves a little room around a fitted image. */
+const FIT_MARGIN = 0.92;
+
 export function usePanZoom(options: PanZoomOptions = {}) {
 	const { minZoom = 0.1, maxZoom = 5, zoomStep = 0.2 } = options;
 
@@ -22,8 +25,25 @@ export function usePanZoom(options: PanZoomOptions = {}) {
 	let touchStartDist = 0;
 	let touchStartZoom = 1;
 
+	/** Actual size (100 %), centred. */
 	function fitToScreen() {
 		zoom = 1;
+		panX = 0;
+		panY = 0;
+	}
+
+	/** Centres the content and zooms so all of it fits the viewport, never above 100 %. */
+	function fitContent(
+		contentWidth: number,
+		contentHeight: number,
+		viewportWidth: number,
+		viewportHeight: number
+	) {
+		if (contentWidth <= 0 || contentHeight <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
+			return;
+		}
+		const fit = Math.min(viewportWidth / contentWidth, viewportHeight / contentHeight) * FIT_MARGIN;
+		zoom = Math.min(1, Math.max(minZoom, fit));
 		panX = 0;
 		panY = 0;
 	}
@@ -130,6 +150,7 @@ export function usePanZoom(options: PanZoomOptions = {}) {
 			return isPanning;
 		},
 		fitToScreen,
+		fitContent,
 		zoomIn,
 		zoomOut,
 		handleWheel,

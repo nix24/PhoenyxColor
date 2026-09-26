@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { decode, pixelAt } from "./engine/fixtures";
 import { describeImage } from "./image-description";
 
 async function pngOfSize(width: number, height: number): Promise<Blob> {
@@ -31,12 +32,7 @@ describe("describeImage", () => {
 
 	it("keeps transparency in the thumbnail", async () => {
 		const { thumbnail } = await describeImage(await pngOfSize(10, 10));
-		const bitmap = await createImageBitmap(thumbnail);
-		const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-		const context = canvas.getContext("2d");
-		if (!context) throw new Error("no 2D context");
-		context.drawImage(bitmap, 0, 0);
-		const alpha = context.getImageData(5, 5, 1, 1).data[3];
+		const [, , , alpha] = pixelAt(await decode(thumbnail), 5, 5);
 		expect(alpha).toBeGreaterThan(100);
 		expect(alpha).toBeLessThan(160);
 	});

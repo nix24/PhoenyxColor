@@ -1,135 +1,14 @@
 import { z } from "zod";
-import type { ReferenceId, PaletteId, GradientId } from "$lib/types/brands";
-import { BLEND_MODE_VALUES } from "$lib/types/image-editor";
+import type { PaletteId, GradientId } from "$lib/types/brands";
+import { LegacyReferenceSchema, type LegacyReference } from "$lib/features/references";
 
 // Color validation
 const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
 const ColorSchema = z.string().regex(hexColorRegex, "Invalid hex color format");
 
-// Position and dimension schemas
-const PositionSchema = z.object({
-	x: z.number().min(0),
-	y: z.number().min(0),
-});
-
 const DimensionsSchema = z.object({
 	width: z.number().positive("Width must be positive"),
 	height: z.number().positive("Height must be positive"),
-});
-
-// Applied Effect schema for stacked effects
-const AppliedEffectSchema = z.object({
-	type: z.enum([
-		"none",
-		"posterize",
-		"pixelate",
-		"solarize",
-		"duotone",
-		"halftone",
-		"vhs",
-		"glitch",
-		"emboss",
-		"sharpen",
-	]),
-	intensity: z.number().min(0).max(100),
-	duotoneColors: z.tuple([z.string(), z.string()]).optional(),
-});
-
-// Curve point schema
-const CurvePointSchema = z.object({
-	x: z.number().min(0).max(255),
-	y: z.number().min(0).max(255),
-});
-
-// Curves schema
-const CurvesSchema = z.object({
-	rgb: z.array(CurvePointSchema),
-	red: z.array(CurvePointSchema),
-	green: z.array(CurvePointSchema),
-	blue: z.array(CurvePointSchema),
-});
-
-// Crop rect schema
-const CropRectSchema = z.object({
-	x: z.number(),
-	y: z.number(),
-	width: z.number(),
-	height: z.number(),
-});
-
-const DrawStrokeSchema = z.object({
-	id: z.string().uuid(),
-	color: ColorSchema,
-	size: z.number().min(1).max(100),
-	points: z.array(z.object({ x: z.number(), y: z.number() })).min(1),
-});
-
-// Reference Image validation
-const ReferenceImageSchema = z.object({
-	id: z
-		.string()
-		.uuid()
-		.transform((val) => {
-			// SAFETY: `.uuid()` has already established the brand's invariant (a valid
-			// UUID string) for `val`, so branding it as `ReferenceId` is sound here.
-			return val as ReferenceId;
-		}),
-	src: z.string().url("Invalid image URL"),
-	thumbnailSrc: z.string().url("Invalid thumbnail URL").optional(),
-	name: z.string().min(1, "Image name is required").max(100, "Name too long"),
-	position: PositionSchema,
-	scale: z.number().min(0.1).max(10, "Scale must be between 0.1 and 10"),
-	rotation: z.number().min(-360).max(360, "Rotation must be between -360 and 360"),
-	opacity: z.number().min(0).max(1, "Opacity must be between 0 and 1"),
-	isGrayscale: z.boolean(),
-	createdAt: z.date(),
-	fileSize: z.number().positive().optional(),
-	dimensions: DimensionsSchema.optional(),
-	// Basic adjustments
-	brightness: z.number().min(0).max(200).default(100).optional(),
-	contrast: z.number().min(0).max(200).default(100).optional(),
-	saturation: z.number().min(0).max(200).default(100).optional(),
-	hueRotate: z.number().min(0).max(360).default(0).optional(),
-	blur: z.number().min(0).max(10).default(0).optional(),
-	sepia: z.number().min(0).max(100).optional(),
-	invert: z.number().min(0).max(100).optional(),
-	flipX: z.boolean().optional(),
-	flipY: z.boolean().optional(),
-	gradientMapOpacity: z.number().min(0).max(1).optional(),
-	gradientMapBlendMode: z.string().optional(),
-	// Enhanced adjustments
-	shadows: z.number().min(-100).max(100).optional(),
-	highlights: z.number().min(-100).max(100).optional(),
-	vibrance: z.number().min(-100).max(100).optional(),
-	temperature: z.number().min(-100).max(100).optional(),
-	tint: z.number().min(-100).max(100).optional(),
-	clarity: z.number().min(-100).max(100).optional(),
-	vignette: z.number().min(0).max(100).optional(),
-	// Curves
-	curves: CurvesSchema.optional(),
-	// Crop
-	cropRect: CropRectSchema.nullable().optional(),
-	// Stacked effects
-	appliedEffects: z.array(AppliedEffectSchema).optional(),
-	// Drawing overlay
-	drawStrokes: z.array(DrawStrokeSchema).optional(),
-	// Layers
-	layers: z
-		.array(
-			z.object({
-				id: z.string().uuid(),
-				name: z.string().max(100),
-				type: z.enum(["image", "adjustment", "overlay"]),
-				src: z.string().optional(),
-				thumbnailSrc: z.string().optional(),
-				opacity: z.number().min(0).max(1),
-				blendMode: z.enum(BLEND_MODE_VALUES),
-				visible: z.boolean(),
-				locked: z.boolean(),
-			})
-		)
-		.optional(),
-	activeLayerId: z.string().uuid().nullable().optional(),
 });
 
 // Gradient validation
@@ -235,7 +114,8 @@ const ExportDataSchema = z.object({
 	version: z.string(),
 	timestamp: z.string().datetime(),
 	data: z.object({
-		references: z.array(ReferenceImageSchema),
+		// Always empty since 2026-09-26: backups leave references out until they carry the images.
+		references: z.array(LegacyReferenceSchema),
 		palettes: z.array(ColorPaletteSchema),
 		gradients: z.array(GradientSchema),
 		settings: AppSettingsSchema,
@@ -296,38 +176,11 @@ export function validateAppData(
 /** An exported file's timestamps arrive as JSON strings; missing ones fall back to now. */
 const ImportedDateSchema = z.coerce.date().catch(() => new Date());
 
-const ImportedReferenceSchema = ReferenceImageSchema.extend({ createdAt: ImportedDateSchema });
 const ImportedPaletteSchema = ColorPaletteSchema.extend({ createdAt: ImportedDateSchema });
 const ImportedGradientSchema = GradientSchema.extend({ createdAt: ImportedDateSchema });
 
-const FilterPresetSchema = z.object({
-	id: z.string(),
-	name: z.string(),
-	category: z.enum(["custom", "portrait", "landscape", "urban", "vintage", "creative"]),
-	// exactOptional: presets omit untouched adjustments rather than storing undefined.
-	settings: z.object({
-		brightness: z.number().exactOptional(),
-		contrast: z.number().exactOptional(),
-		saturation: z.number().exactOptional(),
-		hueRotate: z.number().exactOptional(),
-		sepia: z.number().exactOptional(),
-		invert: z.number().exactOptional(),
-		isGrayscale: z.boolean().exactOptional(),
-		shadows: z.number().exactOptional(),
-		highlights: z.number().exactOptional(),
-		vibrance: z.number().exactOptional(),
-		temperature: z.number().exactOptional(),
-		tint: z.number().exactOptional(),
-		clarity: z.number().exactOptional(),
-		vignette: z.number().exactOptional(),
-	}),
-	createdAt: ImportedDateSchema,
-	thumbnail: z.string().exactOptional(),
-});
-
 /** Schemas for records read back from device storage. Dates may come back as strings. */
 export const StoredRecordSchemas = {
-	references: ImportedReferenceSchema,
 	palettes: ImportedPaletteSchema,
 	/** Gradients with unusable stops are repaired to the default pair, as before validation existed. */
 	gradients: ImportedGradientSchema.extend({
@@ -339,7 +192,6 @@ export const StoredRecordSchemas = {
 				{ color: "#8b5cf6", position: 100 },
 			]),
 	}),
-	filterPresets: FilterPresetSchema,
 };
 
 /**
@@ -359,7 +211,8 @@ const ImportEnvelopeSchema = z.object({
 
 export type ImportedState = {
 	version: string;
-	references?: ValidatedReferenceImage[] | undefined;
+	/** v1 references, for the migration's conversion (data URLs → blobs) on import. */
+	references?: LegacyReference[] | undefined;
 	palettes?: ValidatedColorPalette[] | undefined;
 	gradients?: ValidatedGradient[] | undefined;
 	settings?: ValidatedAppSettings | undefined;
@@ -396,7 +249,7 @@ export function parseImportedState(fileText: string): ImportedState | null {
 	const { version, data } = envelope.data;
 	return {
 		version,
-		references: parseEntries(ImportedReferenceSchema, data.references),
+		references: parseEntries(LegacyReferenceSchema, data.references),
 		palettes: parseEntries(ImportedPaletteSchema, data.palettes),
 		gradients: parseEntries(ImportedGradientSchema, data.gradients),
 		settings: data.settings,
@@ -405,7 +258,6 @@ export function parseImportedState(fileText: string): ImportedState | null {
 }
 
 // Runtime type guards
-export type ValidatedReferenceImage = z.infer<typeof ReferenceImageSchema>;
 export type ValidatedGradientStop = z.infer<typeof GradientStopSchema>;
 export type ValidatedGradient = z.infer<typeof GradientSchema>;
 export type ValidatedColorPalette = z.infer<typeof ColorPaletteSchema>;

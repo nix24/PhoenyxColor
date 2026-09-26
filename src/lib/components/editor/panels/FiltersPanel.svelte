@@ -1,18 +1,62 @@
 <script lang="ts">
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
-import type { ImageEditorState } from "../EditorHistory.svelte";
-import type { FilterPreset, PresetCategory } from "$lib/types/image-editor";
-import { app } from "$lib/stores/root.svelte";
+import type { ImageEditorState } from "$lib/types/image-editor";
+import type { PanelFilterPreset, PresetCategory } from "$lib/types/image-editor";
+import { filterPresetLibrary, type PresetItem } from "$lib/features/references";
 import { toast } from "svelte-sonner";
+import { panelPresetSettings, storedPresetSettings } from "../editor-state";
 import PresetCard from "../PresetCard.svelte";
-import { buildReferenceFilterString } from "$lib/utils/image-filters";
+import { SvelteMap } from "svelte/reactivity";
 
-let { currentState, imageSrc, onApplyPreset } = $props<{
+let { currentState, imageSrc, renderPreview, onApplyPreset, onPreviewPreset } = $props<{
 	currentState: ImageEditorState;
+	/** The original, shown on a tile until its rendered preview is ready. */
 	imageSrc: string;
+	/** Renders preset settings on the original through the editor's engine; an object URL. */
+	renderPreview: (settings: Partial<ImageEditorState>) => Promise<string>;
+	/** One undo step (a preset picked, or the intensity slider released). */
 	onApplyPreset: (preset: Partial<ImageEditorState>, intensity: number) => void;
+	/** The intensity slider mid-drag: shown, not recorded. */
+	onPreviewPreset: (preset: Partial<ImageEditorState>, intensity: number) => void;
 }>();
+
+const presetLibrary = filterPresetLibrary();
+
+/** Rendered preset tiles, by preset id. */
+const previewUrls = new SvelteMap<string, string>();
+
+async function loadPreview(id: string, settings: Partial<ImageEditorState>) {
+	try {
+		previewUrls.set(id, await renderPreview(settings));
+	} catch (error) {
+		// The tile keeps showing the plain original.
+		console.warn("Preset preview failed:", error);
+	}
+}
+
+$effect(() => {
+	for (const preset of [...builtInPresets, ...savedPresets]) {
+		if (preset.id !== "none" && !previewUrls.has(preset.id)) {
+			void loadPreview(preset.id, preset.settings);
+		}
+	}
+});
+
+/** Saved presets in panel units. */
+const savedPresets = $derived(presetLibrary.items.map(panelPreset));
+
+function panelPreset({ preset, thumbnailUrl }: PresetItem): PanelFilterPreset {
+	const shown: PanelFilterPreset = {
+		id: preset.id,
+		name: preset.name,
+		category: preset.category,
+		settings: panelPresetSettings(preset.settings),
+		createdAt: new Date(preset.createdAt),
+	};
+	if (thumbnailUrl) shown.thumbnail = thumbnailUrl;
+	return shown;
+}
 
 let presetIntensity = $state(100);
 let activePresetId = $state<string | null>(null);
@@ -175,7 +219,7 @@ const categories: { value: PresetCategory | "all"; label: string }[] = [
 ];
 
 const filteredCustomPresets = $derived.by(() => {
-	let result = app.filterPresets.presets;
+	let result = savedPresets;
 	if (selectedCategory !== "all") {
 		result = result.filter((p) => p.category === selectedCategory);
 	}
@@ -195,59 +239,66 @@ function handleBuiltInClick(preset: (typeof builtInPresets)[0]) {
 	}
 }
 
-function handleCustomPresetClick(preset: FilterPreset) {
+function handleCustomPresetClick(preset: PanelFilterPreset) {
 	activePresetId = preset.id;
 	onApplyPreset(preset.settings, presetIntensity);
 }
 
-function handleIntensityChange(value: number) {
+function handleIntensityChange(value: number, isPreview: boolean) {
 	presetIntensity = value;
 	if (activePresetId && activePresetId !== "none") {
-		const allPresets = [
-			...builtInPresets,
-			...app.filterPresets.presets.map((p) => ({ ...p, icon: "" })),
-		];
+		const allPresets = [...builtInPresets, ...savedPresets.map((p) => ({ ...p, icon: "" }))];
 		const preset = allPresets.find((p) => p.id === activePresetId);
 		if (preset) {
-			onApplyPreset(preset.settings, value);
+			if (isPreview) onPreviewPreset(preset.settings, value);
+			else onApplyPreset(preset.settings, value);
 		}
 	}
 }
 
-function handleSavePreset() {
+async function handleSavePreset() {
 	if (!newPresetName.trim()) {
 		toast.error("Please enter a preset name");
 		return;
 	}
 
-	app.filterPresets.add({
-		name: newPresetName.trim(),
-		category: "custom",
-		settings: {
-			brightness: currentState.brightness,
-			contrast: currentState.contrast,
-			saturation: currentState.saturation,
-			hueRotate: currentState.hueRotate,
-			sepia: currentState.sepia,
-			invert: currentState.invert,
-			isGrayscale: currentState.isGrayscale,
-			shadows: currentState.shadows,
-			highlights: currentState.highlights,
-			vibrance: currentState.vibrance,
-			temperature: currentState.temperature,
-			tint: currentState.tint,
-			clarity: currentState.clarity,
-			vignette: currentState.vignette,
-		},
+	const settings = storedPresetSettings({
+		brightness: currentState.brightness,
+		contrast: currentState.contrast,
+		saturation: currentState.saturation,
+		hueRotate: currentState.hueRotate,
+		sepia: currentState.sepia,
+		invert: currentState.invert,
+		isGrayscale: currentState.isGrayscale,
+		shadows: currentState.shadows,
+		highlights: currentState.highlights,
+		vibrance: currentState.vibrance,
+		temperature: currentState.temperature,
+		tint: currentState.tint,
+		clarity: currentState.clarity,
+		vignette: currentState.vignette,
 	});
+	try {
+		await presetLibrary.add({ name: newPresetName.trim(), category: "custom", settings });
+	} catch (error) {
+		console.error("Failed to save preset:", error);
+		toast.error("The preset could not be saved. Try again.");
+		return;
+	}
 
 	newPresetName = "";
 	showSaveDialog = false;
 	toast.success("Preset saved!");
 }
 
-function handleDeletePreset(id: string) {
-	app.filterPresets.remove(id);
+async function handleDeletePreset(id: string) {
+	try {
+		await presetLibrary.remove(id);
+	} catch (error) {
+		console.error("Failed to delete preset:", error);
+		toast.error("The preset could not be deleted. Try again.");
+		return;
+	}
 	if (activePresetId === id) {
 		activePresetId = null;
 	}
@@ -268,7 +319,8 @@ function handleDeletePreset(id: string) {
 			max="100"
 			value={presetIntensity}
 			class="range range-xs range-primary"
-			oninput={(e) => handleIntensityChange(parseInt(e.currentTarget.value))}
+			oninput={(e) => handleIntensityChange(parseInt(e.currentTarget.value), true)}
+			onchange={(e) => handleIntensityChange(parseInt(e.currentTarget.value), false)}
 		/>
 	</div>
 
@@ -297,8 +349,8 @@ function handleDeletePreset(id: string) {
 			aria-pressed={activeTab === "custom"}
 		>
 			My Presets
-			{#if app.filterPresets.presets.length > 0}
-				<span class="ml-1 text-[10px] opacity-60">({app.filterPresets.presets.length})</span>
+			{#if savedPresets.length > 0}
+				<span class="ml-1 text-[10px] opacity-60">({savedPresets.length})</span>
 			{/if}
 		</button>
 	</div>
@@ -322,10 +374,9 @@ function handleDeletePreset(id: string) {
 								<Icon icon={preset.icon} class="w-6 h-6" />
 							{:else}
 								<img
-									src={imageSrc}
+									src={previewUrls.get(preset.id) ?? imageSrc}
 									alt={preset.name}
 									class="w-full h-full object-cover"
-									style:filter={buildReferenceFilterString(preset.settings)}
 									loading="lazy"
 								/>
 							{/if}
@@ -341,7 +392,7 @@ function handleDeletePreset(id: string) {
 	{#if activeTab === "custom"}
 		<div class="space-y-3">
 			<!-- Search -->
-			{#if app.filterPresets.presets.length > 4}
+			{#if savedPresets.length > 4}
 				<div class="relative">
 					<Icon
 						icon="material-symbols:search"
@@ -357,7 +408,7 @@ function handleDeletePreset(id: string) {
 			{/if}
 
 			<!-- Category Filter -->
-			{#if app.filterPresets.presets.length > 0}
+			{#if savedPresets.length > 0}
 				<div class="flex flex-wrap gap-1">
 					{#each categories as cat}
 						<button
@@ -382,7 +433,7 @@ function handleDeletePreset(id: string) {
 					{#each filteredCustomPresets as preset (preset.id)}
 						<PresetCard
 							{preset}
-							{imageSrc}
+							imageSrc={previewUrls.get(preset.id) ?? imageSrc}
 							isActive={activePresetId === preset.id}
 							onApply={handleCustomPresetClick}
 							onDelete={handleDeletePreset}
@@ -394,7 +445,7 @@ function handleDeletePreset(id: string) {
 					<Icon icon="material-symbols:search-off" class="w-8 h-8 mx-auto mb-2 opacity-50" />
 					<p class="text-xs">No presets match "{searchQuery}"</p>
 				</div>
-			{:else if app.filterPresets.presets.length === 0}
+			{:else if savedPresets.length === 0}
 				<div class="text-center py-8 text-white/40">
 					<Icon icon="material-symbols:filter-vintage" class="w-10 h-10 mx-auto mb-3 opacity-30" />
 					<p class="text-sm font-medium text-white/50 mb-1">No custom presets yet</p>

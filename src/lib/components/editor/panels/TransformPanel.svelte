@@ -1,11 +1,14 @@
 <script lang="ts">
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
-import type { ImageEditorState } from "../EditorHistory.svelte.ts";
+import type { ImageEditorState } from "$lib/types/image-editor";
 
-let { editorState, onUpdate } = $props<{
+let { editorState, onUpdate, onPreview } = $props<{
 	editorState: ImageEditorState;
+	/** One undo step (a click, or a slider released). */
 	onUpdate: (updates: Partial<ImageEditorState>) => void;
+	/** A slider mid-drag: shown, not recorded. */
+	onPreview: (updates: Partial<ImageEditorState>) => void;
 }>();
 </script>
 
@@ -80,7 +83,8 @@ let { editorState, onUpdate } = $props<{
 				step="1"
 				value={editorState.rotation}
 				class="range range-xs range-primary"
-				oninput={(e) => onUpdate({ rotation: parseInt(e.currentTarget.value) })}
+				oninput={(e) => onPreview({ rotation: parseInt(e.currentTarget.value) })}
+				onchange={(e) => onUpdate({ rotation: parseInt(e.currentTarget.value) })}
 			/>
 		</div>
 
@@ -118,7 +122,8 @@ let { editorState, onUpdate } = $props<{
 				step="0.05"
 				value={editorState.scale}
 				class="range range-xs range-primary"
-				oninput={(e) => onUpdate({ scale: parseFloat(e.currentTarget.value) })}
+				oninput={(e) => onPreview({ scale: parseFloat(e.currentTarget.value) })}
+				onchange={(e) => onUpdate({ scale: parseFloat(e.currentTarget.value) })}
 			/>
 		</div>
 

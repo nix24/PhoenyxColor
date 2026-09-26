@@ -2,8 +2,11 @@ import type { EditRecipe } from "../domain";
 
 type CurvePoints = EditRecipe["curves"]["rgb"];
 
-/** Catmull-Rom through the control points, sampled like v1 (`interpolateCurvePoints`). */
-function sampleCurve(points: CurvePoints): CurvePoints {
+/**
+ * Catmull-Rom through the control points, sampled like v1 (`interpolateCurvePoints`). The Curves
+ * panel draws this same polyline, so the drawn curve is the one the render applies.
+ */
+export function sampleCurve(points: CurvePoints): CurvePoints {
 	const sorted = [...points].sort((a, b) => a.x - b.x);
 	const samples: CurvePoints = [];
 	for (let i = 0; i < sorted.length - 1; i++) {

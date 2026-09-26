@@ -4,7 +4,7 @@ import type { ReferenceId } from "$lib/types/brands";
 import type { BlendMode } from "$lib/types/image-editor";
 import { neutralRecipe, type EditRecipe } from "../domain";
 import { RenderEngine } from "./engine";
-import { pixelAt, pngFromRows, type Rgba } from "./fixtures";
+import { engineWithSource, pixelAt, pngFromRows, type Rgba } from "./fixtures";
 
 // SAFETY: a fixed UUID literal, which is what a ReferenceId is.
 const neutral = neutralRecipe("3f2e1d0c-9b8a-4f7e-8d6c-5b4a3f2e1d0c" as ReferenceId);
@@ -28,12 +28,16 @@ function solid(color: Rgba, width = 1, height = 1): Rgba[][] {
 
 let engine: RenderEngine;
 
+/** A red → blue mapping: the dark half turns red and the light half blue. */
+function expectDarkRedLightBlue(image: ImageData): void {
+	const [darkR, , darkB] = pixelAt(image, 8, 8);
+	const [lightR, , lightB] = pixelAt(image, 56, 8);
+	expect(darkR).toBeGreaterThan(darkB);
+	expect(lightB).toBeGreaterThan(lightR);
+}
+
 beforeEach(async () => {
-	engine = new RenderEngine(document.createElement("canvas"));
-	const rows = Array.from({ length: SIZE }, (_, y) =>
-		Array.from({ length: SIZE }, (_, x) => sourcePixel(x, y))
-	);
-	await engine.setSource(await pngFromRows(rows));
+	engine = await engineWithSource(SIZE, sourcePixel);
 });
 
 afterEach(() => engine.dispose());
@@ -80,33 +84,29 @@ describe("effects", () => {
 	});
 
 	it("duotone maps dark to the dark color and light to the light one", () => {
-		const image = render(
-			withEffect({ type: "duotone", intensity: 100, seed: 0, colors: ["#ff0000", "#0000ff"] })
+		expectDarkRedLightBlue(
+			render(
+				withEffect({ type: "duotone", intensity: 100, seed: 0, colors: ["#ff0000", "#0000ff"] })
+			)
 		);
-		const [darkR, , darkB] = pixelAt(image, 8, 8);
-		const [lightR, , lightB] = pixelAt(image, 56, 8);
-		expect(darkR).toBeGreaterThan(darkB);
-		expect(lightB).toBeGreaterThan(lightR);
 	});
 });
 
 describe("gradient map", () => {
 	it("recolors by luminance with the stored stops", () => {
-		const image = render({
-			...neutral,
-			gradientMap: {
-				stops: [
-					{ color: "#ff0000", position: 0 },
-					{ color: "#0000ff", position: 1 },
-				],
-				opacity: 1,
-				blendMode: "normal",
-			},
-		});
-		const [darkR, , darkB] = pixelAt(image, 8, 8);
-		const [lightR, , lightB] = pixelAt(image, 56, 8);
-		expect(darkR).toBeGreaterThan(darkB);
-		expect(lightB).toBeGreaterThan(lightR);
+		expectDarkRedLightBlue(
+			render({
+				...neutral,
+				gradientMap: {
+					stops: [
+						{ color: "#ff0000", position: 0 },
+						{ color: "#0000ff", position: 1 },
+					],
+					opacity: 1,
+					blendMode: "normal",
+				},
+			})
+		);
 	});
 });
 

@@ -19,7 +19,7 @@ import type { ImageDescription } from "./image-description";
  */
 const LegacyPointSchema = z.object({ x: z.number(), y: z.number() });
 
-const LegacyReferenceSchema = z.object({
+export const LegacyReferenceSchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	src: z.string(),
@@ -89,7 +89,7 @@ const LegacyReferenceSchema = z.object({
 	// Only counted: v1 layer images were `blob:` URLs, which die with the session that made them.
 	layers: z.array(z.object({})).optional(),
 });
-type LegacyReference = z.infer<typeof LegacyReferenceSchema>;
+export type LegacyReference = z.infer<typeof LegacyReferenceSchema>;
 
 const LegacyFilterPresetSchema = z.object({
 	id: z.string(),

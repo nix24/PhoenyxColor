@@ -11,7 +11,9 @@ export function exportBackup(app: RootStore): boolean {
 		version: STORAGE_VERSION,
 		timestamp: new Date().toISOString(),
 		data: {
-			references: app.references.references,
+			// Left out until the backup carries the image blobs (maintainer decision, 2026-09-26);
+			// the empty list keeps the file readable by `parseImportedState`.
+			references: [],
 			palettes: app.palettes.palettes,
 			gradients: app.gradients.gradients,
 			settings: app.settings.state,

@@ -4,11 +4,14 @@ import { cn } from "$lib/utils/cn";
 import { app } from "$lib/stores/root.svelte";
 import { toast } from "svelte-sonner";
 import type { ValidatedGradient, ValidatedColorPalette } from "$lib/schemas/validation";
+import { downloadBlob } from "$lib/core/download";
+import type { ExportOptions } from "$lib/features/references";
 
-let { imageName, extractedPalette, getEditedImageData } = $props<{
+let { imageName, extractedPalette, onExport } = $props<{
 	imageName: string;
 	extractedPalette: string[] | null;
-	getEditedImageData: () => Promise<string>;
+	/** Renders the edit through the preview's own pipeline and encodes it. */
+	onExport: (options: ExportOptions) => Promise<Blob>;
 }>();
 
 // Export settings. The saved preference may be "svg", which this panel cannot emit.
@@ -34,33 +37,13 @@ let estimatedSize = $derived.by(() => {
 async function handleExport() {
 	isExporting = true;
 	try {
-		const sourceDataUrl = await getEditedImageData();
-		const sourceImage = new Image();
-		await new Promise<void>((resolve, reject) => {
-			sourceImage.onload = () => resolve();
-			sourceImage.onerror = () => reject(new Error("The edited image could not be loaded."));
-			sourceImage.src = sourceDataUrl;
+		const image = await onExport({
+			format,
+			scale,
+			quality: quality / 100,
+			hasBackground: includeBackground,
 		});
-
-		const canvas = document.createElement("canvas");
-		canvas.width = Math.max(1, Math.round(sourceImage.naturalWidth * scale));
-		canvas.height = Math.max(1, Math.round(sourceImage.naturalHeight * scale));
-		const ctx = canvas.getContext("2d");
-		if (!ctx) throw new Error("Could not create the export canvas.");
-
-		if (includeBackground || format === "jpeg") {
-			ctx.fillStyle = "#ffffff";
-			ctx.fillRect(0, 0, canvas.width, canvas.height);
-		}
-		ctx.drawImage(sourceImage, 0, 0, canvas.width, canvas.height);
-
-		const mimeType = `image/${format}`;
-		const qualityValue = format === "png" ? undefined : quality / 100;
-		const dataUrl = canvas.toDataURL(mimeType, qualityValue);
-		const link = document.createElement("a");
-		link.download = `${imageName}-edited.${format}`;
-		link.href = dataUrl;
-		link.click();
+		downloadBlob(image, `${imageName}-edited.${format}`);
 
 		toast.success("Image exported successfully!");
 		if (embedPalette && extractedPalette && extractedPalette.length > 0) {

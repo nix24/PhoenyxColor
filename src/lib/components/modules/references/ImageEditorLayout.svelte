@@ -4,12 +4,22 @@ import { onMount } from "svelte";
 import { app } from "$lib/stores/root.svelte";
 import { toast } from "svelte-sonner";
 import Icon from "@iconify/svelte";
+import type { ReferenceId } from "$lib/types/brands";
 
 import ImageEditorHeader from "./ImageEditorHeader.svelte";
 import ImageCanvas from "./ImageCanvas.svelte";
 import EditorToolbar, { type EditorTool } from "$lib/components/editor/EditorToolbar.svelte";
 import EditorPanel from "$lib/components/editor/EditorPanel.svelte";
-import { DEFAULT_EDITOR_STATE, type DrawStroke } from "$lib/components/editor/EditorHistory.svelte";
+import type { DrawStroke, ImageEditorState } from "$lib/types/image-editor";
+import {
+	applyEditorUpdates,
+	editorStateFromRecipe,
+	layerUpdates,
+	presetUpdates,
+	stopsFromGradient,
+	stopsFromPalette,
+	type GradientStops,
+} from "$lib/components/editor/editor-state";
 
 import AdjustPanel from "$lib/components/editor/panels/AdjustPanel.svelte";
 import TransformPanel from "$lib/components/editor/panels/TransformPanel.svelte";
@@ -25,14 +35,20 @@ import LayersPanel from "$lib/components/editor/panels/LayersPanel.svelte";
 import ExportPanelEnhanced from "$lib/components/editor/panels/ExportPanelEnhanced.svelte";
 import CurvesPanel from "$lib/components/editor/panels/CurvesPanel.svelte";
 
-import { useImageEditor } from "$lib/hooks/useImageEditor.svelte";
 import { usePanZoom } from "$lib/hooks/usePanZoom.svelte";
-import { extractPalette } from "$lib/features/references";
-import { loadImage } from "$lib/utils/canvas-renderer";
+import {
+	extractPalette,
+	neutralRecipe,
+	openReferenceEditor,
+	type EditorView,
+	type ExportOptions,
+	type ReferenceEditor,
+} from "$lib/features/references";
+import type { ImageLayer } from "$lib/types/image-editor";
 
-let { imageId, onClose } = $props<{ imageId: string; onClose: () => void }>();
+let { imageId, onClose } = $props<{ imageId: ReferenceId; onClose: () => void }>();
 
-const editor = useImageEditor(() => imageId);
+let editor: ReferenceEditor | null = $state<ReferenceEditor | null>(null);
 const panZoom = usePanZoom();
 
 // UI state
@@ -42,6 +58,8 @@ let showShortcuts = $state(false);
 let brushColor = $state("#ff007f");
 let brushSize = $state(12);
 let draftStroke = $state<DrawStroke | null>(null);
+/** The strokes committed before the current drag; the draft is previewed on top of them. */
+let strokesBeforeDraft: DrawStroke[] = [];
 
 // Crop state
 let isCropping = $state(false);
@@ -59,43 +77,119 @@ let cropDragMode = $state<"new" | "handle" | "move" | null>(null);
 let cropBodyOffset = $state<{ x: number; y: number }>({ x: 0, y: 0 });
 
 let layerFileInput: HTMLInputElement | null = $state(null);
+let extractedPalette = $state<string[] | null>(null);
 
 const SNAP_THRESHOLD = 8;
 
-// Initialize editor from stored image
+const view = $derived<EditorView>(isComparing ? "compare" : isCropping ? "crop" : "edit");
+
+/** The panels' flat view of the recipe. */
+const editorState = $derived(
+	editor
+		? editorStateFromRecipe(editor.recipe, editor.activeLayerId, (layer) => editor?.layerUrl(layer))
+		: null
+);
+const displaySize = $derived(editor ? editor.displaySize(view) : { width: 0, height: 0 });
+/** The source image's size; crops are drawn in source pixels. */
+const imageWidth = $derived(editor?.reference.width ?? 0);
+const imageHeight = $derived(editor?.reference.height ?? 0);
+
+// Redraw whenever the shown recipe, the view or the zoom changes (at most once per frame).
 $effect(() => {
-	void imageId;
-	editor.initializeFromImage();
+	if (!editor) return;
+	const scale = Math.min(1, panZoom.zoom * window.devicePixelRatio);
+	editor.requestRender(editor.displayedRecipe(view), scale);
 });
 
-// Trigger preview re-render when relevant state changes
-$effect(() => {
-	if (editor.needsCanvasPreview && editor.image) {
-		void editor.quickEffect;
-		void editor.effectIntensity;
-		void editor.duotoneColors;
-		void editor.history.currentState.shadows;
-		void editor.history.currentState.highlights;
-		void editor.history.currentState.vibrance;
-		void editor.history.currentState.clarity;
-		void editor.history.currentState.temperature;
-		void editor.history.currentState.tint;
-		void editor.history.currentState.brightness;
-		void editor.history.currentState.contrast;
-		void editor.history.currentState.saturation;
-		void editor.history.currentState.appliedEffects;
-		void editor.history.currentState.appliedEffects?.length;
-		editor.schedulePreviewRender();
+/** The active gradient or palette as a gradient-map snapshot (v1 read them live). */
+function activeGradientStops(): GradientStops | null {
+	if (app.gradients.activeGradient) return stopsFromGradient(app.gradients.activeGradient.stops);
+	if (app.palettes.activePalette) return stopsFromPalette(app.palettes.activePalette.colors);
+	return null;
+}
+
+function handleStateUpdate(updates: Partial<ImageEditorState>) {
+	if (!editor) return;
+	editor.commit("Edit", applyEditorUpdates(editor.recipe, updates, activeGradientStops()));
+}
+
+function handleStatePreview(updates: Partial<ImageEditorState>) {
+	if (!editor) return;
+	editor.preview(applyEditorUpdates(editor.recipe, updates, activeGradientStops()));
+}
+
+function handlePresetApply(preset: Partial<ImageEditorState>, intensity: number) {
+	handleStateUpdate(presetUpdates(preset, intensity));
+}
+
+/** A preset on the untouched original, as the preset tiles show it. */
+function renderPresetPreview(settings: Partial<ImageEditorState>): Promise<string> {
+	if (!editor) return Promise.reject(new Error("The editor is not open."));
+	const recipe = applyEditorUpdates(
+		neutralRecipe(editor.reference.id),
+		presetUpdates(settings, 100),
+		null
+	);
+	return editor.previewUrl(recipe);
+}
+
+function handlePresetPreview(preset: Partial<ImageEditorState>, intensity: number) {
+	handleStatePreview(presetUpdates(preset, intensity));
+}
+
+function handleUndo() {
+	editor?.undo();
+}
+
+function handleRedo() {
+	editor?.redo();
+}
+
+async function handleExport(options: ExportOptions): Promise<Blob> {
+	if (!editor) throw new Error("The editor is not open.");
+	return (await editor.export(options)).blob;
+}
+
+async function getEditedImage(): Promise<Blob> {
+	if (!editor) throw new Error("The editor is not open.");
+	return editor.editedImage();
+}
+
+function handleCanvasReady(canvas: HTMLCanvasElement) {
+	void editor?.attach(canvas);
+	fitToView();
+}
+
+/** Zooms so the whole image fits the canvas area. */
+function fitToView() {
+	const viewport = document.querySelector("[data-editor-canvas]");
+	if (!(viewport instanceof HTMLElement)) return;
+	panZoom.fitContent(
+		displaySize.width,
+		displaySize.height,
+		viewport.clientWidth,
+		viewport.clientHeight
+	);
+}
+
+function handleRetryPreview() {
+	if (!editor) return;
+	void editor.session.flush();
+	editor.requestRender(editor.displayedRecipe(view), Math.min(1, panZoom.zoom * window.devicePixelRatio));
+}
+
+async function runLayerAction(action: () => Promise<void>, failure: string) {
+	try {
+		await action();
+	} catch (error) {
+		console.error(failure, error);
+		toast.error(failure);
 	}
-});
+}
 
-// Close handler with thumbnail generation
+// Saves pending edits and refreshes the library thumbnail before leaving.
 async function handleClose() {
-	const thumbnail = await editor.generateThumbnailWithEffects();
-	if (thumbnail) {
-		app.references.update(imageId, { thumbnailSrc: thumbnail });
-	}
-	editor.cleanup();
+	await editor?.close();
 	onClose();
 }
 
@@ -112,8 +206,9 @@ function handleToolSelect(tool: EditorTool) {
 }
 
 function handleDrawStart(e: PointerEvent) {
-	const point = getImageRelativePosition(e);
-	if (!point) return;
+	const point = getSourcePosition(e);
+	if (!point || !editorState) return;
+	strokesBeforeDraft = editorState.drawStrokes;
 	draftStroke = {
 		id: crypto.randomUUID(),
 		color: brushColor,
@@ -124,23 +219,22 @@ function handleDrawStart(e: PointerEvent) {
 
 function handleDrawMove(e: PointerEvent) {
 	if (!draftStroke || e.buttons === 0) return;
-	const point = getImageRelativePosition(e);
+	const point = getSourcePosition(e);
 	if (!point) return;
 	draftStroke = { ...draftStroke, points: [...draftStroke.points, point] };
+	handleStatePreview({ drawStrokes: [...strokesBeforeDraft, draftStroke] });
 }
 
 function handleDrawEnd() {
 	if (!draftStroke) return;
-	editor.handleStateUpdate({
-		drawStrokes: [...editor.history.currentState.drawStrokes, draftStroke],
-	});
+	handleStateUpdate({ drawStrokes: [...strokesBeforeDraft, draftStroke] });
 	draftStroke = null;
 }
 
 // Crop handlers
 function handleApplyCrop() {
 	if (cropRect) {
-		editor.handleStateUpdate({ cropRect });
+		handleStateUpdate({ cropRect });
 		toast.success("Crop applied");
 	}
 	isCropping = false;
@@ -154,28 +248,10 @@ function handleCancelCrop() {
 }
 
 async function handleExtractFromRegion() {
-	if (!cropRect || !editor.image) return;
+	if (!cropRect || !editor) return;
 	try {
-		const canvas = document.createElement("canvas");
-		const ctx = canvas.getContext("2d", { willReadFrequently: true });
-		if (!ctx) throw new Error("Could not create a canvas context");
-		const img = await loadImage(editor.image?.src ?? "");
-		canvas.width = cropRect.width;
-		canvas.height = cropRect.height;
-		ctx.drawImage(
-			img,
-			cropRect.x,
-			cropRect.y,
-			cropRect.width,
-			cropRect.height,
-			0,
-			0,
-			cropRect.width,
-			cropRect.height,
-		);
-		const image = await (await fetch(canvas.toDataURL())).blob();
-		const colors = await extractPalette(image, 8);
-		editor.extractedPalette = colors;
+		const colors = await extractPalette(await editor.originalRegion(cropRect), 8);
+		extractedPalette = colors;
 		toast.success("Extracted palette from selection!");
 		activeTool = "palette";
 	} catch (error) {
@@ -200,12 +276,11 @@ async function handleLayerFileSelected(e: Event) {
 		toast.error("Unsupported image format");
 		return;
 	}
-	const url = URL.createObjectURL(file);
 	try {
-		await editor.addImageLayer(url, file.name.replace(/\.[^.]+$/, ""));
+		if (!editor) return;
+		await editor.addLayerImage(file, file.name.replace(/\.[^.]+$/, ""));
 		toast.success("Layer added");
 	} catch (error) {
-		URL.revokeObjectURL(url);
 		console.error("Failed to add layer:", error);
 		toast.error("The image layer could not be added");
 	} finally {
@@ -231,16 +306,22 @@ function getImageRelativePosition(e: PointerEvent): ImagePoint | null {
 	return { x, y };
 }
 
+/** The source pixel under the pointer, through the displayed rotation, flip, scale and crop. */
+function getSourcePosition(e: PointerEvent): ImagePoint | null {
+	const point = getImageRelativePosition(e);
+	return point && editor ? editor.toSourcePoint(view, point) : null;
+}
+
 function snapToEdge(val: number, edge: number): number {
 	return Math.abs(val - edge) < SNAP_THRESHOLD ? edge : val;
 }
 
 function clampRect(rect: CropRect): CropRect {
 	let { x, y, width, height } = rect;
-	x = Math.max(0, Math.min(x, editor.imageWidth - width));
-	y = Math.max(0, Math.min(y, editor.imageHeight - height));
-	width = Math.min(width, editor.imageWidth);
-	height = Math.min(height, editor.imageHeight);
+	x = Math.max(0, Math.min(x, imageWidth - width));
+	y = Math.max(0, Math.min(y, imageHeight - height));
+	width = Math.min(width, imageWidth);
+	height = Math.min(height, imageHeight);
 	return { x, y, width, height };
 }
 
@@ -296,8 +377,8 @@ function handleCropMove(e: PointerEvent) {
 		// Snap to edges
 		newX = snapToEdge(newX, 0);
 		newY = snapToEdge(newY, 0);
-		newX = snapToEdge(newX, editor.imageWidth - cropRect.width);
-		newY = snapToEdge(newY, editor.imageHeight - cropRect.height);
+		newX = snapToEdge(newX, imageWidth - cropRect.width);
+		newY = snapToEdge(newY, imageHeight - cropRect.height);
 		cropRect = clampRect({ x: newX, y: newY, width: cropRect.width, height: cropRect.height });
 		return;
 	}
@@ -353,8 +434,8 @@ function handleCropMove(e: PointerEvent) {
 		newY = snapToEdge(newY, 0);
 		const right = newX + newW;
 		const bottom = newY + newH;
-		if (Math.abs(right - editor.imageWidth) < SNAP_THRESHOLD) newW = editor.imageWidth - newX;
-		if (Math.abs(bottom - editor.imageHeight) < SNAP_THRESHOLD) newH = editor.imageHeight - newY;
+		if (Math.abs(right - imageWidth) < SNAP_THRESHOLD) newW = imageWidth - newX;
+		if (Math.abs(bottom - imageHeight) < SNAP_THRESHOLD) newH = imageHeight - newY;
 
 		cropRect = clampRect({ x: newX, y: newY, width: Math.max(1, newW), height: Math.max(1, newH) });
 		return;
@@ -375,8 +456,8 @@ function handleCropMove(e: PointerEvent) {
 	// Snap to image edges
 	x = snapToEdge(x, 0);
 	y = snapToEdge(y, 0);
-	if (Math.abs(x + w - editor.imageWidth) < SNAP_THRESHOLD) x = editor.imageWidth - w;
-	if (Math.abs(y + h - editor.imageHeight) < SNAP_THRESHOLD) y = editor.imageHeight - h;
+	if (Math.abs(x + w - imageWidth) < SNAP_THRESHOLD) x = imageWidth - w;
+	if (Math.abs(y + h - imageHeight) < SNAP_THRESHOLD) y = imageHeight - h;
 
 	cropRect = clampRect({ x, y, width: w, height: h });
 }
@@ -431,6 +512,7 @@ function handleCropKeyboardNudge(e: KeyboardEvent) {
 
 // Keyboard shortcuts
 function handleKeydown(e: KeyboardEvent) {
+	if (!editorState) return;
 	// SAFETY: this is a window keydown listener, so the target is whatever DOM element
 	// holds focus; reading `tagName` off it is the point of the check.
 	const focused = e.target as HTMLElement | null;
@@ -446,12 +528,12 @@ function handleKeydown(e: KeyboardEvent) {
 		switch (e.key.toLowerCase()) {
 			case "z":
 				e.preventDefault();
-				if (e.shiftKey) editor.handleRedo();
-				else editor.handleUndo();
+				if (e.shiftKey) handleRedo();
+				else handleUndo();
 				break;
 			case "y":
 				e.preventDefault();
-				editor.handleRedo();
+				handleRedo();
 				break;
 			case "s":
 				e.preventDefault();
@@ -471,6 +553,8 @@ function handleKeydown(e: KeyboardEvent) {
 				panZoom.zoomOut();
 				break;
 		}
+		// The editor owns these while it is open; keep the app-wide shortcuts from acting too.
+		if (e.defaultPrevented) e.stopPropagation();
 		return;
 	}
 
@@ -512,104 +596,79 @@ function handleKeydown(e: KeyboardEvent) {
 			isComparing = !isComparing;
 			break;
 		case "r":
-			panZoom.fitToScreen();
+			fitToView();
 			break;
 		case "[":
-			editor.handleStateUpdate({
-				rotation: (editor.history.currentState.rotation - 90 + 360) % 360,
-			});
+			handleStateUpdate({ rotation: (editorState.rotation - 90 + 360) % 360 });
 			break;
 		case "]":
-			editor.handleStateUpdate({ rotation: (editor.history.currentState.rotation + 90) % 360 });
+			handleStateUpdate({ rotation: (editorState.rotation + 90) % 360 });
 			break;
 		case "h":
-			editor.handleStateUpdate({ flipX: !editor.history.currentState.flipX });
+			handleStateUpdate({ flipX: !editorState.flipX });
 			break;
 		case "v":
-			editor.handleStateUpdate({ flipY: !editor.history.currentState.flipY });
+			handleStateUpdate({ flipY: !editorState.flipY });
 			break;
 	}
 }
 
-// SVG filter data derived from editor state
-const temperatureMatrix = $derived(
-	editor.getTemperatureColorMatrix(editor.history.currentState.temperature),
-);
-const tintMatrix = $derived(editor.getTintColorMatrix(editor.history.currentState.tint));
-const curveTableValues = $derived({
-	rgb: editor.getCurveTableValues("rgb"),
-	red: editor.getCurveTableValues("red"),
-	green: editor.getCurveTableValues("green"),
-	blue: editor.getCurveTableValues("blue"),
-});
+let isUnmounted = false;
+
+async function openEditor() {
+	try {
+		const opened = await openReferenceEditor(imageId);
+		if (isUnmounted) void opened.close();
+		else editor = opened;
+	} catch (error) {
+		console.error("Failed to open the editor:", error);
+		toast.error("This image could not be opened.");
+		onClose();
+	}
+}
 
 onMount(() => {
-	window.addEventListener("keydown", handleKeydown);
+	void openEditor();
+	// Capture phase: runs before the app-wide shortcut listener on `document`.
+	window.addEventListener("keydown", handleKeydown, { capture: true });
 	return () => {
-		window.removeEventListener("keydown", handleKeydown);
-		editor.cleanup();
+		isUnmounted = true;
+		window.removeEventListener("keydown", handleKeydown, { capture: true });
+		void editor?.close();
 	};
 });
 </script>
 
-{#if editor.image}
+{#if editor && editorState}
 	<div class="absolute inset-0 z-50 flex flex-col bg-void-deep" transition:fade={{ duration: 200 }}>
 		<ImageEditorHeader
-			imageName={editor.image.name}
-			canUndo={editor.history.canUndo}
-			canRedo={editor.history.canRedo}
+			imageName={editor.reference.name}
+			canUndo={editor.session.history.canUndo}
+			canRedo={editor.session.history.canRedo}
 			{isComparing}
 			zoom={panZoom.zoom}
 			onClose={handleClose}
-			onUndo={editor.handleUndo}
-			onRedo={editor.handleRedo}
+			onUndo={handleUndo}
+			onRedo={handleRedo}
 			onCompareStart={() => (isComparing = true)}
 			onCompareEnd={() => (isComparing = false)}
-			onFitToScreen={panZoom.fitToScreen}
+			onFitToScreen={fitToView}
 			onZoomIn={panZoom.zoomIn}
 			onZoomOut={panZoom.zoomOut}
 			onShowShortcuts={() => (showShortcuts = true)}
 		/>
 
 		<ImageCanvas
-			imageId={editor.image.id}
-			imageSrc={editor.image.src}
-			imageName={editor.image.name}
-			filterString={editor.filterString}
-			combinedFilterString={editor.combinedFilterString}
-			transformString={editor.transformString}
-			{isComparing}
-			needsCanvasPreview={editor.needsCanvasPreview}
-			isRenderingPreview={editor.isRenderingPreview}
-			previewDataUrl={editor.previewDataUrl}
-			previewError={editor.previewError}
-			colorAdjustActive={editor.colorAdjustActive}
-			curvesModified={editor.curvesModified}
-			opacity={editor.history.currentState.opacity}
-			vignette={editor.history.currentState.vignette}
-			gradientMapOpacity={editor.history.currentState.gradientMapOpacity}
-			gradientMapBlendMode={editor.history.currentState.gradientMapBlendMode}
-			appliedCrop={editor.appliedCrop}
-			cropClipPath={editor.cropClipPath}
-			quickEffect={editor.quickEffect}
-			effectIntensity={editor.effectIntensity}
-			duotoneColors={editor.duotoneColors}
-			layers={editor.history.currentState.layers}
-			drawStrokes={[
-				...editor.history.currentState.drawStrokes,
-				...(draftStroke ? [draftStroke] : []),
-			]}
-			imageWidth={editor.imageWidth}
-			imageHeight={editor.imageHeight}
+			imageName={editor.reference.name}
+			displayWidth={displaySize.width}
+			displayHeight={displaySize.height}
+			previewError={editor.renderError ?? editor.session.saveError}
 			isDrawing={activeTool === "draw"}
 			{isCropping}
 			{cropRect}
 			{cropGuideType}
-			{temperatureMatrix}
-			{tintMatrix}
-			{curveTableValues}
 			{panZoom}
-			onImageLoad={(w, h) => editor.setImageDimensions(w, h)}
+			onCanvasReady={handleCanvasReady}
 			onCropStart={handleCropStart}
 			onCropMove={handleCropMove}
 			onCropEnd={handleCropEnd}
@@ -618,14 +677,14 @@ onMount(() => {
 			onDrawStart={handleDrawStart}
 			onDrawMove={handleDrawMove}
 			onDrawEnd={handleDrawEnd}
-			onRetryPreview={editor.schedulePreviewRender}
+			onRetryPreview={handleRetryPreview}
 		/>
 
 		<EditorToolbar {activeTool} onToolSelect={handleToolSelect} />
 
 		<!-- Panels -->
 		<EditorPanel title="Adjust" icon="material-symbols:tune" isOpen={activeTool === "adjust"} onClose={() => (activeTool = null)}>
-			<AdjustPanel editorState={editor.history.currentState} onUpdate={editor.handleStateUpdate} />
+			<AdjustPanel {editorState} onUpdate={handleStateUpdate} onPreview={handleStatePreview} />
 		</EditorPanel>
 
 		<EditorPanel title="Draw" icon="material-symbols:draw" isOpen={activeTool === "draw"} onClose={() => { draftStroke = null; activeTool = null; }}>
@@ -649,8 +708,8 @@ onMount(() => {
 				<button
 					type="button"
 					class="btn btn-ghost min-h-11 w-full border border-white/10"
-					disabled={editor.history.currentState.drawStrokes.length === 0}
-					onclick={() => editor.handleStateUpdate({ drawStrokes: [] })}
+					disabled={editorState.drawStrokes.length === 0}
+					onclick={() => handleStateUpdate({ drawStrokes: [] })}
 				>
 					<Icon icon="material-symbols:ink-eraser" class="h-5 w-5" />
 					Clear drawing
@@ -661,16 +720,18 @@ onMount(() => {
 
 		<EditorPanel title="Filters" icon="material-symbols:filter-vintage" isOpen={activeTool === "filters"} onClose={() => (activeTool = null)} size="lg">
 			<div class="space-y-6">
-				<FiltersPanel currentState={editor.history.currentState} imageSrc={editor.image.src} onApplyPreset={editor.handlePresetApply} />
+				<FiltersPanel currentState={editorState} imageSrc={editor.originalUrl} onApplyPreset={handlePresetApply} onPreviewPreset={handlePresetPreview} renderPreview={renderPresetPreview} />
 				<div class="pt-4 border-t border-white/10">
 					<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider mb-4 flex items-center gap-2">
 						<Icon icon="material-symbols:show-chart" class="w-4 h-4" />
 						Curves
 					</h4>
 					<CurvesPanel
-						imageSrc={editor.image.src}
-						curves={editor.history.currentState.curves ?? DEFAULT_EDITOR_STATE.curves}
-						onCurvesChange={(newCurves) => editor.handleStateUpdate({ curves: newCurves })}
+						imageSrc={editor.originalUrl}
+						curves={editorState.curves}
+						onCurvesChange={(newCurves) => handleStateUpdate({ curves: newCurves })}
+						onCurvesPreview={(newCurves) => handleStatePreview({ curves: newCurves })}
+						onCurvesCommit={() => editor?.commit("Curves")}
 					/>
 				</div>
 				<div class="pt-4 border-t border-white/10">
@@ -678,7 +739,7 @@ onMount(() => {
 						<Icon icon="material-symbols:transform" class="w-4 h-4" />
 						Transform
 					</h4>
-					<TransformPanel editorState={editor.history.currentState} onUpdate={editor.handleStateUpdate} />
+					<TransformPanel {editorState} onUpdate={handleStateUpdate} onPreview={handleStatePreview} />
 				</div>
 			</div>
 		</EditorPanel>
@@ -694,18 +755,19 @@ onMount(() => {
 				onApplyCrop={handleApplyCrop}
 				onCancelCrop={handleCancelCrop}
 				onExtractFromRegion={handleExtractFromRegion}
-				imageWidth={editor.imageWidth}
-				imageHeight={editor.imageHeight}
+				{imageWidth}
+				{imageHeight}
 			/>
 		</EditorPanel>
 
 		<EditorPanel title="Palette" icon="material-symbols:palette" isOpen={activeTool === "palette"} onClose={() => (activeTool = null)}>
 			<PalettePanel
-				imageSrc={editor.image.src}
-				getEditedImageData={editor.getEditedImageData}
-				gradientMapOpacity={editor.history.currentState.gradientMapOpacity}
-				gradientMapBlendMode={editor.history.currentState.gradientMapBlendMode}
-				onGradientMapChange={(opacity, blendMode) => editor.handleStateUpdate({ gradientMapOpacity: opacity, gradientMapBlendMode: blendMode })}
+				imageSrc={editor.originalUrl}
+				{getEditedImage}
+				gradientMapOpacity={editorState.gradientMapOpacity}
+				gradientMapBlendMode={editorState.gradientMapBlendMode}
+				onGradientMapChange={(opacity, blendMode) => handleStateUpdate({ gradientMapOpacity: opacity, gradientMapBlendMode: blendMode })}
+				onGradientMapPreview={(opacity, blendMode) => handleStatePreview({ gradientMapOpacity: opacity, gradientMapBlendMode: blendMode })}
 			/>
 		</EditorPanel>
 
@@ -714,36 +776,37 @@ onMount(() => {
 				activeEffect={editor.quickEffect}
 				effectIntensity={editor.effectIntensity}
 				duotoneColors={editor.duotoneColors}
-				appliedEffects={editor.history.currentState.appliedEffects}
-				onEffectChange={(effect) => (editor.quickEffect = effect)}
-				onIntensityChange={(intensity) => (editor.effectIntensity = intensity)}
-				onDuotoneColorsChange={(colors) => (editor.duotoneColors = colors)}
-				onApplyEffect={editor.handleApplyEffect}
-				onRemoveEffect={editor.handleRemoveEffect}
-				onClearEffects={editor.handleClearEffects}
+				appliedEffects={editorState.appliedEffects}
+				onEffectChange={(effect) => editor?.selectEffect(effect)}
+				onIntensityChange={(intensity) => editor && (editor.effectIntensity = intensity)}
+				onDuotoneColorsChange={(colors) => editor && (editor.duotoneColors = colors)}
+				onApplyEffect={() => editor?.applyEffect()}
+				onRemoveEffect={(index) => editor?.removeEffect(index)}
+				onClearEffects={() => editor?.clearEffects()}
 			/>
 		</EditorPanel>
 
 		<EditorPanel title="Layers" icon="material-symbols:layers" isOpen={activeTool === "layers"} onClose={() => (activeTool = null)}>
 			<LayersPanel
-				layers={editor.history.currentState.layers}
-				activeLayerId={editor.history.currentState.activeLayerId}
+				layers={editorState.layers}
+				activeLayerId={editorState.activeLayerId}
 				onAddImageLayer={handleAddLayerImage}
-				onRemoveLayer={editor.removeLayer}
-				onUpdateLayer={editor.updateLayer}
-				onDuplicateLayer={editor.duplicateLayer}
-				onReorderLayer={editor.reorderLayers}
-				onSetActiveLayer={editor.setActiveLayer}
-				onMergeDown={editor.mergeDown}
-				onFlattenAll={editor.flattenAllLayers}
+				onRemoveLayer={(id) => editor?.removeLayer(id)}
+				onUpdateLayer={(id: string, updates: Partial<ImageLayer>) => editor?.updateLayer(id, layerUpdates(updates))}
+				onPreviewLayer={(id: string, updates: Partial<ImageLayer>) => editor?.updateLayer(id, layerUpdates(updates), true)}
+				onDuplicateLayer={(id) => editor?.duplicateLayer(id)}
+				onReorderLayer={(from, to) => editor?.reorderLayers(from, to)}
+				onSetActiveLayer={(id) => editor && (editor.activeLayerId = id)}
+				onMergeDown={(id) => runLayerAction(async () => editor?.mergeDown(id), "The layers could not be merged.")}
+				onFlattenAll={() => runLayerAction(async () => editor?.flattenLayers(), "The layers could not be flattened.")}
 			/>
 		</EditorPanel>
 
 		<EditorPanel title="Export" icon="material-symbols:download" isOpen={activeTool === "export"} onClose={() => (activeTool = null)}>
 			<ExportPanelEnhanced
-				imageName={editor.image.name}
-				extractedPalette={editor.extractedPalette}
-				getEditedImageData={editor.getEditedImageData}
+				imageName={editor.reference.name}
+				{extractedPalette}
+				onExport={handleExport}
 			/>
 		</EditorPanel>
 		<!-- Hidden file input for layer uploads -->

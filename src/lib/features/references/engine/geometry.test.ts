@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EditRecipe } from "../domain";
-import { outputGeometry, sourceToOutputMatrix } from "./geometry";
+import { outputGeometry, outputToSource, sourceToOutputMatrix } from "./geometry";
 
 const upright: EditRecipe["geometry"] = {
 	crop: null,
@@ -69,5 +69,24 @@ describe("sourceToOutputMatrix", () => {
 
 	it("applies the recipe scale and the preview scale", () => {
 		expect(apply(sourceToOutputMatrix({ ...upright, scale: 2 }, 0.5), 10, 4)).toEqual([10, 4]);
+	});
+});
+
+describe("outputToSource", () => {
+	it.each([
+		{ ...upright },
+		{ ...upright, rotation: 90 },
+		{ ...upright, rotation: 30, flipX: true, scale: 2 },
+		{ ...upright, rotation: -45, flipY: true, crop: { x: 20, y: 30, width: 100, height: 50 } },
+	])("undoes the geometry pass for %o", (geometry) => {
+		const { crop, width, height } = outputGeometry(400, 300, geometry);
+		const [m00, m10, m01, m11] = sourceToOutputMatrix(geometry, 1);
+		const source = { x: crop.x + 10, y: crop.y + 7 };
+		const dx = source.x - (crop.x + crop.width / 2);
+		const dy = source.y - (crop.y + crop.height / 2);
+		const output = { x: m00 * dx + m01 * dy + width / 2, y: m10 * dx + m11 * dy + height / 2 };
+		const back = outputToSource(400, 300, geometry, output);
+		expect(back.x).toBeCloseTo(source.x, 9);
+		expect(back.y).toBeCloseTo(source.y, 9);
 	});
 });

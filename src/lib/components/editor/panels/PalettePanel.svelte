@@ -10,14 +10,19 @@ import chroma from "chroma-js";
 
 let {
 	imageSrc,
-	getEditedImageData,
+	getEditedImage,
 	onGradientMapChange,
+	onGradientMapPreview,
 	gradientMapOpacity,
 	gradientMapBlendMode,
 } = $props<{
 	imageSrc: string;
-	getEditedImageData: () => Promise<string>;
+	/** The image as edited, for extraction. */
+	getEditedImage: () => Promise<Blob>;
+	/** One undo step (a blend mode picked, or the slider released). */
 	onGradientMapChange: (opacity: number, blendMode: string) => void;
+	/** The opacity slider mid-drag: shown, not recorded. */
+	onGradientMapPreview: (opacity: number, blendMode: string) => void;
 	gradientMapOpacity: number;
 	gradientMapBlendMode: string;
 }>();
@@ -65,10 +70,7 @@ const blendModes = [
 async function handleExtractPalette() {
 	isExtracting = true;
 	try {
-		// Get the edited image data (with filters applied)
-		const editedSrc = await getEditedImageData();
-		const image = await (await fetch(editedSrc)).blob();
-		const colors = await extractPalette(image, extractColorCount);
+		const colors = await extractPalette(await getEditedImage(), extractColorCount);
 		extractedPalette = colors;
 		// Generate default color names
 		paletteNames = colors.map((_, i) => `Color ${i + 1}`);
@@ -498,6 +500,8 @@ function getGradientBackground(gradient: ValidatedGradient) {
 					value={gradientMapOpacity}
 					class="range range-xs range-primary"
 					oninput={(e) =>
+						onGradientMapPreview(parseFloat(e.currentTarget.value), gradientMapBlendMode)}
+					onchange={(e) =>
 						onGradientMapChange(parseFloat(e.currentTarget.value), gradientMapBlendMode)}
 				/>
 			</div>

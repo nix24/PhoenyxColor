@@ -1,20 +1,18 @@
 <script lang="ts">
-import type { FilterPreset } from "$lib/types/image-editor";
+import type { PanelFilterPreset } from "$lib/types/image-editor";
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
-import { buildReferenceFilterString } from "$lib/utils/image-filters";
 
 interface Props {
-	preset: FilterPreset;
+	preset: PanelFilterPreset;
+	/** The preset rendered on the original (or the plain original while that render runs). */
 	imageSrc: string;
 	isActive: boolean;
-	onApply: (preset: FilterPreset) => void;
+	onApply: (preset: PanelFilterPreset) => void;
 	onDelete: (id: string) => void;
 }
 
 const { preset, imageSrc, isActive, onApply, onDelete }: Props = $props();
-
-const previewFilter = $derived(buildReferenceFilterString(preset.settings));
 </script>
 
 <div class="relative group">
@@ -41,7 +39,6 @@ const previewFilter = $derived(buildReferenceFilterString(preset.settings));
 					src={imageSrc}
 					alt={preset.name}
 					class="w-full h-full object-cover"
-					style:filter={previewFilter}
 					loading="lazy"
 				/>
 			{/if}

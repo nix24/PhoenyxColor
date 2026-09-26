@@ -3,7 +3,7 @@ import type { ReferenceId } from "$lib/types/brands";
 import { neutralRecipe, type EditRecipe } from "../domain";
 import { RenderEngine } from "./engine";
 import { exportImage } from "./export";
-import { pixelAt, pngFromRows, type Rgba } from "./fixtures";
+import { decode, engineWithSource, pixelAt, pngFromRows, type Rgba } from "./fixtures";
 
 // SAFETY: a fixed UUID literal, which is what a ReferenceId is.
 const neutral = neutralRecipe("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d" as ReferenceId);
@@ -35,29 +35,15 @@ const SIZE = 48;
 let engine: RenderEngine;
 
 beforeEach(async () => {
-	engine = new RenderEngine(document.createElement("canvas"));
-	const rows = Array.from({ length: SIZE }, (_, y) =>
-		Array.from({ length: SIZE }, (_, x): Rgba => [
-			(x * 5) % 256,
-			(y * 5) % 256,
-			120,
-			x === 0 && y === 0 ? 0 : 255,
-		])
-	);
-	await engine.setSource(await pngFromRows(rows));
+	engine = await engineWithSource(SIZE, (x, y): Rgba => [
+		(x * 5) % 256,
+		(y * 5) % 256,
+		120,
+		x === 0 && y === 0 ? 0 : 255,
+	]);
 });
 
 afterEach(() => engine.dispose());
-
-async function decode(blob: Blob): Promise<ImageData> {
-	const bitmap = await createImageBitmap(blob);
-	const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-	const context = canvas.getContext("2d");
-	if (!context) throw new Error("no 2D context");
-	context.drawImage(bitmap, 0, 0);
-	bitmap.close();
-	return context.getImageData(0, 0, canvas.width, canvas.height);
-}
 
 describe("exportImage", () => {
 	it("encodes exactly the pixels the preview path renders at the same size", async () => {

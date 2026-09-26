@@ -1,11 +1,14 @@
 <script lang="ts">
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
-import type { ImageEditorState } from "../EditorHistory.svelte.ts";
+import type { ImageEditorState } from "$lib/types/image-editor";
 
-let { editorState, onUpdate } = $props<{
+let { editorState, onUpdate, onPreview } = $props<{
 	editorState: ImageEditorState;
+	/** One undo step (a click, or a slider released). */
 	onUpdate: (updates: Partial<ImageEditorState>) => void;
+	/** A slider mid-drag: shown, not recorded. */
+	onPreview: (updates: Partial<ImageEditorState>) => void;
 }>();
 
 let activeSection = $state<"light" | "color" | "effects" | "detail">("light");
@@ -197,7 +200,8 @@ function sectionHasChanges(sliders: SliderConfig[]): boolean {
 							step={slider.step}
 							{value}
 							class="range range-xs range-primary w-full"
-							oninput={(e) => handleSliderChange(slider.key, parseFloat(e.currentTarget.value))}
+							oninput={(e) => onPreview({ [slider.key]: parseFloat(e.currentTarget.value) })}
+							onchange={(e) => handleSliderChange(slider.key, parseFloat(e.currentTarget.value))}
 						/>
 					</div>
 				{/each}

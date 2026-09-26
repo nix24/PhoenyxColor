@@ -1,26 +1,32 @@
 <script lang="ts">
 import { onMount } from "svelte";
-import { app } from "$lib/stores/root.svelte";
-import type { ValidatedReferenceImage } from "$lib/schemas/validation";
 import Icon from "@iconify/svelte";
 import { toast } from "svelte-sonner";
-import { performanceService } from "$lib/services/performance";
+import {
+	referenceLibrary,
+	type LibraryItem,
+	type ReferenceLibrary,
+	type RemovedReference,
+} from "$lib/features/references";
+import type { ReferenceId } from "$lib/types/brands";
 import ImageLibrary from "$lib/components/modules/references/ImageLibrary.svelte";
 import ImageEditorLayout from "$lib/components/modules/references/ImageEditorLayout.svelte";
+
+const library: ReferenceLibrary = referenceLibrary();
 
 let fileInput: HTMLInputElement;
 let isDragOver = $state(false);
 let uploadProgress: Record<string, number> = $state({});
-let selectedImageId: string | null = $state(null);
+let selectedImageId: ReferenceId | null = $state(null);
 let isLoading = $state(true);
 
 // Context menu state
-let contextMenuTarget: ValidatedReferenceImage | null = $state(null);
+let contextMenuTarget: LibraryItem | null = $state(null);
 let contextMenuPos = $state({ x: 0, y: 0 });
 
 onMount(() => {
 	let cancelled = false;
-	void app.references.whenReady().finally(() => {
+	void library.whenReady().finally(() => {
 		if (!cancelled) isLoading = false;
 	});
 	return () => {
@@ -121,40 +127,8 @@ async function processFile(file: File): Promise<boolean> {
 	uploadProgress[progressId] = 0;
 
 	try {
-		const { optimized, thumbnail } = await performanceService.optimizeImage(file, {
-			maxWidth: 1920,
-			maxHeight: 1080,
-			quality: 0.85,
-		});
-
-		uploadProgress[progressId] = 50;
-
-		const imageUrl = await new Promise<string>((resolve, reject) => {
-			const reader = new FileReader();
-			// SAFETY: `readAsDataURL` always yields a string result on success.
-			reader.onload = () => resolve(reader.result as string);
-			reader.onerror = () => reject(new Error("Failed to read optimized image"));
-			reader.readAsDataURL(optimized);
-		});
-
-		uploadProgress[progressId] = 80;
-
-		app.references.add({
-			src: imageUrl,
-			thumbnailSrc: thumbnail,
-			name: file.name.replace(/\.[^/.]+$/, ""),
-			position: { x: 50, y: 50 },
-			scale: 1,
-			rotation: 0,
-			opacity: 1,
-			isGrayscale: false,
-			brightness: 100,
-			contrast: 100,
-			saturation: 100,
-			hueRotate: 0,
-			blur: 0,
-		});
-
+		// Stored as-is: full resolution, original bytes, transparency intact.
+		await library.importImage(file);
 		uploadProgress[progressId] = 100;
 		return true;
 	} catch (error) {
@@ -167,52 +141,81 @@ async function processFile(file: File): Promise<boolean> {
 	}
 }
 
-function handleEdit(id: string) {
+function handleEdit(id: ReferenceId) {
 	selectedImageId = selectedImageId === id ? null : id;
 }
 
-function handleDelete(id: string) {
-	const reference = app.references.references.find((ref) => ref.id === id);
-	if (reference) {
-		if (reference.src.startsWith("blob:")) URL.revokeObjectURL(reference.src);
-		if (reference.thumbnailSrc?.startsWith("blob:")) URL.revokeObjectURL(reference.thumbnailSrc);
-		app.references.remove(id);
-		toast.info(`Removed "${reference.name}"`);
-		if (selectedImageId === id) {
-			selectedImageId = null;
+async function handleDelete(id: ReferenceId) {
+	const item = library.find(id);
+	contextMenuTarget = null;
+	if (!item) return;
+	try {
+		const removed = await library.remove(id);
+		if (selectedImageId === id) selectedImageId = null;
+		if (removed) {
+			toast.info(`Removed "${item.reference.name}"`, {
+				action: { label: "Undo", onClick: () => void restore([removed]) },
+			});
+		}
+	} catch (error) {
+		console.error("Failed to delete reference:", error);
+		toast.error(`"${item.reference.name}" could not be removed. Try again.`);
+	}
+}
+
+async function handleClearAll() {
+	const ids = library.items.map((item) => item.reference.id);
+	if (ids.length === 0) return;
+	selectedImageId = null;
+	const removed: RemovedReference[] = [];
+	for (const id of ids) {
+		try {
+			const bundle = await library.remove(id);
+			if (bundle) removed.push(bundle);
+		} catch (error) {
+			console.error("Failed to delete reference:", error);
 		}
 	}
-	contextMenuTarget = null;
-}
-
-function handleClearAll() {
-	if (app.references.references.length === 0) return;
-	const count = app.references.references.length;
-	for (const ref of app.references.references) {
-		if (ref.src.startsWith("blob:")) URL.revokeObjectURL(ref.src);
-		if (ref.thumbnailSrc?.startsWith("blob:")) URL.revokeObjectURL(ref.thumbnailSrc);
-		app.references.remove(ref.id);
-	}
-	selectedImageId = null;
-	toast.success(`Cleared ${count} reference image(s)`);
-}
-
-function handleDuplicate(id: string) {
-	const reference = app.references.references.find((ref) => ref.id === id);
-	if (reference) {
-		app.references.add({
-			...reference,
-			name: `${reference.name} (Copy)`,
-			position: { x: reference.position.x + 20, y: reference.position.y + 20 },
+	const removedCount = removed.length;
+	if (removedCount > 0) {
+		toast.success(`Cleared ${removedCount} reference image(s)`, {
+			action: { label: "Undo", onClick: () => void restore(removed) },
 		});
-		toast.success(`Duplicated "${reference.name}"`);
 	}
-	contextMenuTarget = null;
+	if (removedCount < ids.length) {
+		toast.error(`${ids.length - removedCount} image(s) could not be removed. Try again.`);
+	}
 }
 
-function handleContextMenu(e: MouseEvent, reference: ValidatedReferenceImage) {
+/**
+ * Library-level undo: a deletion keeps everything it removed in memory until the page closes,
+ * so the toast's Undo puts the references back exactly as they were.
+ */
+async function restore(removed: RemovedReference[]) {
+	try {
+		for (const bundle of removed) await library.restore(bundle);
+	} catch (error) {
+		console.error("Failed to restore reference:", error);
+		toast.error("The images could not be restored.");
+	}
+}
+
+async function handleDuplicate(id: ReferenceId) {
+	const item = library.find(id);
+	contextMenuTarget = null;
+	if (!item) return;
+	try {
+		await library.duplicate(id);
+		toast.success(`Duplicated "${item.reference.name}"`);
+	} catch (error) {
+		console.error("Failed to duplicate reference:", error);
+		toast.error(`"${item.reference.name}" could not be duplicated. Try again.`);
+	}
+}
+
+function handleContextMenu(e: MouseEvent, item: LibraryItem) {
 	e.preventDefault();
-	contextMenuTarget = reference;
+	contextMenuTarget = item;
 	contextMenuPos = {
 		x: Math.max(8, Math.min(e.clientX, window.innerWidth - 176)),
 		y: Math.max(8, Math.min(e.clientY, window.innerHeight - 152)),
@@ -221,15 +224,8 @@ function handleContextMenu(e: MouseEvent, reference: ValidatedReferenceImage) {
 
 async function handleRetryLoad() {
 	isLoading = true;
-	try {
-		if (app.references.loadError) await app.references.reload();
-		else await app.references.save();
-	} catch (error) {
-		console.error("Reference recovery failed:", error);
-		app.references.saveError = "Changes still could not be saved on this device.";
-	} finally {
-		isLoading = false;
-	}
+	await library.load();
+	isLoading = false;
 }
 
 function closeContextMenu() {
@@ -291,10 +287,10 @@ function closeEditor() {
 
 	<!-- Image Library -->
 	<ImageLibrary
-		references={app.references.references}
+		items={library.items}
 		{selectedImageId}
 		{isLoading}
-		loadError={app.references.loadError ?? app.references.saveError}
+		loadError={library.loadError}
 		{isDragOver}
 		onAddFiles={() => fileInput.click()}
 		onClearAll={handleClearAll}
@@ -319,7 +315,7 @@ function closeEditor() {
 			<button
 				class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
 				onclick={() => {
-					if (contextMenuTarget) handleEdit(contextMenuTarget.id);
+					if (contextMenuTarget) handleEdit(contextMenuTarget.reference.id);
 					closeContextMenu();
 				}}
 				role="menuitem"
@@ -330,7 +326,7 @@ function closeEditor() {
 			</button>
 			<button
 				class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
-				onclick={() => contextMenuTarget && handleDuplicate(contextMenuTarget.id)}
+				onclick={() => contextMenuTarget && handleDuplicate(contextMenuTarget.reference.id)}
 				role="menuitem"
 				type="button"
 			>
@@ -340,7 +336,7 @@ function closeEditor() {
 			<div class="h-px bg-white/5 my-1"></div>
 			<button
 				class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors text-left"
-				onclick={() => contextMenuTarget && handleDelete(contextMenuTarget.id)}
+				onclick={() => contextMenuTarget && handleDelete(contextMenuTarget.reference.id)}
 				role="menuitem"
 				type="button"
 			>

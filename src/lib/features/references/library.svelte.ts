@@ -75,6 +75,7 @@ export class ReferenceLibrary {
 	readonly #dependencies: LibraryDependencies;
 	#loading: Promise<void>;
 	#hasRequestedPersistence = false;
+	#lastCreatedAt = 0;
 
 	constructor(dependencies: LibraryDependencies) {
 		this.#dependencies = dependencies;
@@ -130,7 +131,7 @@ export class ReferenceLibrary {
 		const reference = ReferenceSchema.parse({
 			id: crypto.randomUUID(),
 			name: referenceName(file.name.replace(/\.[^/.]+$/, "")),
-			createdAt: new Date().toISOString(),
+			createdAt: this.#newCreatedAt(),
 			width,
 			height,
 			originalBlobId: newBlobId(),
@@ -202,7 +203,7 @@ export class ReferenceLibrary {
 			...source,
 			id: crypto.randomUUID(),
 			name: referenceName(source.name, " (Copy)"),
-			createdAt: new Date().toISOString(),
+			createdAt: this.#newCreatedAt(),
 			originalBlobId: copyOf(source.originalBlobId),
 			thumbBlobId: copyOf(source.thumbBlobId),
 		});
@@ -227,19 +228,26 @@ export class ReferenceLibrary {
 		return item;
 	}
 
-	/** Re-renders a reference's thumbnail from its current recipe (e.g. when the editor closes). */
-	async refreshThumbnail(id: ReferenceId): Promise<void> {
+	/** Swaps a reference's thumbnail for one rendered from its current edit (by the editor). */
+	async storeThumbnail(id: ReferenceId, thumbnail: Blob): Promise<void> {
 		const db = await this.#dependencies.database();
 		const reference = this.find(id)?.reference;
-		const recipe = await new Repository(db, "recipes", EditRecipeSchema).get(id);
-		if (!reference || !recipe) return;
-		const thumbnail = await this.#render(db, reference, recipe);
+		if (!reference) return;
 		const updated = await this.#replaceThumbnail(db, reference, thumbnail);
 		this.items = this.items.map((item) => {
 			if (item.reference.id !== id) return item;
 			URL.revokeObjectURL(item.thumbnailUrl);
 			return { reference: updated, thumbnailUrl: URL.createObjectURL(thumbnail) };
 		});
+	}
+
+	/** The rendered thumbnail of a reference: the image as edited, fitted inside 256 px. */
+	async thumbnail(id: ReferenceId): Promise<Blob> {
+		const reference = this.find(id)?.reference;
+		const db = await this.#dependencies.database();
+		const blob = reference ? await getBlob(db, reference.thumbBlobId) : undefined;
+		if (!blob) throw new Error("This reference's thumbnail is missing from the device.");
+		return blob;
 	}
 
 	/** The original image file of a reference. */
@@ -279,8 +287,9 @@ export class ReferenceLibrary {
 	): Promise<void> {
 		const tx = db.transaction(["references", "recipes", "blobs"], "readwrite");
 		for (const { id, blob } of blobs) await tx.objectStore("blobs").put(blob, id);
-		if (recipe) await tx.objectStore("recipes").put(recipe);
-		await tx.objectStore("references").put(reference);
+		// Snapshots: records read from `items` are $state proxies, which IndexedDB cannot clone.
+		if (recipe) await tx.objectStore("recipes").put($state.snapshot(recipe));
+		await tx.objectStore("references").put($state.snapshot(reference));
 		await tx.done;
 	}
 
@@ -295,7 +304,7 @@ export class ReferenceLibrary {
 		reference: Reference,
 		thumbnail: Blob
 	): Promise<Reference> {
-		const updated: Reference = { ...reference, thumbBlobId: newBlobId() };
+		const updated: Reference = { ...$state.snapshot(reference), thumbBlobId: newBlobId() };
 		const tx = db.transaction(["references", "blobs"], "readwrite");
 		await tx.objectStore("blobs").put(thumbnail, updated.thumbBlobId);
 		await tx.objectStore("references").put(updated);
@@ -327,6 +336,15 @@ export class ReferenceLibrary {
 		const blob = await getBlob(db, blobId);
 		// An empty src makes the card show its "Preview unavailable" state.
 		return blob ? URL.createObjectURL(blob) : "";
+	}
+
+	/**
+	 * Now, but always later than the previous one: a batch import can land in one millisecond, and
+	 * equal timestamps would let "newest first" reorder the batch after a reload.
+	 */
+	#newCreatedAt(): string {
+		this.#lastCreatedAt = Math.max(Date.now(), this.#lastCreatedAt + 1);
+		return new Date(this.#lastCreatedAt).toISOString();
 	}
 
 	/** Asks the browser not to evict the library under storage pressure (once per session). */

@@ -7,6 +7,12 @@ export interface CropRect {
 	height: number;
 }
 
+/** A position in pixels, y down. */
+export interface Point {
+	x: number;
+	y: number;
+}
+
 export interface OutputGeometry {
 	/** The part of the source that is used, clamped to the source bounds. */
 	crop: CropRect;
@@ -66,4 +72,26 @@ export function layerRect(
 	const width = layerWidth * fit;
 	const height = layerHeight * fit;
 	return { x: (sourceWidth - width) / 2, y: (sourceHeight - height) / 2, width, height };
+}
+
+/**
+ * The source pixel under a point of the full-resolution output (the inverse of the geometry
+ * pass), so pointer input on a rotated, flipped or cropped preview lands where the user sees it.
+ */
+export function outputToSource(
+	sourceWidth: number,
+	sourceHeight: number,
+	geometry: EditRecipe["geometry"],
+	point: Point
+): Point {
+	const { crop, width, height } = outputGeometry(sourceWidth, sourceHeight, geometry);
+	const radians = (geometry.rotation * Math.PI) / 180;
+	const cos = Math.cos(radians);
+	const sin = Math.sin(radians);
+	const u = (point.x - width / 2) / (geometry.scale * (geometry.flipX ? -1 : 1));
+	const v = (point.y - height / 2) / (geometry.scale * (geometry.flipY ? -1 : 1));
+	return {
+		x: crop.x + crop.width / 2 + cos * u + sin * v,
+		y: crop.y + crop.height / 2 - sin * u + cos * v,
+	};
 }

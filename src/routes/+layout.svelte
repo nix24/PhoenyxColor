@@ -8,7 +8,6 @@ import { app } from "$lib/stores/root.svelte";
 import { onMount, onDestroy } from "svelte";
 import { browser } from "$app/environment";
 import { page } from "$app/state";
-import { wasm } from "$lib/services/wasm";
 import { SITE_CONFIG, getStructuredData } from "$lib/config/seo";
 
 import { fly, fade } from "svelte/transition";
@@ -88,7 +87,6 @@ $effect(() => {
 
 // Initialize keyboard shortcuts and theme
 onMount(async () => {
-	wasm.init().catch((err) => console.error("WASM failed to load", err));
 	keyboardShortcuts.startListening();
 	mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 	mediaQuery.addEventListener("change", handleMediaChange);

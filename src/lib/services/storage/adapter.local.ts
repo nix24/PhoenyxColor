@@ -2,7 +2,7 @@ import type { z } from "zod";
 import { browser } from "$app/environment";
 
 /** Local storage adapter implementation */
-export class LocalStorageAdapter {
+export const localStorageAdapter = {
 	/** Read `key` and parse it with `schema`. Null when absent, unreadable, or invalid. */
 	async get<TSchema extends z.ZodType>(
 		key: string,
@@ -20,7 +20,7 @@ export class LocalStorageAdapter {
 			console.error(`LocalStorage get error for key "${key}":`, error);
 			return null;
 		}
-	}
+	},
 
 	async set<T>(key: string, value: T): Promise<void> {
 		if (!browser) return;
@@ -30,10 +30,10 @@ export class LocalStorageAdapter {
 			console.error(`LocalStorage set error for key "${key}":`, error);
 			throw error; // Propagate error (e.g., QuotaExceeded)
 		}
-	}
+	},
 
 	async clear(): Promise<void> {
 		if (!browser) return;
 		localStorage.clear();
-	}
-}
+	},
+};

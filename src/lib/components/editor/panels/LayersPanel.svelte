@@ -9,6 +9,7 @@ let {
 	onAddImageLayer,
 	onRemoveLayer,
 	onUpdateLayer,
+	onPreviewLayer,
 	onDuplicateLayer,
 	onReorderLayer,
 	onSetActiveLayer,
@@ -20,6 +21,8 @@ let {
 	onAddImageLayer: () => void;
 	onRemoveLayer: (id: string) => void;
 	onUpdateLayer: (id: string, updates: Partial<ImageLayer>) => void;
+	/** The opacity slider mid-drag: shown, not recorded; `onUpdateLayer` follows on release. */
+	onPreviewLayer: (id: string, updates: Partial<ImageLayer>) => void;
 	onDuplicateLayer: (id: string) => void;
 	onReorderLayer: (fromIndex: number, toIndex: number) => void;
 	onSetActiveLayer: (id: string | null) => void;
@@ -76,7 +79,7 @@ function commitRename(layerId: string) {
 }
 
 function handleOpacityChange(layerId: string, value: number) {
-	onUpdateLayer(layerId, { opacity: value / 100 });
+	onPreviewLayer(layerId, { opacity: value / 100 });
 }
 
 function handleBlendModeChange(layerId: string, value: string) {
@@ -140,6 +143,7 @@ function handleBlendModeChange(layerId: string, value: string) {
 					max="100"
 					value={Math.round(activeLayer.opacity * 100)}
 					oninput={(e) => handleOpacityChange(activeLayerId!, Number((e.target as HTMLInputElement).value))}
+					onchange={(e) => onUpdateLayer(activeLayer.id, { opacity: Number(e.currentTarget.value) / 100 })}
 					class="range range-xs range-primary flex-1"
 				/>
 				<span class="text-[11px] text-white/50 w-8 text-right tabular-nums">
