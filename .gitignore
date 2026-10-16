@@ -39,3 +39,4 @@ zig-out/
 # Vitest browser-mode failure screenshots
 __screenshots__/
 .vitest-attachments/
+.vitest/

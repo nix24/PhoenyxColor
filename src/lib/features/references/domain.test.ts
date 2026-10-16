@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import type { ReferenceId } from "$lib/types/brands";
 import { EditRecipeSchema, neutralRecipe } from "./domain";
 

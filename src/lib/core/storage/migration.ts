@@ -78,7 +78,8 @@ export async function runMigration<TLegacy, TConverted>(
 		}
 	}
 
-	const tx = db.transaction([...migration.stores, "meta"], "readwrite");
+	const storeNames: StoreName[] = [...migration.stores, "meta"];
+	const tx = db.transaction(storeNames, "readwrite");
 	try {
 		for (const record of converted) await migration.write(tx, record);
 		const meta = tx.objectStore("meta");

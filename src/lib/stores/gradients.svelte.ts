@@ -59,17 +59,17 @@ export class GradientStore {
 
 		const prevState = $state.snapshot(this.gradients);
 		this.gradients.push(newGradient);
-		this.save();
+		void this.save();
 
 		this.history.push({
 			label: "Add Gradient",
 			undo: () => {
 				this.gradients = prevState;
-				this.save();
+				void this.save();
 			},
 			redo: () => {
 				this.gradients = [...prevState, newGradient];
-				this.save();
+				void this.save();
 			},
 		});
 
@@ -87,19 +87,19 @@ export class GradientStore {
 			this.activeGradientId = null;
 		}
 
-		this.save();
+		void this.save();
 
 		this.history.push({
 			label: "Remove Gradient",
 			undo: () => {
 				this.gradients = prevState;
-				this.save();
+				void this.save();
 			},
 			redo: () => {
 				const nextState = [...prevState];
 				nextState.splice(index, 1);
 				this.gradients = nextState;
-				this.save();
+				void this.save();
 			},
 		});
 	}
@@ -114,17 +114,17 @@ export class GradientStore {
 			// Create next state before applying updates
 			const nextState = prevState.map((g, i) => (i === index ? { ...g, ...updates } : g));
 			Object.assign(item, updates);
-			this.save();
+			void this.save();
 
 			this.history.push({
 				label: "Update Gradient",
 				undo: () => {
 					this.gradients = prevState;
-					this.save();
+					void this.save();
 				},
 				redo: () => {
 					this.gradients = nextState;
-					this.save();
+					void this.save();
 				},
 			});
 		}

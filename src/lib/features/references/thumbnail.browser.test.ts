@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { ReferenceId } from "$lib/types/brands";
 import { neutralRecipe } from "./domain";
 import { decode, pixelAt, pngFromRows, type Rgba } from "./engine/fixtures";

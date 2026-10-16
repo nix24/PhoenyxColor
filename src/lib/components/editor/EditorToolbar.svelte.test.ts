@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/svelte";
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vite-plus/test";
 import EditorToolbar from "./EditorToolbar.svelte";
 
 describe("EditorToolbar", () => {

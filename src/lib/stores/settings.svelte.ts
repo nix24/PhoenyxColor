@@ -66,7 +66,7 @@ export class SettingsStore {
 
 	update(updates: Partial<ValidatedAppSettings>) {
 		Object.assign(this.state, updates);
-		this.save();
+		void this.save();
 	}
 
 	// Specific actions

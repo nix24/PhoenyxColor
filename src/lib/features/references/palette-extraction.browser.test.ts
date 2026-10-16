@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { pngFromRows, type Rgba } from "./engine/fixtures";
 import { extractPalette } from "./palette-extraction";
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { newBlobId } from "$lib/core/storage";
 import type { ReferenceId } from "$lib/types/brands";
 import type { BlendMode } from "$lib/types/image-editor";

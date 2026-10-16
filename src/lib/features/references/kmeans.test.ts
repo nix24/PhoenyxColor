@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { clusterColors } from "./kmeans";
 
 /** `count` copies of each [l, a, b], in order. */

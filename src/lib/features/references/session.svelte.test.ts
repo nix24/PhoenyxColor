@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { openDatabase, type PhoenyxDatabase } from "$lib/core/storage";
 import type { ReferenceId } from "$lib/types/brands";
 import { EditRecipeSchema, neutralRecipe, type EditRecipe } from "./domain";

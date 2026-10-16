@@ -2,7 +2,7 @@
 // jsdom's Blob does not survive structured cloning into fake-indexeddb; Node's does.
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { getBlob, newBlobId, openDatabase, type PhoenyxDatabase } from "$lib/core/storage";
 import { FilterPresetLibrary } from "./presets.svelte";
 

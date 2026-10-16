@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { EditRecipe } from "../domain";
 import { outputGeometry, outputToSource, sourceToOutputMatrix } from "./geometry";
 

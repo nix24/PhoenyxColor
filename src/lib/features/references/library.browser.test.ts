@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { openDatabase } from "$lib/core/storage";
 import { pngFromRows } from "./engine/fixtures";
 import { describeImage } from "./image-description";

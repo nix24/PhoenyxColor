@@ -3,7 +3,7 @@
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 import { openDB } from "idb";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { getBlob, openDatabase, type PhoenyxDatabase } from "$lib/core/storage";
 import { EditRecipeSchema, neutralRecipe, ReferenceSchema, type EditRecipe } from "./domain";
 import { ReferenceLibrary, type LibraryDependencies } from "./library.svelte";

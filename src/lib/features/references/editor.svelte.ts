@@ -380,7 +380,10 @@ export class ReferenceEditor {
 		URL.revokeObjectURL(this.originalUrl);
 		for (const url of this.#layerUrls.values()) URL.revokeObjectURL(url);
 		for (const url of this.#previewUrls.values())
-			void url.then(URL.revokeObjectURL, () => undefined);
+			void url.then(
+				(resolved) => URL.revokeObjectURL(resolved),
+				() => undefined
+			);
 		this.#previewUrls.clear();
 		this.#layerUrls.clear();
 		this.#layerImages.clear();

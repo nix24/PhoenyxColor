@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import type { ReferenceId } from "$lib/types/brands";
 import { neutralRecipe, type EditRecipe } from "../domain";
 import { RenderEngine } from "./engine";

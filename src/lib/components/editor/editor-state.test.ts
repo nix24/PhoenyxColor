@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { neutralRecipe, type EditRecipe } from "$lib/features/references";
 import type { ReferenceId } from "$lib/types/brands";
 import {

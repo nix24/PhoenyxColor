@@ -45,7 +45,7 @@ You are continuing the PhoenyxColor rewrite. The repo is a SvelteKit 5 + TypeScr
 > log it here, and get the maintainer's sign-off. Only then start the next stage. Never start work
 > from a later stage "while you're in there".
 
-Last updated: 2026-09-26 · Current stage: **Stage 1 (all 8 steps done; waiting for the maintainer's sign-off and the 4K frame-time check)** · Stage 0: done except the items listed under Stage 0
+Last updated: 2026-10-15 · Current stage: **UI phase: References redesign (tooling moved to Vite+; design audit next)** · Stage 1: signed off by the maintainer (4K frame-time check still open, see section 8) · Stage 0: done except the items listed under Stage 0
 
 ---
 
@@ -73,10 +73,11 @@ introduce synonyms like "photos", "images module" or "editor module" for the sam
 
 ## 2. Hard constraints (non-negotiable)
 
-1. **Backend/architecture phase only. No UI changes.** Markup, styling, layout, copy and visual
-   design stay exactly as they are. You may change what a component _reads from or calls_
-   (rewiring). You may not change what it _looks like_. The UI redesign is a separate, later phase
-   and is not planned yet.
+1. **UI changes only where the active phase allows them.** The maintainer started the UI phase for
+   References on 2026-10-15: its markup, styling, layout and copy may change. Everywhere else
+   (Palettes, Gradients, Settings) the UI stays exactly as it is; you may change only what a
+   component _reads from or calls_ (rewiring). The UI phase never changes the engine, the edit
+   session or storage.
 2. **Local-first, client-only.** No server, no accounts, no network sync. All data lives in the
    browser (IndexedDB + localStorage). The app builds as a static SPA (`@sveltejs/adapter-static`,
    `ssr = false`). A sync backend is out of scope. Do not add one.
@@ -209,18 +210,26 @@ The maintainer's rules. They apply to every line.
 
 ### Tooling (enforced)
 
-| Command                           | What it does                                                                                                                   |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `bun run check:all`               | **The gate.** `oxfmt --check` → `oxlint` → `svelte-kit sync` → `svelte-check` → `vitest --run`. Must be 0 errors / 0 warnings. |
-| `bun run lint` / `lint:fix`       | oxlint + the vendored anti-slop plugin (`tools/oxlint/anti-slop`, all rules at `"error"`)                                      |
-| `bun run format` / `format:check` | oxfmt (tabs, width 100, double quotes, `es5` trailing commas)                                                                  |
-| `bun run build` / `preview`       | static SPA build into `build/`                                                                                                 |
+| Command                           | What it does                                                                                                                                              |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run check:all`               | **The gate.** `bun run check` → `vp test --run` (Vitest 5: jsdom `unit` + Chromium `browser` projects). Must be 0 errors / 0 warnings.                    |
+| `bun run check` / `check:fix`     | `svelte-kit sync` → `vp check` (format, lint, type-aware lint, TS type-check of `.ts`) → `svelte-check` (`.svelte` files). `check:fix` = `vp check --fix` |
+| `bun run lint` / `lint:fix`       | `vp lint` (Oxlint) + the vendored anti-slop plugin (`tools/oxlint/anti-slop`, all rules at `"error"`)                                                     |
+| `bun run format` / `format:check` | `vp fmt` (Oxfmt: tabs, width 100, double quotes, `es5` trailing commas)                                                                                   |
+| `bun run build` / `preview`       | `vp build` / `vp preview`: static SPA build into `build/`                                                                                                 |
 
+- Toolchain: **Vite+** (`vite-plus`, `vp` CLI). `vite` is aliased to `@voidzero-dev/vite-plus-core`
+  (Vite 8, Rolldown) and `vitest` is pinned to the version Vite+ bundles, both through
+  `overrides` in `package.json`. Keep `vitest`, `@vitest/browser-playwright` and
+  `@vitest/coverage-v8` on that same exact version. Test files import from `vite-plus/test`.
 - Package manager: **bun**. Never use npm/yarn/pnpm lockfiles.
-- `.oxfmtrc.json` uses **oxfmt/Prettier option names** (`useTabs`, `printWidth`, …). The Biome
-  names (`indentStyle`, `lineWidth`) are silently ignored; that bug has already been fixed once.
-- `.oxlintrc.json` turns off `no-unassigned-vars` for `*.svelte` only, because oxlint cannot see
+- Lint and format config live in `vite.config.ts` (`lint` and `fmt` blocks); there is no
+  `.oxlintrc.json`/`.oxfmtrc.json` any more. `fmt` uses **Prettier option names** (`useTabs`,
+  `printWidth`, …); Biome names (`indentStyle`, `lineWidth`) are silently ignored.
+- The `lint` override turns off `no-unassigned-vars` for `*.svelte` only, because Oxlint cannot see
   Svelte `bind:this` assignments. Do not widen that override.
+- `vp check` type-checks with tsgo (TypeScript 7), `svelte-check` with TypeScript 5.9. They can
+  disagree on inference (see the 2026-10-15 log); code must pass both.
 - Never commit `.agents/` or `skills-lock.json`.
 
 ## 6. Stage plan and status
@@ -246,7 +255,7 @@ The maintainer's rules. They apply to every line.
 - **Deviation from the plan:** the v2 database and the migrations moved to Stage 1 and later (see
   "Storage v2"). Migrating before a feature switched to v2 would have lost edits.
 
-### Stage 1: References rewrite · ✅ built, waiting for sign-off
+### Stage 1: References rewrite · ✅ signed off by the maintainer on 2026-10-15 (4K frame-time check still open)
 
 Decided: the `EditRecipe` stores a snapshot of the gradient-map colors (see the 2026-09-24 log entry).
 
@@ -296,7 +305,18 @@ Build in this order. Each step ends with `check:all` green.
   (Chromium via Playwright): identity recipe ≈ source within ±1, every pass runs, export has the
   right size.
 
-### Stage 2: Palettes · 🔒 blocked until Stage 1 is signed off
+### UI phase: References redesign · 🚧 active (started 2026-10-15)
+
+The maintainer finds `/references` clunky to use and asked for a full UI/UX overhaul, "audit
+first". Scope: the gallery, the editor layout and panels, and canvas interaction. Out of scope:
+the engine, `EditSession`, storage, and every other route.
+
+1. [x] Move the toolchain to Vite+ (done before the redesign, at the maintainer's request).
+2. [ ] Audit `/references` in a real browser; rank the friction points; agree a layout with the
+       maintainer before building it.
+3. [ ] Build the agreed design; walk the critical journey (section 7) at desktop and phone widths.
+
+### Stage 2: Palettes · 🔒 not started (Stage 1 is signed off; the References UI phase goes first)
 
 Scope is in section 1. The domain: `Palette { swatches: { id, color (OKLCH), name? }[] }` plus
 optional `SchemeRoles`. All math lives in `core/color`; add APCA, harmonies and color-blind
@@ -318,7 +338,7 @@ linear/radial only. Replace the per-pixel JS loop in `MeshGradientCanvas.svelte`
 ### Deferred (not planned; ask before touching)
 
 - PWA/offline install (`src/service-worker.ts`). Decide after Stage 1.
-- The UI redesign phase.
+- The UI redesign of the other routes (References is active, see above).
 - A proper backup **import** (Settings currently shows "coming soon"). `parseImportedState` in
   `schemas/validation.ts` already parses the export format. Implement this with Stage 1 storage
   v2, and include the image blobs.
@@ -335,35 +355,71 @@ linear/radial only. Replace the per-pixel JS loop in `MeshGradientCanvas.svelte`
 
 ## 8. Known issues and risks (carry forward until fixed)
 
-| Issue                                                                                                                                                                                                                                                                                                                                                                                                                       | Where                                                                               | Fixed in                                |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------- |
-| ~~Import shrinks every image to 1920×1080 JPEG, which destroys PNG transparency~~ fixed in 7b: import stores the file as-is                                                                                                                                                                                                                                                                                                 | `services/performance.ts#optimizeImage`, `ReferencesModule.svelte#processFile`      | Stage 1 ✔                               |
-| ~~Preview ≠ export (CSS/SVG filters vs Canvas2D path)~~ fixed in 7c: preview, export and thumbnails all go through the engine (old code is unused, deleted in step 8)                                                                                                                                                                                                                                                       | `hooks/useImageEditor.svelte.ts`, `utils/canvas-renderer.ts`                        | Stage 1 ✔                               |
-| ~~Two undo systems per edit; every slider commit rewrites the whole references array (with base64 images) to IDB~~ fixed in 7c: one `EditSession` per open image, one recipe record per save                                                                                                                                                                                                                                | `useImageEditor.handleStateUpdate → syncToStore → ReferenceStore.update`            | Stage 1 ✔                               |
-| ~~History clones layer data URLs on every step (`JSON.parse(JSON.stringify)`)~~ fixed in 7c: the editor no longer uses it (only its types are still imported; see the step 8 row below)                                                                                                                                                                                                                                     | `components/editor/EditorHistory.svelte.ts`                                         | Stage 1 ✔                               |
-| ~~`mergeDown` deletes the layer instead of merging it; layers never appear in the render~~ fixed in 7c (`layer-merge.ts`; layers render in the engine)                                                                                                                                                                                                                                                                      | `useImageEditor.mergeDown`                                                          | Stage 1 ✔                               |
-| ~~Pixel ops run on the main thread, in gamma space, with a copy into and out of WASM each time~~ no longer called since 7c (the engine does the pixel work); the code is deleted in step 8                                                                                                                                                                                                                                  | `services/wasm.ts#processImage`                                                     | Stage 1 ✔                               |
-| ~~Two separate image-palette extractors with different algorithms~~ fixed in step 6 (one worker)                                                                                                                                                                                                                                                                                                                            | see Stage 1 step 6                                                                  | Stage 1 ✔                               |
-| The palettes, gradients and filter-presets stores call `save()` without awaiting it or catching errors, so failed writes (e.g. storage full) go unnoticed                                                                                                                                                                                                                                                                   | `stores/*.svelte.ts`                                                                | Stages 1–3 (stores replaced)            |
-| Mesh gradient: per-pixel JS on the main thread, `Math.random` noise (no two renders match), CSS export is a separate approximation                                                                                                                                                                                                                                                                                          | `gradients/MeshGradientCanvas.svelte`                                               | Stage 3                                 |
-| `interpolateGradientColors` maps `oklch`→`lch` and `oklab`→`lab` for chroma-js, so gradients labelled OKLCH are not actually OKLCH                                                                                                                                                                                                                                                                                          | `gradients/gradient-utils.ts`                                                       | Stage 3                                 |
-| ~~The migrations are built and tested but not run at runtime yet~~ fixed in 7b: the first load of `/references` runs them (checked in a real browser, see the log). `describeImage` has Chromium tests since step 5a                                                                                                                                                                                                        | `features/references/v1-migration.ts`                                               | Stage 1 ✔                               |
-| v1 originals were already recompressed to ≤ 1920×1080 JPEG on import (known issue above). The migration keeps those bytes as-is, so migrated images stay at v1 quality; only new imports get full resolution                                                                                                                                                                                                                | `features/references/v1-migration.ts`                                               | not fixable (data already lost in v1)   |
-| Removing a layer leaves its image in `blobs` (undo may bring the layer back); only images the final recipe points to are deleted with the reference. Needs an orphan-blob sweep                                                                                                                                                                                                                                             | `features/references/library.svelte.ts`                                             | later (not planned)                     |
-| Engine ceilings (each has a `ponytail:` note or a log entry): resampling filters straight alpha (dark fringe possible on rotated transparent edges; fix: premultiply on upload); blur kernel capped at 96 px; output and textures capped at the GPU limit (fix: tiles); export goes through a 2D canvas, which premultiplies, so semi-transparent export pixels can lose color precision                                    | `features/references/engine/`                                                       | when a user hits one                    |
-| 16 ms frame budget on a 4K image is unmeasured (headless Chromium has no GPU). Needs the maintainer's real GPU and DevTools. The editor now opens fitted to the viewport and renders at zoom × devicePixelRatio (≤ 1), so a fitted 4K image renders far fewer pixels than 8 MP. At 100 % zoom it still renders the whole image (`ponytail` upgrade path: render only the visible viewport)                                  | engine, `ImageEditorLayout.svelte`                                                  | Stage 1 sign-off (maintainer, real GPU) |
-| ~~Ctrl+Z / Ctrl+Y never reach the editor~~ fixed in 7d: the editor listens in the capture phase and stops the app-wide handler for the shortcuts it handles                                                                                                                                                                                                                                                                 | `services/keyboardShortcuts.ts`                                                     | Stage 1 ✔                               |
-| ~~Until 7d, the Palettes picker, the JSON backup and the global shortcuts still read the v1 store~~ fixed in 7d                                                                                                                                                                                                                                                                                                             | `PalettesModule.svelte`, `services/persistence.ts`, `services/keyboardShortcuts.ts` | Stage 1 ✔                               |
-| ~~Step 8 could not delete the old code until its last users moved~~ done in step 8 (types moved, Curves and preset previews moved to the engine)                                                                                                                                                                                                                                                                            | see the text                                                                        | Stage 1 ✔                               |
-| The engine's `isReduced` (export smaller than asked, GPU limit) and `isSourceDownscaled` are not shown to the user: showing them needs new UI copy                                                                                                                                                                                                                                                                          | `ExportPanelEnhanced.svelte`, `ImageCanvas.svelte`                                  | UI phase (ask)                          |
-| Presets load once, after the library's first load. If that load failed and a retry then migrated the v1 presets, they appear only after a page reload                                                                                                                                                                                                                                                                       | `features/references/presets.svelte.ts`                                             | later (not planned)                     |
-| The `docs/` Astro site still describes the Zig WASM architecture                                                                                                                                                                                                                                                                                                                                                            | `docs/src/content/docs/guides/*`                                                    | after Stage 1                           |
-| The palettes, gradients, settings, theme and history stores and `palette-utils.ts` keep `fallow-ignore` markers. Without them fallow reports about 25 members: most are false positives (`app.palettes.add(…)` goes through a nested property fallow cannot follow), a few look really unused (e.g. `ThemeStore.generateFromImage`, reached only from `src/routes/mockup`). Remove the markers when each store is rewritten | `stores/*.svelte.ts`, `palettes/palette-utils.ts`                                   | Stages 2–3                              |
+| Issue                                                                                                                                                                                                                                                                                                                                                                                                                       | Where                                                                               | Fixed in                              |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------- |
+| ~~Import shrinks every image to 1920×1080 JPEG, which destroys PNG transparency~~ fixed in 7b: import stores the file as-is                                                                                                                                                                                                                                                                                                 | `services/performance.ts#optimizeImage`, `ReferencesModule.svelte#processFile`      | Stage 1 ✔                             |
+| ~~Preview ≠ export (CSS/SVG filters vs Canvas2D path)~~ fixed in 7c: preview, export and thumbnails all go through the engine (old code is unused, deleted in step 8)                                                                                                                                                                                                                                                       | `hooks/useImageEditor.svelte.ts`, `utils/canvas-renderer.ts`                        | Stage 1 ✔                             |
+| ~~Two undo systems per edit; every slider commit rewrites the whole references array (with base64 images) to IDB~~ fixed in 7c: one `EditSession` per open image, one recipe record per save                                                                                                                                                                                                                                | `useImageEditor.handleStateUpdate → syncToStore → ReferenceStore.update`            | Stage 1 ✔                             |
+| ~~History clones layer data URLs on every step (`JSON.parse(JSON.stringify)`)~~ fixed in 7c: the editor no longer uses it (only its types are still imported; see the step 8 row below)                                                                                                                                                                                                                                     | `components/editor/EditorHistory.svelte.ts`                                         | Stage 1 ✔                             |
+| ~~`mergeDown` deletes the layer instead of merging it; layers never appear in the render~~ fixed in 7c (`layer-merge.ts`; layers render in the engine)                                                                                                                                                                                                                                                                      | `useImageEditor.mergeDown`                                                          | Stage 1 ✔                             |
+| ~~Pixel ops run on the main thread, in gamma space, with a copy into and out of WASM each time~~ no longer called since 7c (the engine does the pixel work); the code is deleted in step 8                                                                                                                                                                                                                                  | `services/wasm.ts#processImage`                                                     | Stage 1 ✔                             |
+| ~~Two separate image-palette extractors with different algorithms~~ fixed in step 6 (one worker)                                                                                                                                                                                                                                                                                                                            | see Stage 1 step 6                                                                  | Stage 1 ✔                             |
+| The palettes, gradients and settings stores call `save()` without awaiting it or catching errors (marked `void` since the Vite+ move), so failed writes (e.g. storage full) go unnoticed                                                                                                                                                                                                                                    | `stores/*.svelte.ts`                                                                | Stages 1–3 (stores replaced)          |
+| Mesh gradient: per-pixel JS on the main thread, `Math.random` noise (no two renders match), CSS export is a separate approximation                                                                                                                                                                                                                                                                                          | `gradients/MeshGradientCanvas.svelte`                                               | Stage 3                               |
+| `interpolateGradientColors` maps `oklch`→`lch` and `oklab`→`lab` for chroma-js, so gradients labelled OKLCH are not actually OKLCH                                                                                                                                                                                                                                                                                          | `gradients/gradient-utils.ts`                                                       | Stage 3                               |
+| ~~The migrations are built and tested but not run at runtime yet~~ fixed in 7b: the first load of `/references` runs them (checked in a real browser, see the log). `describeImage` has Chromium tests since step 5a                                                                                                                                                                                                        | `features/references/v1-migration.ts`                                               | Stage 1 ✔                             |
+| v1 originals were already recompressed to ≤ 1920×1080 JPEG on import (known issue above). The migration keeps those bytes as-is, so migrated images stay at v1 quality; only new imports get full resolution                                                                                                                                                                                                                | `features/references/v1-migration.ts`                                               | not fixable (data already lost in v1) |
+| Removing a layer leaves its image in `blobs` (undo may bring the layer back); only images the final recipe points to are deleted with the reference. Needs an orphan-blob sweep                                                                                                                                                                                                                                             | `features/references/library.svelte.ts`                                             | later (not planned)                   |
+| Engine ceilings (each has a `ponytail:` note or a log entry): resampling filters straight alpha (dark fringe possible on rotated transparent edges; fix: premultiply on upload); blur kernel capped at 96 px; output and textures capped at the GPU limit (fix: tiles); export goes through a 2D canvas, which premultiplies, so semi-transparent export pixels can lose color precision                                    | `features/references/engine/`                                                       | when a user hits one                  |
+| 16 ms frame budget on a 4K image is unmeasured (headless Chromium has no GPU). Needs the maintainer's real GPU and DevTools. The editor now opens fitted to the viewport and renders at zoom × devicePixelRatio (≤ 1), so a fitted 4K image renders far fewer pixels than 8 MP. At 100 % zoom it still renders the whole image (`ponytail` upgrade path: render only the visible viewport)                                  | engine, `ImageEditorLayout.svelte`                                                  | open (maintainer, real GPU)           |
+| ~~Ctrl+Z / Ctrl+Y never reach the editor~~ fixed in 7d: the editor listens in the capture phase and stops the app-wide handler for the shortcuts it handles                                                                                                                                                                                                                                                                 | `services/keyboardShortcuts.ts`                                                     | Stage 1 ✔                             |
+| ~~Until 7d, the Palettes picker, the JSON backup and the global shortcuts still read the v1 store~~ fixed in 7d                                                                                                                                                                                                                                                                                                             | `PalettesModule.svelte`, `services/persistence.ts`, `services/keyboardShortcuts.ts` | Stage 1 ✔                             |
+| ~~Step 8 could not delete the old code until its last users moved~~ done in step 8 (types moved, Curves and preset previews moved to the engine)                                                                                                                                                                                                                                                                            | see the text                                                                        | Stage 1 ✔                             |
+| The engine's `isReduced` (export smaller than asked, GPU limit) and `isSourceDownscaled` are not shown to the user: showing them needs new UI copy                                                                                                                                                                                                                                                                          | `ExportPanelEnhanced.svelte`, `ImageCanvas.svelte`                                  | UI phase (ask)                        |
+| Presets load once, after the library's first load. If that load failed and a retry then migrated the v1 presets, they appear only after a page reload                                                                                                                                                                                                                                                                       | `features/references/presets.svelte.ts`                                             | later (not planned)                   |
+| The `docs/` Astro site still describes the Zig WASM architecture                                                                                                                                                                                                                                                                                                                                                            | `docs/src/content/docs/guides/*`                                                    | after Stage 1                         |
+| The palettes, gradients, settings, theme and history stores and `palette-utils.ts` keep `fallow-ignore` markers. Without them fallow reports about 25 members: most are false positives (`app.palettes.add(…)` goes through a nested property fallow cannot follow), a few look really unused (e.g. `ThemeStore.generateFromImage`, reached only from `src/routes/mockup`). Remove the markers when each store is rewritten | `stores/*.svelte.ts`, `palettes/palette-utils.ts`                                   | Stages 2–3                            |
 
 ## 9. Progress log (newest first)
 
 Add one entry per work session: date, stage, what changed, checks actually run, any deviations,
 and what comes next.
+
+### 2026-10-15 · Stage 1 signed off; toolchain moved to Vite+; References UI phase started
+
+- Maintainer signed off Stage 1 (the 4K frame-time check stays open in section 8) and started
+  the References UI phase. First step, at their request: move the toolchain to Vite+.
+- Ran `vp migrate --no-interactive --no-agent --no-hooks --no-editor` (Vite+ 1.2.0). It moved
+  `.oxlintrc.json`/`.oxfmtrc.json` into the `lint`/`fmt` blocks of `vite.config.ts`, aliased
+  `vite` to vite-plus-core (Vite 8.3, Rolldown), pinned `vitest` 5.0.4 (plus
+  `@vitest/browser-playwright`/`coverage-v8`), rewrote test imports to `vite-plus/test` and the
+  anti-slop plugin's `@oxlint/plugins` imports to `vite-plus/lint/plugins`, added `.vitest/` to
+  `.gitignore`, and reformatted two files (Oxfmt version change: `PROGRESS.md`, `src/app.css`).
+- Follow-up by hand:
+  - Removed the three Vitest v4 compatibility settings migrate added (`clearMocks: false`,
+    `sharedViteServer: false`, `locators.exact: false`); all tests pass without them.
+  - `@sveltejs/vite-plugin-svelte` 6 → 7.3.1: v6 calls Vite 8 support experimental. Kit 2.70.2
+    accepts v7.
+  - `build.rollupOptions.output.manualChunks` → `build.rolldownOptions.output.codeSplitting.groups`
+    (both deprecated in Vite 8; same vendor groups).
+  - `plugins: lazyPlugins(…) ?? []`: `lazyPlugins` returns `undefined` when `vp check` loads the
+    config, which `exactOptionalPropertyTypes` rejects.
+  - Removed the unused `@oxlint/plugins`, `oxlint`, `oxfmt` dev deps.
+  - Scripts: `check` now runs `vp check` (with `typeAware` + `typeCheck`) before `svelte-check`;
+    added `check:fix`; `test` no longer goes through `npm run`.
+- Type-aware lint found issues the old gate did not: tsgo rejected `db.transaction([...stores,
+  "meta"], …)` in `core/storage/migration.ts` (fixed with an explicit `StoreName[]`); 16
+  unawaited `save()` calls in the palettes/gradients/settings stores and the Ctrl+S handler got
+  `void` (no behavior change; the real fix stays with the store rewrites, see section 8); one
+  `unbound-method` (`URL.revokeObjectURL` passed bare) in `features/references/editor.svelte.ts`.
+- Checks run: before the move, `check:all` green (159/159 tests). After: `bun run check:all`
+  → fmt pass, lint + type-check 0 warnings / 0 errors (138 files), `svelte-check` 0/0 (759
+  files), Vitest 5.0.4 26 files / 159 tests pass. `bun run build` succeeds with no deprecation
+  warnings. `bun run preview` + headless Chromium deep link to `/references`: page renders,
+  0 console messages, 0 page errors.
+- Not run: the manual import → edit → export journey in a real browser (the Chromium tests cover
+  the engine, editor and export paths).
+- Next: the References UI audit (UI phase, step 2).
 
 ### 2026-09-26 · Stage 1, steps 7d and 8, fallow cleanup (Stage 1 built)
 
@@ -718,7 +774,7 @@ passes · 5d effects, gradient map, layers, strokes · 5e export, context loss, 
     then a linear ramp), `opacity` × alpha, then linear → sRGB. Folded into the last pass to
     save a full-screen pass per frame.
   - The engine now keeps three work targets. Passes run through one `#pass(program, output,
-inputs, setUniforms)` helper.
+    inputs, setUniforms)` helper.
   - `adjust-passes.browser.test.ts`: 15 Chromium tests, each checking the direction of one
     control (brightness, contrast, shadows, highlights, temperature, tint, saturation,
     grayscale, vibrance, hue, sepia, invert, curves, blur, clarity, vignette, opacity).
@@ -790,7 +846,7 @@ inputs, setUniforms)` helper.
   the app yet. Running the migrations at boot still waits for step 7, per section 4 ("never
   migrate a collection before its feature reads from v2"); wiring it earlier gains nothing.
 - Added `features/references/image-description.ts`: `describeImage(blob)` → `{ width, height,
-thumbnail }`. It uses `createImageBitmap(…, { imageOrientation: "from-image" })`, so EXIF
+  thumbnail }`. It uses `createImageBitmap(…, { imageOrientation: "from-image" })`, so EXIF
   rotation is applied (**the engine must upload textures with the same option**), and an
   `OffscreenCanvas` makes a ≤ 256 px WebP thumbnail (PNG where WebP encoding is unsupported),
   never upscaled. The migration and the future import share it. `ImageDescription` moved here

@@ -102,8 +102,8 @@ class KeyboardShortcutsService {
 				key: "s",
 				ctrlKey: true,
 				action: () => {
-					Promise.all([app.palettes.save(), app.gradients.save(), app.settings.save()]).then(() =>
-						toast.success("Saved all changes")
+					void Promise.all([app.palettes.save(), app.gradients.save(), app.settings.save()]).then(
+						() => toast.success("Saved all changes")
 					);
 				},
 				description: "Save",

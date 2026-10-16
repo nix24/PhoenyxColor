@@ -60,17 +60,17 @@ export class PaletteStore {
 
 		const prevState = $state.snapshot(this.palettes);
 		this.palettes.push(newPalette);
-		this.save();
+		void this.save();
 
 		this.history.push({
 			label: "Add Palette",
 			undo: () => {
 				this.palettes = prevState;
-				this.save();
+				void this.save();
 			},
 			redo: () => {
 				this.palettes = [...prevState, newPalette];
-				this.save();
+				void this.save();
 			},
 		});
 
@@ -88,19 +88,19 @@ export class PaletteStore {
 			this.activePaletteId = null;
 		}
 
-		this.save();
+		void this.save();
 
 		this.history.push({
 			label: "Remove Palette",
 			undo: () => {
 				this.palettes = prevState;
-				this.save();
+				void this.save();
 			},
 			redo: () => {
 				const nextState = [...prevState];
 				nextState.splice(index, 1);
 				this.palettes = nextState;
-				this.save();
+				void this.save();
 			},
 		});
 	}

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/svelte";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vite-plus/test";
 import ImageLibrary from "./ImageLibrary.svelte";
 
 describe("ImageLibrary", () => {
