@@ -1,18 +1,13 @@
 <script lang="ts">
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
-import type { CropGuideType } from "$lib/types/image-editor";
-
-export interface CropRect {
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-}
-
-export type AspectRatio = "free" | "1:1" | "4:3" | "3:4" | "16:9" | "9:16" | "3:2" | "2:3";
+import type { Snippet } from "svelte";
+import type { AspectRatio, CropGuideType, CropMode, CropRect } from "$lib/types/image-editor";
 
 let {
+	mode,
+	onModeChange,
+	transform,
 	cropRect,
 	aspectRatio = "free",
 	guideType = "thirds",
@@ -25,6 +20,11 @@ let {
 	imageWidth,
 	imageHeight,
 } = $props<{
+	/** Crop shows the whole upright image with the box; Rotate shows the result. */
+	mode: CropMode;
+	onModeChange: (mode: CropMode) => void;
+	/** The rotate, flip and scale controls. */
+	transform: Snippet;
 	cropRect: CropRect | null;
 	aspectRatio: AspectRatio;
 	guideType: CropGuideType;
@@ -108,9 +108,30 @@ const cropDimensions = $derived(
 </script>
 
 <div class="space-y-5">
-	<!-- Aspect Ratio Selection -->
+	<div class="grid grid-cols-2 gap-1 rounded-xl bg-white/5 p-1" role="tablist" aria-label="Crop or rotate">
+		{#each [{ id: "crop", label: "Crop", icon: "material-symbols:crop" }, { id: "rotate", label: "Rotate & flip", icon: "material-symbols:rotate-90-degrees-ccw-outline" }] as const as tab (tab.id)}
+			<button
+				class={cn(
+					"flex min-h-10 items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors",
+					"focus-visible:outline-2 focus-visible:outline-phoenix-primary",
+					mode === tab.id ? "bg-phoenix-primary text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+				)}
+				role="tab"
+				aria-selected={mode === tab.id}
+				onclick={() => onModeChange(tab.id)}
+				type="button"
+			>
+				<Icon icon={tab.icon} class="h-4 w-4" />
+				{tab.label}
+			</button>
+		{/each}
+	</div>
+
+	{#if mode === "rotate"}
+		{@render transform()}
+	{:else}
 	<div class="space-y-3">
-		<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">Aspect Ratio</h4>
+		<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider">Aspect Ratio</h4>
 		<div class="grid grid-cols-4 gap-2">
 			{#each aspectRatios as ratio}
 				<button
@@ -121,6 +142,8 @@ const cropDimensions = $derived(
 							: "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
 					)}
 					onclick={() => onAspectRatioChange(ratio.id)}
+					aria-pressed={aspectRatio === ratio.id}
+					type="button"
 				>
 					<Icon icon={ratio.icon} class="w-5 h-5" />
 					<span class="text-[10px] font-medium">{ratio.label}</span>
@@ -129,9 +152,8 @@ const cropDimensions = $derived(
 		</div>
 	</div>
 
-	<!-- Guide Type -->
 	<div class="space-y-3">
-		<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">Guide Overlay</h4>
+		<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider">Guide Overlay</h4>
 		<div class="grid grid-cols-4 gap-2">
 			{#each guideTypes as guide}
 				<button
@@ -142,6 +164,8 @@ const cropDimensions = $derived(
 							: "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
 					)}
 					onclick={() => onGuideTypeChange(guide.id)}
+					aria-pressed={guideType === guide.id}
+					type="button"
 				>
 					<Icon icon={guide.icon} class="w-4 h-4" />
 					<span class="text-[10px] font-medium">{guide.label}</span>
@@ -150,27 +174,29 @@ const cropDimensions = $derived(
 		</div>
 	</div>
 
-	<!-- Quick Actions -->
 	<div class="space-y-3">
-		<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">Quick Actions</h4>
+		<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider">Quick Actions</h4>
 		<div class="grid grid-cols-3 gap-2">
 			<button
-				class="btn btn-sm bg-white/5 border-white/10 text-white hover:bg-white/10"
+				class="btn btn-sm min-h-11 bg-white/5 border-white/10 text-white hover:bg-white/10"
 				onclick={setFullCrop}
+				type="button"
 			>
 				<Icon icon="material-symbols:fullscreen" class="w-4 h-4" />
 				Full
 			</button>
 			<button
-				class="btn btn-sm bg-white/5 border-white/10 text-white hover:bg-white/10"
+				class="btn btn-sm min-h-11 bg-white/5 border-white/10 text-white hover:bg-white/10"
 				onclick={setCenterCrop}
+				type="button"
 			>
 				<Icon icon="material-symbols:center-focus-strong" class="w-4 h-4" />
 				Center
 			</button>
 			<button
-				class="btn btn-sm bg-white/5 border-white/10 text-white hover:bg-white/10"
+				class="btn btn-sm min-h-11 bg-white/5 border-white/10 text-white hover:bg-white/10"
 				onclick={flipCrop}
+				type="button"
 				disabled={!cropRect}
 			>
 				<Icon icon="material-symbols:swap-horiz" class="w-4 h-4" />
@@ -179,12 +205,11 @@ const cropDimensions = $derived(
 		</div>
 	</div>
 
-	<!-- Numeric Dimensions -->
 	<div class="space-y-3">
-		<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">Dimensions</h4>
+		<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider">Dimensions</h4>
 		<div class="grid grid-cols-2 gap-3">
 			<div class="space-y-1">
-				<label for="crop-width" class="text-[10px] text-white/40 uppercase">Width</label>
+				<label for="crop-width" class="text-[10px] text-white/60 uppercase">Width</label>
 				<input
 					id="crop-width"
 					type="number"
@@ -196,7 +221,7 @@ const cropDimensions = $derived(
 				/>
 			</div>
 			<div class="space-y-1">
-				<label for="crop-height" class="text-[10px] text-white/40 uppercase">Height</label>
+				<label for="crop-height" class="text-[10px] text-white/60 uppercase">Height</label>
 				<input
 					id="crop-height"
 					type="number"
@@ -210,30 +235,30 @@ const cropDimensions = $derived(
 		</div>
 	</div>
 
-	<!-- Extract Palette from Region -->
 	<div class="space-y-3">
-		<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">Color Extraction</h4>
+		<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider">Color Extraction</h4>
 		<button
-			class="btn btn-sm w-full bg-phoenix-violet/20 border-phoenix-violet/30 text-phoenix-violet hover:bg-phoenix-violet/30"
+			class="btn btn-sm min-h-11 w-full bg-phoenix-violet/20 border-phoenix-violet/40 text-white hover:bg-phoenix-violet/30"
 			onclick={onExtractFromRegion}
 			disabled={!cropRect}
+			type="button"
 		>
 			<Icon icon="material-symbols:colorize" class="w-4 h-4" />
-			Extract Palette from Selection
+			Extract palette from this area
 		</button>
 		{#if !cropRect}
-			<p class="text-xs text-white/40 text-center">Draw a selection first</p>
+			<p class="text-xs text-white/60 text-center">Draw a selection first</p>
 		{/if}
 	</div>
 
-	<!-- Action Buttons -->
-	<div class="flex gap-2 pt-4 border-t border-white/10">
-		<button class="btn btn-sm flex-1 btn-ghost text-white/60" onclick={onCancelCrop}>
+	<div class="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-white/10 bg-void-deep/95 px-4 py-3 backdrop-blur-xl">
+		<button class="btn btn-sm min-h-11 flex-1 btn-ghost text-white/70" onclick={onCancelCrop} type="button">
 			Cancel
 		</button>
-		<button class="btn btn-sm flex-1 btn-primary" onclick={onApplyCrop} disabled={!cropRect}>
+		<button class="btn btn-sm min-h-11 flex-1 btn-primary" onclick={onApplyCrop} disabled={!cropRect} type="button">
 			<Icon icon="material-symbols:check" class="w-4 h-4" />
-			Apply Crop
+			Done
 		</button>
 	</div>
+	{/if}
 </div>

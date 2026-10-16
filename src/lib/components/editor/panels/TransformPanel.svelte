@@ -13,15 +13,14 @@ let { editorState, onUpdate, onPreview } = $props<{
 </script>
 
 <div class="space-y-6">
-	<!-- Flip Controls -->
 	<div class="space-y-3">
-		<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">Flip</h4>
+		<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider">Flip</h4>
 		<div class="grid grid-cols-2 gap-2">
 			<button
 				class={cn(
 					"btn btn-sm gap-2 transition-all",
 					editorState.flipX
-						? "btn-primary"
+						? "border-transparent bg-phoenix-primary text-white"
 						: "bg-white/5 border-white/10 text-white hover:bg-white/10"
 				)}
 				onclick={() => onUpdate({ flipX: !editorState.flipX })}
@@ -33,7 +32,7 @@ let { editorState, onUpdate, onPreview } = $props<{
 				class={cn(
 					"btn btn-sm gap-2 transition-all",
 					editorState.flipY
-						? "btn-primary"
+						? "border-transparent bg-phoenix-primary text-white"
 						: "bg-white/5 border-white/10 text-white hover:bg-white/10"
 				)}
 				onclick={() => onUpdate({ flipY: !editorState.flipY })}
@@ -44,21 +43,23 @@ let { editorState, onUpdate, onPreview } = $props<{
 		</div>
 	</div>
 
-	<!-- Rotation -->
 	<div class="space-y-3">
-		<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">Rotation</h4>
+		<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider">Rotation</h4>
 
-		<!-- Quick Rotation Buttons -->
 		<div class="grid grid-cols-4 gap-2">
 			<button
 				class="btn btn-sm bg-white/5 border-white/10 text-white hover:bg-white/10"
 				onclick={() => onUpdate({ rotation: (editorState.rotation - 90 + 360) % 360 })}
+				aria-label="Rotate left 90°"
+				type="button"
 			>
 				<Icon icon="material-symbols:rotate-left" class="w-5 h-5" />
 			</button>
 			<button
 				class="btn btn-sm bg-white/5 border-white/10 text-white hover:bg-white/10"
 				onclick={() => onUpdate({ rotation: (editorState.rotation + 90) % 360 })}
+				aria-label="Rotate right 90°"
+				type="button"
 			>
 				<Icon icon="material-symbols:rotate-right" class="w-5 h-5" />
 			</button>
@@ -70,13 +71,13 @@ let { editorState, onUpdate, onPreview } = $props<{
 			</button>
 		</div>
 
-		<!-- Fine Rotation Slider -->
 		<div class="space-y-2">
 			<div class="flex items-center justify-between">
-				<span class="text-sm text-white">Fine Rotation</span>
+				<label for="transform-rotation" class="text-sm text-white">Fine Rotation</label>
 				<span class="text-xs font-mono text-white/60">{editorState.rotation}°</span>
 			</div>
 			<input
+				id="transform-rotation"
 				type="range"
 				min="0"
 				max="360"
@@ -88,14 +89,13 @@ let { editorState, onUpdate, onPreview } = $props<{
 			/>
 		</div>
 
-		<!-- Rotation Presets -->
 		<div class="grid grid-cols-5 gap-1">
 			{#each [0, 45, 90, 180, 270] as angle}
 				<button
 					class={cn(
 						"btn btn-xs",
 						editorState.rotation === angle
-							? "btn-primary"
+							? "border-transparent bg-phoenix-primary text-white"
 							: "bg-white/5 border-white/10 text-white/60 hover:text-white"
 					)}
 					onclick={() => onUpdate({ rotation: angle })}
@@ -106,16 +106,16 @@ let { editorState, onUpdate, onPreview } = $props<{
 		</div>
 	</div>
 
-	<!-- Scale -->
 	<div class="space-y-3">
-		<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">Scale</h4>
+		<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider">Scale</h4>
 
 		<div class="space-y-2">
 			<div class="flex items-center justify-between">
-				<span class="text-sm text-white">Image Scale</span>
+				<label for="transform-scale" class="text-sm text-white">Image Scale</label>
 				<span class="text-xs font-mono text-white/60">{Math.round(editorState.scale * 100)}%</span>
 			</div>
 			<input
+				id="transform-scale"
 				type="range"
 				min="0.1"
 				max="3"
@@ -127,14 +127,13 @@ let { editorState, onUpdate, onPreview } = $props<{
 			/>
 		</div>
 
-		<!-- Scale Presets -->
 		<div class="grid grid-cols-4 gap-2">
 			{#each [50, 100, 150, 200] as percent}
 				<button
 					class={cn(
 						"btn btn-xs",
 						Math.round(editorState.scale * 100) === percent
-							? "btn-primary"
+							? "border-transparent bg-phoenix-primary text-white"
 							: "bg-white/5 border-white/10 text-white/60 hover:text-white"
 					)}
 					onclick={() => onUpdate({ scale: percent / 100 })}
@@ -145,7 +144,6 @@ let { editorState, onUpdate, onPreview } = $props<{
 		</div>
 	</div>
 
-	<!-- Reset All Transforms -->
 	<div class="pt-4 border-t border-white/10">
 		<button
 			class="btn btn-sm w-full btn-outline btn-error"

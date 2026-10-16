@@ -13,7 +13,6 @@ export class PaletteStore {
 	private loadPromise: Promise<void>;
 
 	constructor() {
-		// Non-blocking initialization - store the promise but don't await
 		this.loadPromise = this.load();
 	}
 
@@ -46,7 +45,6 @@ export class PaletteStore {
 		await storage.db.set(this.STORAGE_KEY, $state.snapshot(this.palettes));
 	}
 
-	// Actions
 	add(palette: Omit<ValidatedColorPalette, "id" | "createdAt">) {
 		// SAFETY: `PaletteId` brands a UUID string, which is exactly what
 		// `crypto.randomUUID()` produces.
@@ -55,8 +53,6 @@ export class PaletteStore {
 			id: crypto.randomUUID() as PaletteId,
 			createdAt: new Date(),
 		};
-
-		// Validation could go here
 
 		const prevState = $state.snapshot(this.palettes);
 		this.palettes.push(newPalette);

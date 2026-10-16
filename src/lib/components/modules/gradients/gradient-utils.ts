@@ -1,8 +1,5 @@
-// Gradient Studio Utilities
 import chroma from "chroma-js";
 import type { ValidatedGradient, ValidatedGradientStop } from "$lib/schemas/validation";
-
-// --- Types ---
 
 export type GradientType = "linear" | "radial" | "conic" | "mesh";
 export type InterpolationMode = "oklch" | "oklab" | "rgb" | "hsl" | "lab" | "lch";
@@ -46,8 +43,6 @@ interface MoodConfig {
 	hueShift: number;
 }
 
-// --- Constants ---
-
 export const INTERPOLATION_MODES: { id: InterpolationMode; name: string; description: string }[] = [
 	{ id: "oklch", name: "OKLCH", description: "Perceptually uniform, best for most gradients" },
 	{ id: "oklab", name: "OKLab", description: "Perceptually uniform lightness" },
@@ -77,10 +72,7 @@ export const PRESET_CATEGORIES: { id: PresetCategory; name: string; icon: string
 	{ id: "mesh", name: "Mesh", icon: "material-symbols:grid-4x4" },
 ];
 
-// --- Enhanced Gradient Presets ---
-
 export const GRADIENT_PRESETS: GradientPreset[] = [
-	// Trending
 	{
 		name: "Sunset Vibes",
 		colors: ["#ff9a9e", "#fecfef", "#fecfef"],
@@ -116,7 +108,6 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 		angle: 120,
 	},
 
-	// Nature
 	{
 		name: "Forest Dawn",
 		colors: ["#134e5e", "#71b280"],
@@ -152,7 +143,6 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 		angle: 45,
 	},
 
-	// Vibrant
 	{
 		name: "Electric Lime",
 		colors: ["#00f260", "#0575e6"],
@@ -187,7 +177,6 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 		angle: 45,
 	},
 
-	// Dark
 	{
 		name: "Midnight",
 		colors: ["#232526", "#414345"],
@@ -222,7 +211,6 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 		type: "radial",
 	},
 
-	// Pastel
 	{
 		name: "Cotton Candy",
 		colors: ["#ffecd2", "#fcb69f"],
@@ -258,7 +246,6 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 		angle: 45,
 	},
 
-	// Holographic
 	{
 		name: "Hologram",
 		colors: ["#a8ff78", "#78ffd6", "#78c6ff", "#a878ff", "#ff78f0"],
@@ -288,7 +275,6 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 		angle: 90,
 	},
 
-	// Glassmorphism
 	{
 		name: "Frosted Glass",
 		colors: ["rgba(255,255,255,0.4)", "rgba(255,255,255,0.1)"],
@@ -310,7 +296,6 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 		angle: 180,
 	},
 
-	// Aurora
 	{
 		name: "Aurora Borealis",
 		colors: ["#00d2ff", "#3a7bd5", "#00d2ff", "#928dab"],
@@ -339,7 +324,6 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 		type: "conic",
 	},
 
-	// Duotone
 	{
 		name: "Sunset Duo",
 		colors: ["#ff6b6b", "#feca57"],
@@ -376,7 +360,6 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 		angle: 45,
 	},
 
-	// Mesh-style (simulated with multi-stop)
 	{
 		name: "Mesh Sunset",
 		colors: ["#ff9a9e", "#fad0c4", "#ffecd2", "#fcb69f"],
@@ -397,8 +380,10 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
 	},
 ];
 
-// --- CSS Generation ---
-
+/**
+ * CSS gradient for `gradient`, sorted by stop position. Null or stopless gives a default blue to
+ * violet; `rgb` omits the `in <space>` clause; mesh falls back to linear.
+ */
 export function generateCSSGradient(
 	gradient: ValidatedGradient | null,
 	interpolationMode: InterpolationMode = "oklch"
@@ -424,6 +409,7 @@ export function generateCSSGradient(
 	}
 }
 
+/** Two-color Tailwind approximation: first and last stop, angle snapped to the nearest 45°. */
 export function generateTailwindGradient(gradient: ValidatedGradient): string {
 	if (!gradient || !gradient.stops || gradient.stops.length < 2) return "";
 
@@ -431,7 +417,6 @@ export function generateTailwindGradient(gradient: ValidatedGradient): string {
 	const firstColor = sortedStops[0]?.color || "#000";
 	const lastColor = sortedStops[sortedStops.length - 1]?.color || "#fff";
 
-	// Convert angle to Tailwind direction
 	const angleToDirection = new Map([
 		[0, "to-t"],
 		[45, "to-tr"],
@@ -474,8 +459,6 @@ export function generateCSSVariables(gradient: ValidatedGradient, prefix = "grad
 
 	return lines.join("\n");
 }
-
-// --- Color Manipulation ---
 
 function interpolateGradientColors(
 	colors: string[],
@@ -524,8 +507,7 @@ export function distributeStopsEvenly(stops: ValidatedGradientStop[]): Validated
 	}));
 }
 
-// --- Mood-based Generation ---
-
+/** Hex colors around `baseColor`'s hue (random when omitted); saturation is random per call. */
 export function generateMoodGradient(mood: MoodType, baseColor?: string, colorCount = 3): string[] {
 	const seed = baseColor || getRandomColor();
 
@@ -575,8 +557,6 @@ function getRandomColor(): string {
 	return chroma.random().hex();
 }
 
-// --- Mesh Gradient Utilities ---
-
 function createMeshPoint(x: number, y: number, color?: string): MeshPoint {
 	return {
 		id: crypto.randomUUID(),
@@ -587,10 +567,10 @@ function createMeshPoint(x: number, y: number, color?: string): MeshPoint {
 	};
 }
 
+/** One radial gradient per point, layered, each fading to transparent at its radius (%). */
 export function generateMeshGradientCSS(points: MeshPoint[]): string {
 	if (points.length === 0) return "transparent";
 
-	// Generate multiple radial gradients layered together
 	const gradients = points.map((point) => {
 		const color = chroma(point.color);
 		const transparent = color.alpha(0).css();
@@ -600,8 +580,8 @@ export function generateMeshGradientCSS(points: MeshPoint[]): string {
 	return gradients.join(", ");
 }
 
+/** Four points with hues spread around a random base. */
 export function generateDefaultMeshPoints(): MeshPoint[] {
-	// Generate random colors instead of hardcoded ones
 	const baseHue = Math.random() * 360;
 	return [
 		createMeshPoint(20, 20, chroma.hsl(baseHue, 0.7, 0.55).hex()),
@@ -611,10 +591,10 @@ export function generateDefaultMeshPoints(): MeshPoint[] {
 	];
 }
 
+/** One point per color at fixed positions, at most 8; no colors gives the random default. */
 export function generateMeshPointsFromColors(colors: string[]): MeshPoint[] {
 	if (colors.length === 0) return generateDefaultMeshPoints();
 
-	// Predefined positions for mesh points based on count
 	const positions: [number, number][] = [
 		[25, 25],
 		[75, 25],
@@ -632,8 +612,7 @@ export function generateMeshPointsFromColors(colors: string[]): MeshPoint[] {
 	});
 }
 
-// --- Export Utilities ---
-
+/** Standalone SVG document filling `width`×`height` with `gradient`. */
 export function gradientToSVG(gradient: ValidatedGradient, width = 400, height = 200): string {
 	const gradientId = `gradient-${Date.now()}`;
 	let gradientDef = "";
@@ -682,8 +661,7 @@ export function gradientToSVG(gradient: ValidatedGradient, width = 400, height =
 </svg>`;
 }
 
-// --- Validation Helpers ---
-
+/** Hex color at `position` (0–100) along the stops, clamped to the end stops; gray when empty. */
 export function interpolateColorAtPosition(
 	stops: ValidatedGradientStop[],
 	position: number,
@@ -705,6 +683,7 @@ export function interpolateColorAtPosition(
 	return "#808080";
 }
 
+/** Black or white, whichever reads on `bgColor`; white when it cannot be parsed. */
 export function getContrastColor(bgColor: string): string {
 	try {
 		const luminance = chroma(bgColor).luminance();

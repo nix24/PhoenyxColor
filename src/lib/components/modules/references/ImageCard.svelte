@@ -2,120 +2,85 @@
 import type { LibraryItem } from "$lib/features/references";
 import type { ReferenceId } from "$lib/types/brands";
 import Icon from "@iconify/svelte";
-import { cn } from "$lib/utils/cn";
+import ReferenceActionsMenu from "./ReferenceActionsMenu.svelte";
 
 interface Props {
 	item: LibraryItem;
-	isSelected: boolean;
-	isFeatured?: boolean;
 	onEdit: (id: ReferenceId) => void;
 	onDuplicate: (id: ReferenceId) => void;
 	onDelete: (id: ReferenceId) => void;
-	onContextMenu: (e: MouseEvent, item: LibraryItem) => void;
 }
 
-const {
-	item,
-	isSelected,
-	isFeatured = false,
-	onEdit,
-	onDuplicate,
-	onDelete,
-	onContextMenu,
-}: Props = $props();
+const { item, onEdit, onDuplicate, onDelete }: Props = $props();
 
 const reference = $derived(item.reference);
 
 // Thumbnails are rendered with the edits baked in, so there is no filter or opacity to apply here.
 let imageFailed = $state(false);
+let actions: ReferenceActionsMenu | null = $state(null);
 </script>
 
 <article
-	class={cn(
-		"group relative overflow-hidden rounded-xl transition-all duration-300",
-		"bg-white/5 border border-white/5 hover:border-white/15",
-		isFeatured && "@md:col-span-2 @md:row-span-2",
-		isSelected && "ring-2 ring-phoenix-primary ring-offset-1 ring-offset-void"
-	)}
-	oncontextmenu={(e) => onContextMenu(e, item)}
+	class="group relative rounded-xl border border-white/5 bg-white/5 transition-colors duration-200 hover:border-white/15"
+	oncontextmenu={(e) => {
+		e.preventDefault();
+		actions?.openAt(e.clientX, e.clientY);
+	}}
 >
 	<button
 		type="button"
-		class="absolute inset-0 z-10 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-phoenix-primary"
+		class="block w-full overflow-hidden rounded-t-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-phoenix-primary"
 		onclick={() => onEdit(reference.id)}
 		aria-label={`Edit ${reference.name}`}
-	></button>
+	>
+		<span class="relative block aspect-square overflow-hidden bg-checkered-sm">
+			{#if imageFailed || !item.thumbnailUrl}
+				<span class="flex h-full w-full flex-col items-center justify-center gap-2 bg-white/4 px-4 text-center text-white/60">
+					<Icon icon="material-symbols:broken-image-outline" class="h-8 w-8" />
+					<span class="text-xs">Preview unavailable</span>
+				</span>
+			{:else}
+				<img
+					src={item.thumbnailUrl}
+					alt=""
+					class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+					loading="lazy"
+					onerror={() => (imageFailed = true)}
+				/>
+			{/if}
+		</span>
+	</button>
 
-	<!-- Image -->
-	<div class={cn("relative overflow-hidden", isFeatured ? "aspect-4/3" : "aspect-square")}>
-		{#if imageFailed || !item.thumbnailUrl}
-			<div class="flex h-full w-full flex-col items-center justify-center gap-2 bg-white/4 px-4 text-center text-white/45" role="status">
-				<Icon icon="material-symbols:broken-image-outline" class="h-8 w-8" />
-				<span class="text-xs">Preview unavailable</span>
-			</div>
-		{:else}
-			<img
-				src={item.thumbnailUrl}
-				alt={reference.name}
-				class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-				loading="lazy"
-				onerror={() => (imageFailed = true)}
-			/>
-		{/if}
-
-		<!-- Bottom gradient -->
-		<div class="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/70 to-transparent"></div>
-
-		<!-- Action buttons -->
-		<div class="absolute right-2 top-2 z-20 flex gap-1 opacity-100 transition-opacity duration-200 @md:pointer-events-none @md:opacity-0 @md:group-hover:pointer-events-auto @md:group-hover:opacity-100 @md:group-focus-within:pointer-events-auto @md:group-focus-within:opacity-100">
-			<button
-				class="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-black/60 text-white/80 backdrop-blur-sm transition-all hover:bg-black/80 hover:text-white"
-				onclick={(e) => {
-					e.stopPropagation();
-					onDuplicate(reference.id);
-				}}
-				aria-label={`Duplicate ${reference.name}`}
-				type="button"
-			>
-				<Icon icon="material-symbols:content-copy" class="h-4 w-4" />
-			</button>
-			<button
-				class="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-black/60 text-white/80 backdrop-blur-sm transition-all hover:bg-red-400/20 hover:text-red-300"
-				onclick={(e) => {
-					e.stopPropagation();
-					onDelete(reference.id);
-				}}
-				aria-label={`Delete ${reference.name}`}
-				type="button"
-			>
-				<Icon icon="material-symbols:delete-outline" class="h-4 w-4" />
-			</button>
-		</div>
-
-		<!-- Selected indicator -->
-		{#if isSelected}
-			<div class="absolute top-2 left-2">
-				<div class="w-6 h-6 rounded-full bg-phoenix-primary flex items-center justify-center shadow-lg">
-					<Icon icon="material-symbols:check" class="w-4 h-4 text-white" />
-				</div>
-			</div>
-		{/if}
-	</div>
-
-	<!-- Image name -->
-	<div class="flex items-center gap-2 px-2.5 py-2">
-		<p
-			class={cn(
-				"text-xs truncate flex-1 transition-colors",
-				isSelected ? "text-phoenix-primary font-medium" : "text-text-muted group-hover:text-white"
-			)}
-			title={reference.name}
-		>
+	<div class="flex items-center gap-1 py-0.5 pl-2.5 pr-0.5">
+		<p class="min-w-0 flex-1 truncate text-xs text-text-muted transition-colors group-hover:text-white" title={reference.name}>
 			{reference.name}
 		</p>
-		<Icon
-			icon="material-symbols:edit"
-			class="w-3.5 h-3.5 text-white/30 shrink-0 @md:hidden"
+		<ReferenceActionsMenu
+			bind:this={actions}
+			referenceName={reference.name}
+			menuId={`reference-actions-${reference.id}`}
+			class="pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100 pointer-fine:focus-visible:opacity-100"
+			onOpen={() => onEdit(reference.id)}
+			onDuplicate={() => onDuplicate(reference.id)}
+			onDelete={() => onDelete(reference.id)}
 		/>
 	</div>
 </article>
+
+<style>
+	/* Transparent thumbnails sit on a quiet checkerboard, as the editor canvas does. */
+	.bg-checkered-sm {
+		background-color: rgb(255 255 255 / 0.03);
+		background-image:
+			linear-gradient(45deg, rgb(255 255 255 / 0.05) 25%, transparent 25%),
+			linear-gradient(-45deg, rgb(255 255 255 / 0.05) 25%, transparent 25%),
+			linear-gradient(45deg, transparent 75%, rgb(255 255 255 / 0.05) 75%),
+			linear-gradient(-45deg, transparent 75%, rgb(255 255 255 / 0.05) 75%);
+		background-size: 16px 16px;
+		background-position:
+			0 0,
+			0 8px,
+			8px -8px,
+			-8px 0;
+	}
+</style>

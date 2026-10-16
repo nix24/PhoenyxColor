@@ -31,7 +31,6 @@ let {
 	onSelect = undefined,
 }: Props = $props();
 
-// Library state
 type LibraryTab = "gradients" | "presets";
 let activeTab = $state<LibraryTab>("gradients");
 let viewMode = $state<"grid" | "list">("grid");
@@ -69,7 +68,6 @@ function deleteGradient(gradientId: string, name: string, e: Event) {
 </script>
 
 <div class="flex flex-col h-full gap-3 w-full">
-	<!-- Quick Actions -->
 	<div class="grid grid-cols-2 gap-2 shrink-0">
 		<button
 			class="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-black/30 border border-white/5 hover:border-phoenix-primary/30 hover:bg-white/5 transition-all group"
@@ -101,7 +99,6 @@ function deleteGradient(gradientId: string, name: string, e: Event) {
 		</button>
 	</div>
 
-	<!-- Search -->
 	<div class="relative shrink-0">
 		<Icon
 			icon="material-symbols:search"
@@ -115,7 +112,6 @@ function deleteGradient(gradientId: string, name: string, e: Event) {
 		/>
 	</div>
 
-	<!-- Tab Bar -->
 	<div class="flex gap-1 bg-black/20 rounded-lg p-1 shrink-0">
 		<button
 			class={cn(
@@ -141,10 +137,8 @@ function deleteGradient(gradientId: string, name: string, e: Event) {
 		</button>
 	</div>
 
-	<!-- Content -->
 	<div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
 		{#if activeTab === "gradients"}
-			<!-- View toggle -->
 			<div class="flex items-center justify-end mb-2 gap-1">
 				<button
 					class={cn(
@@ -172,7 +166,6 @@ function deleteGradient(gradientId: string, name: string, e: Event) {
 
 			{#if viewMode === "grid"}
 				<div class="grid grid-cols-2 gap-3 content-start">
-					<!-- New Gradient Card -->
 					<button
 						class="aspect-square rounded-xl border-2 border-dashed border-white/10 hover:border-phoenix-primary/50 flex flex-col items-center justify-center gap-2 group transition-all"
 						onclick={onCreateNew}
@@ -218,7 +211,6 @@ function deleteGradient(gradientId: string, name: string, e: Event) {
 					{/each}
 				</div>
 			{:else}
-				<!-- List view -->
 				<div class="space-y-2">
 					{#each filteredGradients as gradient (gradient.id)}
 						<div
@@ -263,8 +255,6 @@ function deleteGradient(gradientId: string, name: string, e: Event) {
 				</div>
 			{/if}
 		{:else}
-			<!-- Presets Tab -->
-			<!-- Category Filter Pills -->
 			<div class="flex gap-1.5 flex-wrap mb-3">
 				<button
 					class={cn(
@@ -293,7 +283,6 @@ function deleteGradient(gradientId: string, name: string, e: Event) {
 				{/each}
 			</div>
 
-			<!-- Preset Grid -->
 			<div class="grid grid-cols-2 gap-3 content-start">
 				{#each filteredPresets as preset}
 					<button

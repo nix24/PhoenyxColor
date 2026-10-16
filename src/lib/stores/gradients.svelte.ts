@@ -13,7 +13,6 @@ export class GradientStore {
 	private loadPromise: Promise<void>;
 
 	constructor() {
-		// Non-blocking initialization - store the promise but don't await
 		this.loadPromise = this.load();
 	}
 
@@ -111,7 +110,6 @@ export class GradientStore {
 		const item = this.gradients[index];
 		if (item) {
 			const prevState = $state.snapshot(this.gradients);
-			// Create next state before applying updates
 			const nextState = prevState.map((g, i) => (i === index ? { ...g, ...updates } : g));
 			Object.assign(item, updates);
 			void this.save();

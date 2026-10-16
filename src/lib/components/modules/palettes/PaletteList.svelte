@@ -15,7 +15,6 @@ interface Props {
 
 let { searchTerm = "", onCreateNew, onExtract, onDelete, onSelect }: Props = $props();
 
-// Initial loading state for skeleton display
 let isLoading = $state(true);
 
 onMount(() => {
@@ -48,7 +47,6 @@ function timeAgo(date: Date) {
 </script>
 
 <div class="w-full h-full flex flex-col gap-4 p-4">
-	<!-- Actions -->
 	<div class="space-y-2">
 		<button
 			class="btn btn-outline border-white/20 hover:border-white/40 hover:bg-white/5 w-full normal-case gap-2 text-white h-11"
@@ -77,7 +75,6 @@ function timeAgo(date: Date) {
 		</div>
 	</div>
 
-	<!-- Workspace List -->
 	<div class="flex-1 flex flex-col min-h-0">
 		<h3 class="text-[10px] font-semibold text-text-muted/60 uppercase tracking-widest mb-3">Workspace</h3>
 
@@ -102,7 +99,6 @@ function timeAgo(date: Date) {
 							onSelect?.();
 						}}
 					>
-						<!-- Active indicator line -->
 						{#if isActive}
 							<div
 								class="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-phoenix-primary"
@@ -116,7 +112,6 @@ function timeAgo(date: Date) {
 							{/if}
 						</div>
 
-						<!-- Full-spectrum Color Bar -->
 						<div class="h-2.5 w-full rounded-full flex overflow-hidden bg-black/40 mb-2">
 							{#if palette.colors.length > 0}
 								{#each palette.colors as color}

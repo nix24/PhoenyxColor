@@ -47,14 +47,12 @@ let actualSize = $derived({
 	height: containerHeight || previewSize.height,
 });
 
-// Calculate gradient CSS
 let gradientCSS = $derived(
 	meshPoints.length > 0
 		? generateMeshGradientCSS(meshPoints)
 		: generateCSSGradient(gradient, interpolationMode),
 );
 
-// Calculate handle positions for linear gradient
 let angleHandlePosition = $derived.by(() => {
 	if (!gradient || gradient.type !== "linear") return null;
 	const angle = gradient.angle || 45;
@@ -66,7 +64,6 @@ let angleHandlePosition = $derived.by(() => {
 	};
 });
 
-// Calculate center handle position for radial/conic
 let centerHandlePosition = $derived.by(() => {
 	if (!gradient || (gradient.type !== "radial" && gradient.type !== "conic")) return null;
 	return {
@@ -138,20 +135,15 @@ function getStopHandleX(position: number): number {
 	bind:clientHeight={containerHeight}
 	class="relative rounded-xl overflow-hidden shadow-2xl border border-white/10 w-full h-full"
 >
-	<!-- Checkerboard Background (for transparency) -->
 	<div
 		class="absolute inset-0 opacity-20"
 		style="background-image: linear-gradient(45deg, #444 25%, transparent 25%), linear-gradient(-45deg, #444 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #444 75%), linear-gradient(-45deg, transparent 75%, #444 75%); background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0px;"
 	></div>
 
-	<!-- Gradient -->
 	<div class="absolute inset-0 transition-all duration-300" style:background={gradientCSS}></div>
 
-	<!-- Interactive Handles Overlay -->
 	{#if showInteractiveHandles && gradient}
-		<!-- Linear Gradient Angle Handle -->
 		{#if gradient.type === "linear" && angleHandlePosition}
-			<!-- Angle line -->
 			<svg class="absolute inset-0 pointer-events-none" style:width="100%" style:height="100%">
 				<line
 					x1={actualSize.width / 2}
@@ -165,14 +157,12 @@ function getStopHandleX(position: number): number {
 				/>
 			</svg>
 
-			<!-- Center point -->
 			<div
 				class="absolute w-3 h-3 bg-white rounded-full border-2 border-phoenix-primary shadow-lg pointer-events-none"
 				style:left="{actualSize.width / 2 - 6}px"
 				style:top="{actualSize.height / 2 - 6}px"
 			></div>
 
-			<!-- Angle handle -->
 			<button
 				type="button"
 				class={cn(
@@ -191,7 +181,6 @@ function getStopHandleX(position: number): number {
 			</button>
 		{/if}
 
-		<!-- Radial/Conic Center Handle -->
 		{#if (gradient.type === "radial" || gradient.type === "conic") && centerHandlePosition}
 			<button
 				type="button"
@@ -208,7 +197,6 @@ function getStopHandleX(position: number): number {
 			</button>
 		{/if}
 
-		<!-- Color Stop Handles (for linear gradients) -->
 		{#if gradient.type === "linear" && gradient.stops}
 			<div class="absolute bottom-0 left-0 right-0 h-8 bg-black/30 backdrop-blur-sm">
 				{#each gradient.stops as stop, index}
@@ -231,7 +219,6 @@ function getStopHandleX(position: number): number {
 		{/if}
 	{/if}
 
-	<!-- Mesh Points -->
 	{#if showInteractiveHandles && meshPoints.length > 0}
 		{#each meshPoints as point}
 			<button
@@ -250,7 +237,6 @@ function getStopHandleX(position: number): number {
 		{/each}
 	{/if}
 
-	<!-- Gradient Info Overlay -->
 	{#if gradient}
 		<div
 			class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-sm rounded-lg px-2 py-1 text-xs text-white/80 pointer-events-none"

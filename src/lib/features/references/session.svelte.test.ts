@@ -42,6 +42,15 @@ afterEach(async () => {
 });
 
 describe("EditSession", () => {
+	it("reports unsaved changes until the write lands", async () => {
+		expect(session.hasUnsavedChanges).toBe(false);
+		session.commit("Brightness", withBrightness(40));
+		expect(session.hasUnsavedChanges).toBe(true);
+		await vi.advanceTimersByTimeAsync(400);
+		await vi.waitFor(() => expect(session.hasUnsavedChanges).toBe(false));
+		expect(await storedBrightness()).toBe(40);
+	});
+
 	it("opens an unedited reference on the neutral recipe", () => {
 		expect(session.recipe).toEqual(neutralRecipe(referenceId));
 	});
@@ -106,5 +115,6 @@ describe("EditSession", () => {
 		session.commit("Brightness", withBrightness(80));
 		await session.flush();
 		expect(session.saveError).not.toBeNull();
+		expect(session.hasUnsavedChanges).toBe(true);
 	});
 });

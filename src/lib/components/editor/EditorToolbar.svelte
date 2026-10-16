@@ -1,71 +1,36 @@
 <script lang="ts">
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
-
-export type EditorTool =
-	| "adjust"
-	| "filters"
-	| "crop"
-	| "draw"
-	| "palette"
-	| "effects"
-	| "layers"
-	| "export"
-	| null;
+import { EDITOR_TOOLS, shortcutHint, type EditorTool } from "./editor-shortcuts";
 
 let { activeTool = null, onToolSelect } = $props<{
-	activeTool: EditorTool;
-	onToolSelect: (tool: EditorTool) => void;
+	activeTool: EditorTool | null;
+	/** `null` closes the open tool (its button pressed again). */
+	onToolSelect: (tool: EditorTool | null) => void;
 }>();
-
-const tools = [
-	{ id: "adjust" as const, label: "Adjust", icon: "material-symbols:tune", shortcut: "A" },
-	{
-		id: "filters" as const,
-		label: "Filters",
-		icon: "material-symbols:filter-vintage",
-		shortcut: "F",
-	},
-	{ id: "crop" as const, label: "Crop", icon: "material-symbols:crop", shortcut: "C" },
-	{ id: "draw" as const, label: "Draw", icon: "material-symbols:draw", shortcut: "D" },
-	{ id: "palette" as const, label: "Palette", icon: "material-symbols:palette", shortcut: "P" },
-	{
-		id: "effects" as const,
-		label: "Effects",
-		icon: "material-symbols:auto-fix-high",
-		shortcut: "E",
-	},
-	{ id: "layers" as const, label: "Layers", icon: "material-symbols:layers", shortcut: "L" },
-	{ id: "export" as const, label: "Export", icon: "material-symbols:download", shortcut: "X" },
-];
-
-function handleToolClick(toolId: EditorTool) {
-	if (activeTool === toolId) {
-		onToolSelect(null);
-	} else {
-		onToolSelect(toolId);
-	}
-}
 </script>
 
-<div
-	class="flex items-center gap-1 overflow-x-auto px-1 sm:px-2 py-1.5 sm:py-2 bg-black/70 backdrop-blur-xl border-t border-white/8 shrink-0"
+<nav
+	class="flex shrink-0 items-center justify-between gap-0.5 border-t border-white/8 bg-black/70 px-1 py-1.5 backdrop-blur-xl sm:justify-center sm:gap-1 sm:px-2 sm:py-2"
+	aria-label="Editor tools"
 >
-	{#each tools as tool}
+	{#each EDITOR_TOOLS as tool (tool.id)}
+		{@const isActive = activeTool === tool.id}
 		<button
 			class={cn(
-				"flex flex-col items-center justify-center gap-0.5 rounded-xl transition-all duration-200",
-				"min-w-[48px] min-h-[48px] px-2 py-1.5 sm:px-3 sm:py-2",
-				activeTool === tool.id
-					? "bg-phoenix-primary text-white shadow-lg shadow-phoenix-primary/25 scale-105"
-					: "text-white/50 hover:text-white hover:bg-white/8 active:bg-white/15 active:scale-95"
+				"flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1.5 transition-colors duration-150 sm:flex-none sm:px-3 sm:py-2",
+				"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-phoenix-primary",
+				isActive
+					? "bg-phoenix-primary text-white shadow-lg shadow-phoenix-primary/25"
+					: "text-white/60 hover:text-white hover:bg-white/8 active:bg-white/15"
 			)}
-			onclick={() => handleToolClick(tool.id)}
-			title="{tool.label} ({tool.shortcut})"
+			onclick={() => onToolSelect(isActive ? null : tool.id)}
+			title={shortcutHint(`tool:${tool.id}`)}
+			aria-pressed={isActive}
 			type="button"
 		>
-			<Icon icon={tool.icon} class="w-5 h-5 sm:w-[22px] sm:h-[22px]" />
-			<span class="text-[10px] sm:text-[11px] font-medium leading-tight">{tool.label}</span>
+			<Icon icon={tool.icon} class="h-5 w-5 sm:h-5.5 sm:w-5.5" />
+			<span class="text-[10px] font-medium leading-tight sm:text-[11px]">{tool.label}</span>
 		</button>
 	{/each}
-</div>
+</nav>

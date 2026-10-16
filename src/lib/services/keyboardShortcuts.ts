@@ -34,7 +34,6 @@ class KeyboardShortcutsService {
 
 	private initializeDefaultShortcuts() {
 		this.shortcuts = [
-			// Navigation shortcuts
 			{
 				key: "1",
 				ctrlKey: true,
@@ -64,7 +63,6 @@ class KeyboardShortcutsService {
 				category: "navigation",
 			},
 
-			// Tool shortcuts
 			{
 				key: "e",
 				ctrlKey: true,
@@ -73,7 +71,6 @@ class KeyboardShortcutsService {
 				category: "tools",
 			},
 
-			// Editing shortcuts
 			{
 				key: "z",
 				ctrlKey: true,
@@ -97,7 +94,6 @@ class KeyboardShortcutsService {
 				category: "editing",
 			},
 
-			// Export shortcuts
 			{
 				key: "s",
 				ctrlKey: true,
@@ -139,7 +135,6 @@ class KeyboardShortcutsService {
 	}
 
 	private handleKeyDown = (event: KeyboardEvent) => {
-		// Don't trigger shortcuts when typing in inputs.
 		// SAFETY: this is a document keydown listener, so the target is the focused DOM
 		// element; reading `tagName`/`isContentEditable` off it is the point of the check.
 		const target = event.target as HTMLElement;
@@ -172,5 +167,4 @@ class KeyboardShortcutsService {
 	}
 }
 
-// Create singleton instance
 export const keyboardShortcuts = new KeyboardShortcutsService();

@@ -2,27 +2,48 @@
 import { onMount } from "svelte";
 import Icon from "@iconify/svelte";
 import { toast } from "svelte-sonner";
+import { goto } from "$app/navigation";
+import { page } from "$app/state";
 import {
 	referenceLibrary,
-	type LibraryItem,
 	type ReferenceLibrary,
 	type RemovedReference,
 } from "$lib/features/references";
 import type { ReferenceId } from "$lib/types/brands";
 import ImageLibrary from "$lib/components/modules/references/ImageLibrary.svelte";
 import ImageEditorLayout from "$lib/components/modules/references/ImageEditorLayout.svelte";
+import { editorHref, requestedReferenceId } from "$lib/components/modules/references/editor-url";
 
 const library: ReferenceLibrary = referenceLibrary();
 
 let fileInput: HTMLInputElement;
 let isDragOver = $state(false);
-let uploadProgress: Record<string, number> = $state({});
-let selectedImageId: ReferenceId | null = $state(null);
 let isLoading = $state(true);
 
-// Context menu state
-let contextMenuTarget: LibraryItem | null = $state(null);
-let contextMenuPos = $state({ x: 0, y: 0 });
+/** One file being imported, shown by name until it lands (or fails). */
+interface ImportEntry {
+	id: string;
+	name: string;
+	status: "importing" | "done" | "failed";
+}
+let imports = $state<ImportEntry[]>([]);
+
+/** The reference the URL asks for, once the library knows it. */
+const requestedId = $derived(requestedReferenceId(page.url));
+const selectedImageId = $derived<ReferenceId | null>(
+	requestedId === null || isLoading
+		? null
+		: (library.items.find((item) => item.reference.id === requestedId)?.reference.id ?? null)
+);
+/** Set when this tab pushed the editor's history entry, so closing can simply go back. */
+let hasEditorEntry = false;
+
+// A link or reload to a reference that no longer exists falls back to the gallery.
+$effect(() => {
+	if (isLoading || requestedId === null || selectedImageId !== null) return;
+	toast.error("This reference no longer exists.");
+	void goto(editorHref(page.url, null), { replaceState: true });
+});
 
 onMount(() => {
 	let cancelled = false;
@@ -34,7 +55,6 @@ onMount(() => {
 	};
 });
 
-// File validation
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_FILES_AT_ONCE = 20;
@@ -122,36 +142,42 @@ async function addFiles(files: File[]) {
 	}
 }
 
-async function processFile(file: File): Promise<boolean> {
-	const progressId = `${file.name}-${Date.now()}`;
-	uploadProgress[progressId] = 0;
+function setImportStatus(id: string, status: ImportEntry["status"]) {
+	imports = imports.map((entry) => (entry.id === id ? { ...entry, status } : entry));
+}
 
+async function processFile(file: File): Promise<boolean> {
+	const id = crypto.randomUUID();
+	imports = [...imports, { id, name: file.name, status: "importing" }];
+	let isImported = false;
 	try {
 		// Stored as-is: full resolution, original bytes, transparency intact.
 		await library.importImage(file);
-		uploadProgress[progressId] = 100;
-		return true;
+		isImported = true;
 	} catch (error) {
 		console.error("Error processing file:", error);
-		return false;
-	} finally {
-		setTimeout(() => {
-			delete uploadProgress[progressId];
-		}, 1000);
 	}
+	setImportStatus(id, isImported ? "done" : "failed");
+	// Done entries leave quickly; failures stay long enough to read (the toast says it too).
+	setTimeout(
+		() => {
+			imports = imports.filter((entry) => entry.id !== id);
+		},
+		isImported ? 1500 : 6000
+	);
+	return isImported;
 }
 
 function handleEdit(id: ReferenceId) {
-	selectedImageId = selectedImageId === id ? null : id;
+	hasEditorEntry = true;
+	void goto(editorHref(page.url, id));
 }
 
 async function handleDelete(id: ReferenceId) {
 	const item = library.find(id);
-	contextMenuTarget = null;
 	if (!item) return;
 	try {
 		const removed = await library.remove(id);
-		if (selectedImageId === id) selectedImageId = null;
 		if (removed) {
 			toast.info(`Removed "${item.reference.name}"`, {
 				action: { label: "Undo", onClick: () => void restore([removed]) },
@@ -166,7 +192,6 @@ async function handleDelete(id: ReferenceId) {
 async function handleClearAll() {
 	const ids = library.items.map((item) => item.reference.id);
 	if (ids.length === 0) return;
-	selectedImageId = null;
 	const removed: RemovedReference[] = [];
 	for (const id of ids) {
 		try {
@@ -202,7 +227,6 @@ async function restore(removed: RemovedReference[]) {
 
 async function handleDuplicate(id: ReferenceId) {
 	const item = library.find(id);
-	contextMenuTarget = null;
 	if (!item) return;
 	try {
 		await library.duplicate(id);
@@ -213,140 +237,88 @@ async function handleDuplicate(id: ReferenceId) {
 	}
 }
 
-function handleContextMenu(e: MouseEvent, item: LibraryItem) {
-	e.preventDefault();
-	contextMenuTarget = item;
-	contextMenuPos = {
-		x: Math.max(8, Math.min(e.clientX, window.innerWidth - 176)),
-		y: Math.max(8, Math.min(e.clientY, window.innerHeight - 152)),
-	};
-}
-
 async function handleRetryLoad() {
 	isLoading = true;
 	await library.load();
 	isLoading = false;
 }
 
-function closeContextMenu() {
-	contextMenuTarget = null;
-}
-
+// Back from the editor: undo our own history entry, or replace a deep link's.
 function closeEditor() {
-	selectedImageId = null;
+	if (hasEditorEntry) {
+		hasEditorEntry = false;
+		history.back();
+		return;
+	}
+	void goto(editorHref(page.url, null), { replaceState: true });
 }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
 	class="h-full flex flex-col @container relative"
 	ondrop={handleDrop}
 	ondragover={handleDragOver}
 	ondragleave={handleDragLeave}
-	onclick={closeContextMenu}
-	onkeydown={(e) => e.key === "Escape" && closeContextMenu()}
 	role="region"
-	aria-label="Reference images"
+	aria-label="References"
 >
-	<!-- Upload Progress -->
-	{#if Object.keys(uploadProgress).length > 0}
-		<div class="mx-4 @md:mx-6 mt-2">
-			<div class="p-3 rounded-xl bg-white/5 border border-white/5">
-				<div class="flex items-center gap-2 text-xs text-text-muted mb-2">
-					<Icon icon="material-symbols:cloud-upload" class="w-4 h-4 text-phoenix-primary" />
-					Processing images
-				</div>
-				{#each Object.entries(uploadProgress) as [id, progress]}
-					<div class="mb-1.5 last:mb-0">
-						<div class="flex justify-between text-[10px] text-text-muted/60 mb-1">
-							<span class="truncate max-w-[200px]">{id.split("-").at(0)}</span>
-							<span class="font-mono">{progress}%</span>
-						</div>
-						<div class="w-full bg-black/30 rounded-full h-1 overflow-hidden">
-							<div
-								class="bg-phoenix-primary h-full rounded-full transition-all duration-300 ease-out"
-								style:width="{progress}%"
-							></div>
-						</div>
+	<div class="flex min-h-0 flex-1 flex-col" inert={selectedImageId !== null}>
+		{#if imports.length > 0}
+			<div class="mx-4 mt-2 @md:mx-6" role="status" aria-live="polite">
+				<div class="rounded-xl border border-white/10 bg-white/5 p-3">
+					<div class="mb-2 flex items-center gap-2 text-xs text-text-muted">
+						<Icon icon="material-symbols:cloud-upload" class="h-4 w-4 text-phoenix-primary" />
+						{#if imports.some((entry) => entry.status === "importing")}
+							Importing {imports.filter((entry) => entry.status !== "importing").length + 1} of {imports.length}
+						{:else}
+							Import finished
+						{/if}
 					</div>
-				{/each}
+					<ul class="grid gap-1">
+						{#each imports as entry (entry.id)}
+							<li class="flex items-center gap-2 text-xs">
+								{#if entry.status === "importing"}
+									<span class="loading loading-spinner loading-xs text-phoenix-primary"></span>
+								{:else if entry.status === "done"}
+									<Icon icon="material-symbols:check-circle" class="h-4 w-4 text-white/70" />
+								{:else}
+									<Icon icon="material-symbols:error" class="h-4 w-4 text-red-400" />
+								{/if}
+								<span class="min-w-0 flex-1 truncate text-white/80" title={entry.name}>{entry.name}</span>
+								<span class={entry.status === "failed" ? "text-red-200" : "text-text-muted"}>
+									{entry.status === "importing" ? "Importing…" : entry.status === "done" ? "Added" : "Could not be read"}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
 			</div>
-		</div>
-	{/if}
+		{/if}
 
-	<!-- Drag Overlay -->
-	{#if isDragOver}
-		<div class="absolute inset-0 z-30 flex items-center justify-center bg-void-deep/80 backdrop-blur-sm rounded-xl border-2 border-dashed border-phoenix-primary pointer-events-none">
-			<div class="text-center">
-				<Icon icon="material-symbols:cloud-upload" class="w-12 h-12 text-phoenix-primary mx-auto mb-3 animate-float" />
-				<p class="text-lg font-bold text-white">Drop images here</p>
-				<p class="text-xs text-text-muted mt-1">Up to {MAX_FILES_AT_ONCE} files, 50MB each</p>
+		{#if isDragOver}
+			<div class="absolute inset-0 z-30 flex items-center justify-center bg-void-deep/80 backdrop-blur-sm rounded-xl border-2 border-dashed border-phoenix-primary pointer-events-none">
+				<div class="text-center">
+					<Icon icon="material-symbols:cloud-upload" class="w-12 h-12 text-phoenix-primary mx-auto mb-3" />
+					<p class="text-lg font-bold text-white">Drop images to add them</p>
+					<p class="text-xs text-text-muted mt-1">JPG, PNG or WebP · up to {MAX_FILES_AT_ONCE} files, 50 MB each</p>
+				</div>
 			</div>
-		</div>
-	{/if}
+		{/if}
 
-	<!-- Image Library -->
-	<ImageLibrary
-		items={library.items}
-		{selectedImageId}
-		{isLoading}
-		loadError={library.loadError}
-		{isDragOver}
-		onAddFiles={() => fileInput.click()}
-		onClearAll={handleClearAll}
-		onEdit={handleEdit}
-		onDuplicate={handleDuplicate}
-		onDelete={handleDelete}
-		onContextMenu={handleContextMenu}
-		onRetry={handleRetryLoad}
-	/>
+		<ImageLibrary
+			items={library.items}
+			{isLoading}
+			loadError={library.loadError}
+			{isDragOver}
+			onAddFiles={() => fileInput.click()}
+			onClearAll={handleClearAll}
+			onEdit={handleEdit}
+			onDuplicate={handleDuplicate}
+			onDelete={handleDelete}
+			onRetry={handleRetryLoad}
+		/>
+	</div>
 
-	<!-- Context Menu -->
-	{#if contextMenuTarget}
-		<div
-			class="fixed z-50 min-w-[160px] py-1.5 bg-void-deep/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50"
-			style:left="{contextMenuPos.x}px"
-			style:top="{contextMenuPos.y}px"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.key === "Escape" && closeContextMenu()}
-			role="menu"
-			tabindex="-1"
-		>
-			<button
-				class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
-				onclick={() => {
-					if (contextMenuTarget) handleEdit(contextMenuTarget.reference.id);
-					closeContextMenu();
-				}}
-				role="menuitem"
-				type="button"
-			>
-				<Icon icon="material-symbols:edit" class="w-4 h-4 text-phoenix-primary" />
-				Edit Image
-			</button>
-			<button
-				class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
-				onclick={() => contextMenuTarget && handleDuplicate(contextMenuTarget.reference.id)}
-				role="menuitem"
-				type="button"
-			>
-				<Icon icon="material-symbols:content-copy" class="w-4 h-4 text-white/60" />
-				Duplicate
-			</button>
-			<div class="h-px bg-white/5 my-1"></div>
-			<button
-				class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors text-left"
-				onclick={() => contextMenuTarget && handleDelete(contextMenuTarget.reference.id)}
-				role="menuitem"
-				type="button"
-			>
-				<Icon icon="material-symbols:delete-outline" class="w-4 h-4" />
-				Delete
-			</button>
-		</div>
-	{/if}
-
-	<!-- Hidden file input -->
 	<input
 		bind:this={fileInput}
 		type="file"
@@ -356,7 +328,6 @@ function closeEditor() {
 		onchange={handleFileSelect}
 	/>
 
-	<!-- Image Editor Overlay -->
 	{#if selectedImageId}
 		{#key selectedImageId}
 			<ImageEditorLayout imageId={selectedImageId} onClose={closeEditor} />

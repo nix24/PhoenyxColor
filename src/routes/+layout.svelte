@@ -19,11 +19,9 @@ const structuredDataTag = `<script type="application/ld+json">${JSON.stringify(g
 
 let { children } = $props();
 
-// Track previous path for directional transitions
 let previousPath = $state("");
 let transitionDirection = $state<"up" | "down" | "left" | "right">("up");
 
-// Route hierarchy for spatial awareness
 const routeOrder = ["/references", "/palettes", "/gradients", "/settings"];
 
 $effect(() => {
@@ -39,13 +37,11 @@ $effect(() => {
 
 	previousPath = currentPath;
 
-	// Close mobile menu on route change
 	if (browser) {
 		app.closeMobileMenu();
 	}
 });
 
-// Derived title based on current route
 let pageTitle = $derived.by(() => {
 	const path = page.url.pathname;
 	if (path.includes("references")) return "Reference Images";
@@ -70,7 +66,6 @@ function handleMediaChange() {
 let mediaQuery: MediaQueryList | undefined;
 let mobileMediaQuery: MediaQueryList | undefined;
 
-// Responsive toast position - bottom-center on mobile, bottom-right on desktop
 let isMobile = $state(false);
 let toastPosition = $derived<"bottom-center" | "bottom-right">(
 	isMobile ? "bottom-center" : "bottom-right",
@@ -85,13 +80,11 @@ $effect(() => {
 	applyTheme(app.settings.state.theme);
 });
 
-// Initialize keyboard shortcuts and theme
 onMount(async () => {
 	keyboardShortcuts.startListening();
 	mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 	mediaQuery.addEventListener("change", handleMediaChange);
 
-	// Track mobile viewport for responsive toast position
 	mobileMediaQuery = window.matchMedia("(min-width: 768px)");
 	isMobile = !mobileMediaQuery.matches;
 	mobileMediaQuery.addEventListener("change", handleMobileChange);
@@ -104,9 +97,7 @@ onDestroy(() => {
 });
 </script>
 
-<!-- Base SEO metadata and structured data -->
 <svelte:head>
-	<!-- Preconnect for faster font loading -->
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link rel="preconnect" href="https://api.fontshare.com" crossorigin="anonymous" />
@@ -115,11 +106,9 @@ onDestroy(() => {
 	<!-- Base meta tags (can be overridden by pages) -->
 	<meta name="keywords" content={SITE_CONFIG.keywords.join(", ")} />
 
-	<!-- JSON-LD Structured Data -->
 	{@html structuredDataTag}
 </svelte:head>
 
-<!-- Background System -->
 <ProceduralBackground />
 
 <div
@@ -137,7 +126,6 @@ onDestroy(() => {
 	<div class="flex-1 flex flex-col min-w-0 bg-void/50 relative @container">
 		<Header title={pageTitle} />
 
-		<!-- Scrollable Content -->
 		<main class="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth">
 			<div class="w-full h-full">
 				{#key page.url.pathname}
@@ -159,7 +147,6 @@ onDestroy(() => {
 		</main>
 	</div>
 
-	<!-- Toast notifications with enhanced styling -->
 	<!-- Position is responsive: bottom-center on mobile, bottom-right on desktop -->
 	<Toaster
 		richColors

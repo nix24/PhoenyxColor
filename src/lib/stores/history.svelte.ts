@@ -57,6 +57,10 @@ function snapshotStoreState<T>(state: T): T {
 	return $state.snapshot(state) as T;
 }
 
+/**
+ * Applies `updates` to `current[index]` via `applyUpdates`, saves, and pushes an undo entry that
+ * restores the whole collection snapshot taken before the change.
+ */
 export function recordCollectionUpdate<T>(
 	current: T[],
 	index: number,

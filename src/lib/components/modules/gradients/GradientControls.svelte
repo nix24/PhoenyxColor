@@ -154,7 +154,6 @@ function handlePositionInput(index: number, value: string) {
 </script>
 
 <div class="space-y-6">
-	<!-- Gradient Type Selector -->
 	<div class="space-y-3">
 		<h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider">Gradient Type</h4>
 		<div class="join w-full border border-white/10 rounded-lg">
@@ -184,7 +183,6 @@ function handlePositionInput(index: number, value: string) {
 		</div>
 	</div>
 
-	<!-- Type-Specific Controls -->
 	<div class="space-y-3">
 		<h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider">Settings</h4>
 
@@ -280,7 +278,6 @@ function handlePositionInput(index: number, value: string) {
 		{/if}
 	</div>
 
-	<!-- Color Space & Easing -->
 	<div class="space-y-3">
 		<h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider">Color Space</h4>
 		<div class="flex flex-wrap gap-1.5">
@@ -314,7 +311,6 @@ function handlePositionInput(index: number, value: string) {
 		</div>
 	</div>
 
-	<!-- Color Stops -->
 	<div class="space-y-3">
 		<div class="flex items-center justify-between">
 			<h4 class="text-xs font-semibold text-text-muted uppercase tracking-wider">Color Stops</h4>
@@ -327,7 +323,6 @@ function handlePositionInput(index: number, value: string) {
 			</button>
 		</div>
 
-		<!-- Quick Actions with Undo/Redo -->
 		<div class="flex flex-wrap gap-1.5">
 			<button
 				class="btn btn-xs btn-ghost text-text-muted hover:text-white"
@@ -380,7 +375,6 @@ function handlePositionInput(index: number, value: string) {
 			</button>
 		</div>
 
-		<!-- Stops List -->
 		<div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
 			{#each gradient.stops as stop, index (stop.color + stop.position + index)}
 				<div
@@ -391,7 +385,6 @@ function handlePositionInput(index: number, value: string) {
 							: "bg-black/20 border-white/10 hover:border-white/20"
 					)}
 				>
-					<!-- Color Swatch with native picker overlay -->
 					<div class="relative shrink-0">
 						<div
 							class="w-10 h-10 rounded-lg border-2 border-white/20 shadow-sm"
@@ -406,7 +399,6 @@ function handlePositionInput(index: number, value: string) {
 						/>
 					</div>
 
-					<!-- Color Hex Input -->
 					<input
 						type="text"
 						value={stop.color}
@@ -414,7 +406,6 @@ function handlePositionInput(index: number, value: string) {
 						onchange={(e) => handleStopColorChange(index, (e.target as HTMLInputElement).value)}
 					/>
 
-					<!-- Position Slider + Numeric Input -->
 					<div class="flex-1 flex items-center gap-1.5">
 						<input
 							type="range"
@@ -437,7 +428,6 @@ function handlePositionInput(index: number, value: string) {
 						/>
 					</div>
 
-					<!-- Actions -->
 					<div class="flex gap-0.5 shrink-0">
 						<button
 							class="btn btn-xs btn-ghost text-text-muted hover:text-white p-1"

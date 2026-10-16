@@ -1,6 +1,5 @@
 <script lang="ts">
-// This page should not render as it redirects server-side
-// This is a fallback loading state in case the redirect is slow
+// `+page.ts` redirects to /references; this only shows while that is slow.
 import Icon from "@iconify/svelte";
 import { PAGE_METADATA, SITE_CONFIG, getFullUrl, getOgImageUrl } from "$lib/config/seo";
 
@@ -14,7 +13,6 @@ const ogImage = getOgImageUrl();
 	<meta name="description" content={meta.description} />
 	<link rel="canonical" href={canonicalUrl} />
 
-	<!-- Open Graph -->
 	<meta property="og:type" content="website" />
 	<meta property="og:url" content={canonicalUrl} />
 	<meta property="og:title" content={meta.title} />
@@ -23,7 +21,6 @@ const ogImage = getOgImageUrl();
 	<meta property="og:site_name" content={SITE_CONFIG.name} />
 	<meta property="og:locale" content={SITE_CONFIG.locale} />
 
-	<!-- Twitter Card -->
 	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:site" content={SITE_CONFIG.twitter} />
 	<meta name="twitter:title" content={meta.title} />
@@ -31,11 +28,9 @@ const ogImage = getOgImageUrl();
 	<meta name="twitter:image" content={ogImage} />
 </svelte:head>
 
-<!-- Fallback loading state (shouldn't normally be seen due to redirect) -->
 <div class="h-full flex items-center justify-center" role="status" aria-live="polite">
 	<div class="text-center">
 		<span class="sr-only">Opening the reference library</span>
-		<!-- Animated logo skeleton -->
 		<div class="relative w-20 h-20 mx-auto mb-6">
 			<div
 				class="absolute inset-0 bg-linear-to-br from-phoenix-primary to-phoenix-violet rounded-2xl animate-pulse opacity-30"
@@ -45,13 +40,11 @@ const ogImage = getOgImageUrl();
 			</div>
 		</div>
 
-		<!-- Text skeleton -->
 		<div class="space-y-3">
 			<div class="skeleton skeleton-glass h-6 w-40 mx-auto rounded-lg"></div>
 			<div class="skeleton skeleton-glass h-3 w-32 mx-auto rounded"></div>
 		</div>
 
-		<!-- Loading dots -->
 		<div class="flex justify-center gap-1.5 mt-6">
 			{#each [0, 1, 2] as i}
 				<div

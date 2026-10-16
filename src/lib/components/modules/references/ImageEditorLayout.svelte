@@ -1,16 +1,33 @@
 <script lang="ts">
-import { fade } from "svelte/transition";
 import { onMount } from "svelte";
 import { app } from "$lib/stores/root.svelte";
 import { toast } from "svelte-sonner";
-import Icon from "@iconify/svelte";
 import type { ReferenceId } from "$lib/types/brands";
 
 import ImageEditorHeader from "./ImageEditorHeader.svelte";
 import ImageCanvas from "./ImageCanvas.svelte";
-import EditorToolbar, { type EditorTool } from "$lib/components/editor/EditorToolbar.svelte";
+import { CropInteraction, type ImagePoint } from "./crop-interaction.svelte";
+import EditorToolbar from "$lib/components/editor/EditorToolbar.svelte";
 import EditorPanel from "$lib/components/editor/EditorPanel.svelte";
-import type { DrawStroke, ImageEditorState } from "$lib/types/image-editor";
+import ShortcutsDialog from "$lib/components/editor/ShortcutsDialog.svelte";
+import {
+	EDITOR_TOOLS,
+	escapeTarget,
+	isSpaceActivated,
+	isTextEntryTarget,
+	shortcutAction,
+	type EditorAction,
+	type EditorTool,
+} from "$lib/components/editor/editor-shortcuts";
+import type {
+	CropMode,
+	DrawStroke,
+	EffectPatch,
+	ImageEditorState,
+	ImageLayer,
+	SaveState,
+} from "$lib/types/image-editor";
+import type { QuickEffect } from "$lib/types/effects";
 import {
 	applyEditorUpdates,
 	editorStateFromRecipe,
@@ -18,16 +35,14 @@ import {
 	presetUpdates,
 	stopsFromGradient,
 	stopsFromPalette,
+	withEffectPatch,
 	type GradientStops,
 } from "$lib/components/editor/editor-state";
 
 import AdjustPanel from "$lib/components/editor/panels/AdjustPanel.svelte";
 import TransformPanel from "$lib/components/editor/panels/TransformPanel.svelte";
-import CropPanel, {
-	type CropRect,
-	type AspectRatio,
-} from "$lib/components/editor/panels/CropPanel.svelte";
-import type { CropGuideType } from "$lib/types/image-editor";
+import CropPanel from "$lib/components/editor/panels/CropPanel.svelte";
+import DrawPanel from "$lib/components/editor/panels/DrawPanel.svelte";
 import PalettePanel from "$lib/components/editor/panels/PalettePanel.svelte";
 import FiltersPanel from "$lib/components/editor/panels/FiltersPanel.svelte";
 import EffectsPanel from "$lib/components/editor/panels/EffectsPanel.svelte";
@@ -44,16 +59,21 @@ import {
 	type ExportOptions,
 	type ReferenceEditor,
 } from "$lib/features/references";
-import type { ImageLayer } from "$lib/types/image-editor";
 
 let { imageId, onClose } = $props<{ imageId: ReferenceId; onClose: () => void }>();
 
 let editor: ReferenceEditor | null = $state<ReferenceEditor | null>(null);
 const panZoom = usePanZoom();
+const crop = new CropInteraction();
 
-// UI state
-let activeTool = $state<EditorTool>(null);
+// Desktop opens on Adjust; on a phone the image gets the whole screen first.
+let activeTool = $state<EditorTool | null>(
+	window.matchMedia("(min-width: 768px)").matches ? "adjust" : null
+);
+let cropMode = $state<CropMode>("crop");
 let isComparing = $state(false);
+/** Compare is being held with Space; releasing Space ends it. */
+let isComparingFromKey = false;
 let showShortcuts = $state(false);
 let brushColor = $state("#ff007f");
 let brushSize = $state(12);
@@ -61,27 +81,12 @@ let draftStroke = $state<DrawStroke | null>(null);
 /** The strokes committed before the current drag; the draft is previewed on top of them. */
 let strokesBeforeDraft: DrawStroke[] = [];
 
-// Crop state
-let isCropping = $state(false);
-/** A point in the source image's own pixel coordinate space. */
-type ImagePoint = { x: number; y: number };
-/** Crop dimensions in source-image pixels. */
-type CropSize = { width: number; height: number };
-
-let cropRect = $state<CropRect | null>(null);
-let aspectRatio = $state<AspectRatio>("free");
-let cropGuideType = $state<CropGuideType>("thirds");
-let cropStartPos = $state<{ x: number; y: number } | null>(null);
-let activeCropHandle = $state<string | null>(null);
-let cropDragMode = $state<"new" | "handle" | "move" | null>(null);
-let cropBodyOffset = $state<{ x: number; y: number }>({ x: 0, y: 0 });
-
 let layerFileInput: HTMLInputElement | null = $state(null);
 let extractedPalette = $state<string[] | null>(null);
 
-const SNAP_THRESHOLD = 8;
-
+const isCropping = $derived(activeTool === "crop" && cropMode === "crop");
 const view = $derived<EditorView>(isComparing ? "compare" : isCropping ? "crop" : "edit");
+const activeToolInfo = $derived(EDITOR_TOOLS.find((tool) => tool.id === activeTool));
 
 /** The panels' flat view of the recipe. */
 const editorState = $derived(
@@ -93,12 +98,20 @@ const displaySize = $derived(editor ? editor.displaySize(view) : { width: 0, hei
 /** The source image's size; crops are drawn in source pixels. */
 const imageWidth = $derived(editor?.reference.width ?? 0);
 const imageHeight = $derived(editor?.reference.height ?? 0);
+const saveState = $derived<SaveState>(
+	editor?.session.saveError ? "error" : editor?.session.hasUnsavedChanges ? "saving" : "saved"
+);
 
 // Redraw whenever the shown recipe, the view or the zoom changes (at most once per frame).
 $effect(() => {
 	if (!editor) return;
 	const scale = Math.min(1, panZoom.zoom * window.devicePixelRatio);
 	editor.requestRender(editor.displayedRecipe(view), scale);
+});
+
+// A new output size (crop, rotate, scale, crop view) shows the whole image again.
+$effect(() => {
+	if (displaySize.width > 0 && displaySize.height > 0) fitToView();
 });
 
 /** The active gradient or palette as a gradient-map snapshot (v1 read them live). */
@@ -137,17 +150,25 @@ function handlePresetPreview(preset: Partial<ImageEditorState>, intensity: numbe
 	handleStatePreview(presetUpdates(preset, intensity));
 }
 
-function handleUndo() {
-	editor?.undo();
+function handleAddEffect(effect: QuickEffect) {
+	if (!editor) return;
+	editor.selectEffect(effect);
+	editor.applyEffect();
 }
 
-function handleRedo() {
-	editor?.redo();
+function handleEffectPreview(index: number, patch: EffectPatch) {
+	if (!editor) return;
+	editor.preview(withEffectPatch(editor.recipe, index, patch));
 }
 
-async function handleExport(options: ExportOptions): Promise<Blob> {
+function handleEffectUpdate(index: number, patch: EffectPatch) {
+	if (!editor) return;
+	editor.commit("Effect", withEffectPatch(editor.recipe, index, patch));
+}
+
+async function handleExport(options: ExportOptions) {
 	if (!editor) throw new Error("The editor is not open.");
-	return (await editor.export(options)).blob;
+	return editor.export(options);
 }
 
 async function getEditedImage(): Promise<Blob> {
@@ -172,9 +193,12 @@ function fitToView() {
 	);
 }
 
+function handleViewportResize() {
+	if (panZoom.isFitted) fitToView();
+}
+
 function handleRetryPreview() {
 	if (!editor) return;
-	void editor.session.flush();
 	editor.requestRender(editor.displayedRecipe(view), Math.min(1, panZoom.zoom * window.devicePixelRatio));
 }
 
@@ -187,34 +211,89 @@ async function runLayerAction(action: () => Promise<void>, failure: string) {
 	}
 }
 
-// Saves pending edits and refreshes the library thumbnail before leaving.
+/** Saves pending edits and refreshes the library thumbnail before leaving. */
 async function handleClose() {
+	applyPendingCrop();
 	await editor?.close();
 	onClose();
 }
 
-// Tool selection
-function handleToolSelect(tool: EditorTool) {
+function selectTool(tool: EditorTool | null) {
+	if (activeTool === "crop" && tool !== "crop") applyPendingCrop();
 	if (activeTool === "draw" && tool !== "draw") draftStroke = null;
 	activeTool = tool;
-	if (tool === "crop") {
-		isCropping = true;
-	} else {
-		isCropping = false;
-		cropRect = null;
+	if (tool === "crop") setCropMode("crop");
+}
+
+function setCropMode(mode: CropMode) {
+	if (mode === "rotate") applyPendingCrop();
+	cropMode = mode;
+	if (mode === "crop" && editorState) crop.begin(editorState.cropRect, imageWidth, imageHeight);
+}
+
+/** Commits the box being drawn, if it differs from the applied crop. A full-image box is no crop. */
+function applyPendingCrop() {
+	const rect = crop.rect;
+	if (!rect || !editorState) return;
+	crop.end();
+	const isFullImage =
+		rect.x === 0 && rect.y === 0 && rect.width === imageWidth && rect.height === imageHeight;
+	const next = isFullImage ? null : rect;
+	const current = editorState.cropRect;
+	const isUnchanged =
+		next === current ||
+		(next !== null &&
+			current !== null &&
+			next.x === current.x &&
+			next.y === current.y &&
+			next.width === current.width &&
+			next.height === current.height);
+	if (!isUnchanged) handleStateUpdate({ cropRect: next });
+}
+
+function handleCropDone() {
+	applyPendingCrop();
+	activeTool = null;
+}
+
+function cancelCrop() {
+	crop.end();
+	activeTool = null;
+}
+
+async function handleExtractFromRegion() {
+	if (!crop.rect || !editor) return;
+	try {
+		extractedPalette = await extractPalette(await editor.originalRegion(crop.rect), 8);
+		toast.success("Palette extracted from the selected area");
+		selectTool("palette");
+	} catch (error) {
+		console.error("Failed to extract from region:", error);
+		toast.error("The palette could not be extracted. Try again.");
 	}
+}
+
+function getImageRelativePosition(e: PointerEvent): ImagePoint | null {
+	// The inner wrapper's rect includes the pan and zoom transforms, so dividing by the zoom
+	// gives full-resolution canvas pixels (the space the crop overlay is drawn in).
+	const inner = document.querySelector("[data-image-inner]");
+	if (!(inner instanceof HTMLElement)) return null;
+	const rect = inner.getBoundingClientRect();
+	if (!rect.width || !rect.height) return null;
+	return { x: (e.clientX - rect.left) / panZoom.zoom, y: (e.clientY - rect.top) / panZoom.zoom };
+}
+
+/** The source pixel under the pointer, through the displayed rotation, flip, scale and crop. */
+function getSourcePosition(e: PointerEvent): ImagePoint | null {
+	const point = getImageRelativePosition(e);
+	return point && editor ? editor.toSourcePoint(view, point) : null;
 }
 
 function handleDrawStart(e: PointerEvent) {
 	const point = getSourcePosition(e);
 	if (!point || !editorState) return;
 	strokesBeforeDraft = editorState.drawStrokes;
-	draftStroke = {
-		id: crypto.randomUUID(),
-		color: brushColor,
-		size: brushSize,
-		points: [point],
-	};
+	draftStroke = { id: crypto.randomUUID(), color: brushColor, size: brushSize, points: [point] };
 }
 
 function handleDrawMove(e: PointerEvent) {
@@ -231,38 +310,11 @@ function handleDrawEnd() {
 	draftStroke = null;
 }
 
-// Crop handlers
-function handleApplyCrop() {
-	if (cropRect) {
-		handleStateUpdate({ cropRect });
-		toast.success("Crop applied");
-	}
-	isCropping = false;
-	cropRect = null;
-	activeTool = null;
-}
-
-function handleCancelCrop() {
-	isCropping = false;
-	cropRect = null;
-}
-
-async function handleExtractFromRegion() {
-	if (!cropRect || !editor) return;
-	try {
-		const colors = await extractPalette(await editor.originalRegion(cropRect), 8);
-		extractedPalette = colors;
-		toast.success("Extracted palette from selection!");
-		activeTool = "palette";
-	} catch (error) {
-		console.error("Failed to extract from region:", error);
-		toast.error("Failed to extract palette");
-	}
-}
-
-// Layer image upload
-function handleAddLayerImage() {
-	layerFileInput?.click();
+function withPosition(handler: (point: ImagePoint) => void) {
+	return (e: PointerEvent) => {
+		const point = getImageRelativePosition(e);
+		if (point) handler(point);
+	};
 }
 
 async function handleLayerFileSelected(e: Event) {
@@ -288,328 +340,101 @@ async function handleLayerFileSelected(e: Event) {
 	}
 }
 
-// Crop pointer interaction (unified mouse + touch via PointerEvent)
-function getImageRelativePosition(e: PointerEvent): ImagePoint | null {
-	// Use the actual rendered position of the image inner div.
-	// getBoundingClientRect() accounts for all CSS transforms (pan, zoom) automatically,
-	// so no manual math is needed. The inner div's coordinate space (0..naturalWidth,
-	// 0..naturalHeight) is exactly the crop coordinate space used by CropOverlay.
-	// SAFETY: `[data-image-inner]` is only ever set on the image wrapper `<div>` rendered
-	// by this component, so a match is always an HTMLElement.
-	const inner = document.querySelector("[data-image-inner]") as HTMLElement | null;
-	if (!inner) return null;
-	const rect = inner.getBoundingClientRect();
-	if (!rect.width || !rect.height) return null;
-	// rect.width = naturalWidth * panZoom.zoom, so dividing by zoom gives natural image pixels.
-	const x = (e.clientX - rect.left) / panZoom.zoom;
-	const y = (e.clientY - rect.top) / panZoom.zoom;
-	return { x, y };
-}
-
-/** The source pixel under the pointer, through the displayed rotation, flip, scale and crop. */
-function getSourcePosition(e: PointerEvent): ImagePoint | null {
-	const point = getImageRelativePosition(e);
-	return point && editor ? editor.toSourcePoint(view, point) : null;
-}
-
-function snapToEdge(val: number, edge: number): number {
-	return Math.abs(val - edge) < SNAP_THRESHOLD ? edge : val;
-}
-
-function clampRect(rect: CropRect): CropRect {
-	let { x, y, width, height } = rect;
-	x = Math.max(0, Math.min(x, imageWidth - width));
-	y = Math.max(0, Math.min(y, imageHeight - height));
-	width = Math.min(width, imageWidth);
-	height = Math.min(height, imageHeight);
-	return { x, y, width, height };
-}
-
-function constrainToAspectRatio(width: number, height: number): CropSize {
-	if (aspectRatio === "free") return { width, height };
-	const parts = aspectRatio.split(":").map(Number);
-	const rw = parts[0] ?? 1;
-	const rh = parts[1] ?? 1;
-	const ratio = rw / rh;
-	if (Math.abs(width) / Math.max(Math.abs(height), 1) > ratio) {
-		return { width: Math.sign(width) * Math.abs(height) * ratio, height };
-	}
-	return { width, height: (Math.sign(height) * Math.abs(width)) / ratio };
-}
-
-function handleCropStart(e: PointerEvent) {
-	const pos = getImageRelativePosition(e);
-	if (!pos) return;
-	cropDragMode = "new";
-	cropStartPos = pos;
-	activeCropHandle = null;
-}
-
-function handleCropHandleDragStart(handle: string, _e: PointerEvent) {
-	if (!cropRect) return;
-	cropDragMode = "handle";
-	activeCropHandle = handle;
-	// Anchor is the opposite corner/edge
-	let anchorX = cropRect.x;
-	let anchorY = cropRect.y;
-	if (handle.includes("left")) anchorX = cropRect.x + cropRect.width;
-	else if (!handle.includes("right")) anchorX = cropRect.x; // edge: top/bottom
-	if (handle.includes("top")) anchorY = cropRect.y + cropRect.height;
-	else if (!handle.includes("bottom")) anchorY = cropRect.y; // edge: left/right
-	cropStartPos = { x: anchorX, y: anchorY };
-}
-
-function handleCropBodyDragStart(e: PointerEvent) {
-	if (!cropRect) return;
-	const pos = getImageRelativePosition(e);
-	if (!pos) return;
-	cropDragMode = "move";
-	cropBodyOffset = { x: pos.x - cropRect.x, y: pos.y - cropRect.y };
-}
-
-function handleCropMove(e: PointerEvent) {
-	const pos = getImageRelativePosition(e);
-	if (!pos) return;
-
-	if (cropDragMode === "move" && cropRect) {
-		let newX = pos.x - cropBodyOffset.x;
-		let newY = pos.y - cropBodyOffset.y;
-		// Snap to edges
-		newX = snapToEdge(newX, 0);
-		newY = snapToEdge(newY, 0);
-		newX = snapToEdge(newX, imageWidth - cropRect.width);
-		newY = snapToEdge(newY, imageHeight - cropRect.height);
-		cropRect = clampRect({ x: newX, y: newY, width: cropRect.width, height: cropRect.height });
-		return;
-	}
-
-	if (!cropStartPos) return;
-
-	if (cropDragMode === "handle" && activeCropHandle && cropRect) {
-		let newX = cropStartPos.x;
-		let newY = cropStartPos.y;
-		let newW: number;
-		let newH: number;
-
-		const h = activeCropHandle;
-		if (h === "left" || h === "right") {
-			// Horizontal edge only
-			newW = pos.x - cropStartPos.x;
-			newH = cropRect.height;
-			if (h === "left") {
-				newW = cropStartPos.x - pos.x;
-				newX = pos.x;
-			}
-			newY = cropRect.y;
-		} else if (h === "top" || h === "bottom") {
-			// Vertical edge only
-			newW = cropRect.width;
-			newH = pos.y - cropStartPos.y;
-			if (h === "top") {
-				newH = cropStartPos.y - pos.y;
-				newY = pos.y;
-			}
-			newX = cropRect.x;
-		} else {
-			// Corner: full resize
-			newW = pos.x - cropStartPos.x;
-			newH = pos.y - cropStartPos.y;
-			const constrained = constrainToAspectRatio(newW, newH);
-			newW = constrained.width;
-			newH = constrained.height;
-		}
-
-		// Normalize negative dimensions
-		if (newW < 0) {
-			newX += newW;
-			newW = -newW;
-		}
-		if (newH < 0) {
-			newY += newH;
-			newH = -newH;
-		}
-
-		// Snap to image edges
-		newX = snapToEdge(newX, 0);
-		newY = snapToEdge(newY, 0);
-		const right = newX + newW;
-		const bottom = newY + newH;
-		if (Math.abs(right - imageWidth) < SNAP_THRESHOLD) newW = imageWidth - newX;
-		if (Math.abs(bottom - imageHeight) < SNAP_THRESHOLD) newH = imageHeight - newY;
-
-		cropRect = clampRect({ x: newX, y: newY, width: Math.max(1, newW), height: Math.max(1, newH) });
-		return;
-	}
-
-	// New crop draw
-	let width = pos.x - cropStartPos.x;
-	let height = pos.y - cropStartPos.y;
-	const constrained = constrainToAspectRatio(width, height);
-	width = constrained.width;
-	height = constrained.height;
-
-	let x = width >= 0 ? cropStartPos.x : cropStartPos.x + width;
-	let y = height >= 0 ? cropStartPos.y : cropStartPos.y + height;
-	const w = Math.abs(width);
-	const h = Math.abs(height);
-
-	// Snap to image edges
-	x = snapToEdge(x, 0);
-	y = snapToEdge(y, 0);
-	if (Math.abs(x + w - imageWidth) < SNAP_THRESHOLD) x = imageWidth - w;
-	if (Math.abs(y + h - imageHeight) < SNAP_THRESHOLD) y = imageHeight - h;
-
-	cropRect = clampRect({ x, y, width: w, height: h });
-}
-
-function handleCropEnd() {
-	cropStartPos = null;
-	activeCropHandle = null;
-	cropDragMode = null;
-}
-
-function handleCropKeyboardNudge(e: KeyboardEvent) {
-	if (!isCropping || !cropRect) return;
-	const step = e.shiftKey ? 10 : 1;
-	const isResize = e.altKey;
-
-	let { x, y, width, height } = cropRect;
-	switch (e.key) {
-		case "ArrowLeft":
-			if (isResize) {
-				width = Math.max(1, width - step);
-			} else {
-				x -= step;
-			}
-			break;
-		case "ArrowRight":
-			if (isResize) {
-				width += step;
-			} else {
-				x += step;
-			}
-			break;
-		case "ArrowUp":
-			if (isResize) {
-				height = Math.max(1, height - step);
-			} else {
-				y -= step;
-			}
-			break;
-		case "ArrowDown":
-			if (isResize) {
-				height += step;
-			} else {
-				y += step;
-			}
-			break;
-		default:
+function runAction(action: EditorAction) {
+	if (!editorState || !editor) return;
+	switch (action) {
+		case "undo":
+			editor.undo();
 			return;
+		case "redo":
+			editor.redo();
+			return;
+		case "openExport":
+			selectTool("export");
+			return;
+		case "zoomIn":
+			panZoom.zoomIn();
+			return;
+		case "zoomOut":
+			panZoom.zoomOut();
+			return;
+		case "actualSize":
+			panZoom.fitToScreen();
+			return;
+		case "fit":
+			fitToView();
+			return;
+		case "compare":
+			return;
+		case "rotateLeft":
+			handleStateUpdate({ rotation: (editorState.rotation - 90 + 360) % 360 });
+			return;
+		case "rotateRight":
+			handleStateUpdate({ rotation: (editorState.rotation + 90) % 360 });
+			return;
+		case "flipX":
+			handleStateUpdate({ flipX: !editorState.flipX });
+			return;
+		case "flipY":
+			handleStateUpdate({ flipY: !editorState.flipY });
+			return;
+		default: {
+			const tool = EDITOR_TOOLS.find((candidate) => action === `tool:${candidate.id}`);
+			if (tool) selectTool(activeTool === tool.id ? null : tool.id);
+		}
+	}
+}
+
+function handleEscape() {
+	switch (escapeTarget({ isCropping, activeTool })) {
+		case "crop":
+			cancelCrop();
+			return;
+		case "panel":
+			selectTool(null);
+			return;
+		case "editor":
+			void handleClose();
+	}
+}
+
+function handleKeydown(e: KeyboardEvent) {
+	// The shortcuts dialog handles its own keys (Esc closes it).
+	if (!editorState || showShortcuts) return;
+	// Text fields own their letters, arrows, Esc and Ctrl+Z.
+	if (isTextEntryTarget(e.target)) return;
+
+	if (e.key === "Escape") {
+		e.preventDefault();
+		handleEscape();
+		return;
+	}
+	if (isCropping && e.key.startsWith("Arrow") && !(e.target instanceof HTMLInputElement)) {
+		if (crop.nudge(e)) e.preventDefault();
+		return;
+	}
+
+	const action = shortcutAction(e);
+	if (!action) return;
+	if (action === "compare") {
+		if (isSpaceActivated(e.target)) return;
+		e.preventDefault();
+		if (!e.repeat) {
+			isComparing = true;
+			isComparingFromKey = true;
+		}
+		return;
 	}
 	e.preventDefault();
-	cropRect = clampRect({ x, y, width, height });
+	// The editor owns these while it is open; keep the app-wide shortcuts from acting too.
+	if (e.ctrlKey || e.metaKey) e.stopPropagation();
+	runAction(action);
 }
 
-// Keyboard shortcuts
-function handleKeydown(e: KeyboardEvent) {
-	if (!editorState) return;
-	// SAFETY: this is a window keydown listener, so the target is whatever DOM element
-	// holds focus; reading `tagName` off it is the point of the check.
-	const focused = e.target as HTMLElement | null;
-	if (focused?.tagName === "INPUT" || focused?.tagName === "TEXTAREA") return;
-
-	// Crop keyboard nudging (arrow keys)
-	if (isCropping && cropRect && e.key.startsWith("Arrow")) {
-		handleCropKeyboardNudge(e);
-		return;
-	}
-
-	if (e.ctrlKey || e.metaKey) {
-		switch (e.key.toLowerCase()) {
-			case "z":
-				e.preventDefault();
-				if (e.shiftKey) handleRedo();
-				else handleUndo();
-				break;
-			case "y":
-				e.preventDefault();
-				handleRedo();
-				break;
-			case "s":
-				e.preventDefault();
-				activeTool = "export";
-				break;
-			case "0":
-				e.preventDefault();
-				panZoom.fitToScreen();
-				break;
-			case "=":
-			case "+":
-				e.preventDefault();
-				panZoom.zoomIn();
-				break;
-			case "-":
-				e.preventDefault();
-				panZoom.zoomOut();
-				break;
-		}
-		// The editor owns these while it is open; keep the app-wide shortcuts from acting too.
-		if (e.defaultPrevented) e.stopPropagation();
-		return;
-	}
-
-	switch (e.key.toLowerCase()) {
-		case "escape":
-			if (activeTool) {
-				activeTool = null;
-			} else {
-				handleClose();
-			}
-			break;
-		case "a":
-			activeTool = activeTool === "adjust" ? null : "adjust";
-			break;
-		case "f":
-			activeTool = activeTool === "filters" ? null : "filters";
-			break;
-		case "c":
-			activeTool = activeTool === "crop" ? null : "crop";
-			isCropping = activeTool === "crop";
-			break;
-		case "d":
-			activeTool = activeTool === "draw" ? null : "draw";
-			break;
-		case "p":
-			activeTool = activeTool === "palette" ? null : "palette";
-			break;
-		case "e":
-			activeTool = activeTool === "effects" ? null : "effects";
-			break;
-		case "l":
-			activeTool = activeTool === "layers" ? null : "layers";
-			break;
-		case "x":
-			activeTool = activeTool === "export" ? null : "export";
-			break;
-		case " ":
-			e.preventDefault();
-			isComparing = !isComparing;
-			break;
-		case "r":
-			fitToView();
-			break;
-		case "[":
-			handleStateUpdate({ rotation: (editorState.rotation - 90 + 360) % 360 });
-			break;
-		case "]":
-			handleStateUpdate({ rotation: (editorState.rotation + 90) % 360 });
-			break;
-		case "h":
-			handleStateUpdate({ flipX: !editorState.flipX });
-			break;
-		case "v":
-			handleStateUpdate({ flipY: !editorState.flipY });
-			break;
+function handleKeyup(e: KeyboardEvent) {
+	if (e.key === " " && isComparingFromKey) {
+		isComparingFromKey = false;
+		isComparing = false;
 	}
 }
 
@@ -622,7 +447,7 @@ async function openEditor() {
 		else editor = opened;
 	} catch (error) {
 		console.error("Failed to open the editor:", error);
-		toast.error("This image could not be opened.");
+		toast.error("This reference could not be opened. It may have been deleted.");
 		onClose();
 	}
 }
@@ -631,185 +456,171 @@ onMount(() => {
 	void openEditor();
 	// Capture phase: runs before the app-wide shortcut listener on `document`.
 	window.addEventListener("keydown", handleKeydown, { capture: true });
+	window.addEventListener("keyup", handleKeyup, { capture: true });
 	return () => {
 		isUnmounted = true;
 		window.removeEventListener("keydown", handleKeydown, { capture: true });
+		window.removeEventListener("keyup", handleKeyup, { capture: true });
 		void editor?.close();
 	};
 });
 </script>
 
+{#snippet curves()}
+	{#if editor && editorState}
+		<CurvesPanel
+			imageSrc={editor.originalUrl}
+			curves={editorState.curves}
+			onCurvesChange={(newCurves) => handleStateUpdate({ curves: newCurves })}
+			onCurvesPreview={(newCurves) => handleStatePreview({ curves: newCurves })}
+			onCurvesCommit={() => editor?.commit("Curves")}
+		/>
+	{/if}
+{/snippet}
+
+{#snippet transform()}
+	{#if editorState}
+		<TransformPanel {editorState} onUpdate={handleStateUpdate} onPreview={handleStatePreview} />
+	{/if}
+{/snippet}
+
 {#if editor && editorState}
-	<div class="absolute inset-0 z-50 flex flex-col bg-void-deep" transition:fade={{ duration: 200 }}>
+	<div class="absolute inset-0 z-50 flex flex-col bg-void-deep" role="region" aria-label={`Editing ${editor.reference.name}`}>
 		<ImageEditorHeader
 			imageName={editor.reference.name}
 			canUndo={editor.session.history.canUndo}
 			canRedo={editor.session.history.canRedo}
 			{isComparing}
 			zoom={panZoom.zoom}
+			isFitted={panZoom.isFitted}
+			{saveState}
+			isSourceDownscaled={editor.isSourceDownscaled}
 			onClose={handleClose}
-			onUndo={handleUndo}
-			onRedo={handleRedo}
-			onCompareStart={() => (isComparing = true)}
-			onCompareEnd={() => (isComparing = false)}
+			onUndo={() => editor?.undo()}
+			onRedo={() => editor?.redo()}
+			onCompareChange={(next) => (isComparing = next)}
 			onFitToScreen={fitToView}
+			onActualSize={panZoom.fitToScreen}
 			onZoomIn={panZoom.zoomIn}
 			onZoomOut={panZoom.zoomOut}
 			onShowShortcuts={() => (showShortcuts = true)}
+			onRetrySave={() => void editor?.session.flush()}
 		/>
 
-		<ImageCanvas
-			imageName={editor.reference.name}
-			displayWidth={displaySize.width}
-			displayHeight={displaySize.height}
-			previewError={editor.renderError ?? editor.session.saveError}
-			isDrawing={activeTool === "draw"}
-			{isCropping}
-			{cropRect}
-			{cropGuideType}
-			{panZoom}
-			onCanvasReady={handleCanvasReady}
-			onCropStart={handleCropStart}
-			onCropMove={handleCropMove}
-			onCropEnd={handleCropEnd}
-			onCropHandleDragStart={handleCropHandleDragStart}
-			onCropBodyDragStart={handleCropBodyDragStart}
-			onDrawStart={handleDrawStart}
-			onDrawMove={handleDrawMove}
-			onDrawEnd={handleDrawEnd}
-			onRetryPreview={handleRetryPreview}
-		/>
-
-		<EditorToolbar {activeTool} onToolSelect={handleToolSelect} />
-
-		<!-- Panels -->
-		<EditorPanel title="Adjust" icon="material-symbols:tune" isOpen={activeTool === "adjust"} onClose={() => (activeTool = null)}>
-			<AdjustPanel {editorState} onUpdate={handleStateUpdate} onPreview={handleStatePreview} />
-		</EditorPanel>
-
-		<EditorPanel title="Draw" icon="material-symbols:draw" isOpen={activeTool === "draw"} onClose={() => { draftStroke = null; activeTool = null; }}>
-			<div class="space-y-5">
-				<label class="grid gap-2 text-sm text-white/80" for="editor-brush-color">
-					Brush color
-					<input
-						id="editor-brush-color"
-						type="color"
-						bind:value={brushColor}
-						class="h-11 w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 p-1"
-					/>
-				</label>
-				<label class="grid gap-2 text-sm text-white/80" for="editor-brush-size">
-					<span class="flex items-center justify-between">
-						Brush size
-						<span class="font-mono text-white/55">{brushSize}px</span>
-					</span>
-					<input id="editor-brush-size" type="range" min="1" max="100" step="1" bind:value={brushSize} />
-				</label>
-				<button
-					type="button"
-					class="btn btn-ghost min-h-11 w-full border border-white/10"
-					disabled={editorState.drawStrokes.length === 0}
-					onclick={() => handleStateUpdate({ drawStrokes: [] })}
-				>
-					<Icon icon="material-symbols:ink-eraser" class="h-5 w-5" />
-					Clear drawing
-				</button>
-				<p class="text-xs leading-relaxed text-white/45">Drag directly over the image. Each stroke is one undo step.</p>
+		<!-- Phone: canvas, sheet, toolbar stacked. md+: canvas and toolbar left, inspector right. -->
+		<div class="flex min-h-0 flex-1 flex-col md:grid md:grid-cols-[minmax(0,1fr)_auto] md:grid-rows-[minmax(0,1fr)_auto]">
+			<div class="flex min-h-0 flex-1 md:col-start-1 md:row-start-1">
+				<ImageCanvas
+					imageName={editor.reference.name}
+					displayWidth={displaySize.width}
+					displayHeight={displaySize.height}
+					previewError={editor.renderError}
+					isDrawing={activeTool === "draw"}
+					{isCropping}
+					cropRect={crop.rect}
+					cropGuideType={crop.guideType}
+					{panZoom}
+					onCanvasReady={handleCanvasReady}
+					onCropStart={withPosition((point) => crop.startNew(point))}
+					onCropMove={withPosition((point) => crop.move(point))}
+					onCropEnd={() => crop.stop()}
+					onCropHandleDragStart={(handle) => crop.startHandle(handle)}
+					onCropBodyDragStart={withPosition((point) => crop.startMove(point))}
+					onDrawStart={handleDrawStart}
+					onDrawMove={handleDrawMove}
+					onDrawEnd={handleDrawEnd}
+					onRetryPreview={handleRetryPreview}
+					onViewportResize={handleViewportResize}
+				/>
 			</div>
-		</EditorPanel>
 
-		<EditorPanel title="Filters" icon="material-symbols:filter-vintage" isOpen={activeTool === "filters"} onClose={() => (activeTool = null)} size="lg">
-			<div class="space-y-6">
-				<FiltersPanel currentState={editorState} imageSrc={editor.originalUrl} onApplyPreset={handlePresetApply} onPreviewPreset={handlePresetPreview} renderPreview={renderPresetPreview} />
-				<div class="pt-4 border-t border-white/10">
-					<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider mb-4 flex items-center gap-2">
-						<Icon icon="material-symbols:show-chart" class="w-4 h-4" />
-						Curves
-					</h4>
-					<CurvesPanel
-						imageSrc={editor.originalUrl}
-						curves={editorState.curves}
-						onCurvesChange={(newCurves) => handleStateUpdate({ curves: newCurves })}
-						onCurvesPreview={(newCurves) => handleStatePreview({ curves: newCurves })}
-						onCurvesCommit={() => editor?.commit("Curves")}
-					/>
+			{#if activeTool && activeToolInfo}
+				<div class="flex min-h-0 md:col-start-2 md:row-span-2 md:row-start-1">
+					<EditorPanel
+						title={activeTool === "crop" ? "Crop & Rotate" : activeToolInfo.label}
+						icon={activeToolInfo.icon}
+						size={activeTool === "presets" ? "lg" : "md"}
+						onClose={() => (activeTool === "crop" && isCropping ? cancelCrop() : selectTool(null))}
+					>
+						{#if activeTool === "adjust"}
+							<AdjustPanel {editorState} onUpdate={handleStateUpdate} onPreview={handleStatePreview} {curves} />
+						{:else if activeTool === "presets"}
+							<FiltersPanel currentState={editorState} imageSrc={editor.originalUrl} onApplyPreset={handlePresetApply} onPreviewPreset={handlePresetPreview} renderPreview={renderPresetPreview} />
+						{:else if activeTool === "crop"}
+							<CropPanel
+								mode={cropMode}
+								onModeChange={setCropMode}
+								{transform}
+								cropRect={crop.rect}
+								aspectRatio={crop.aspectRatio}
+								guideType={crop.guideType}
+								onCropChange={(rect) => crop.set(rect)}
+								onAspectRatioChange={(ratio) => crop.setAspectRatio(ratio)}
+								onGuideTypeChange={(guide) => (crop.guideType = guide)}
+								onApplyCrop={handleCropDone}
+								onCancelCrop={cancelCrop}
+								onExtractFromRegion={handleExtractFromRegion}
+								{imageWidth}
+								{imageHeight}
+							/>
+						{:else if activeTool === "effects"}
+							<EffectsPanel
+								appliedEffects={editorState.appliedEffects}
+								onAddEffect={handleAddEffect}
+								onPreviewEffect={handleEffectPreview}
+								onUpdateEffect={handleEffectUpdate}
+								onRemoveEffect={(index) => editor?.removeEffect(index)}
+								onClearEffects={() => editor?.clearEffects()}
+							/>
+						{:else if activeTool === "draw"}
+							<DrawPanel
+								bind:brushColor
+								bind:brushSize
+								hasStrokes={editorState.drawStrokes.length > 0}
+								onClear={() => handleStateUpdate({ drawStrokes: [] })}
+							/>
+						{:else if activeTool === "layers"}
+							<LayersPanel
+								layers={editorState.layers}
+								activeLayerId={editorState.activeLayerId}
+								onAddImageLayer={() => layerFileInput?.click()}
+								onRemoveLayer={(id) => editor?.removeLayer(id)}
+								onUpdateLayer={(id: string, updates: Partial<ImageLayer>) => editor?.updateLayer(id, layerUpdates(updates))}
+								onPreviewLayer={(id: string, updates: Partial<ImageLayer>) => editor?.updateLayer(id, layerUpdates(updates), true)}
+								onDuplicateLayer={(id) => editor?.duplicateLayer(id)}
+								onReorderLayer={(from, to) => editor?.reorderLayers(from, to)}
+								onSetActiveLayer={(id) => editor && (editor.activeLayerId = id)}
+								onMergeDown={(id) => runLayerAction(async () => editor?.mergeDown(id), "The layers could not be merged.")}
+								onFlattenAll={() => runLayerAction(async () => editor?.flattenLayers(), "The layers could not be flattened.")}
+							/>
+						{:else if activeTool === "palette"}
+							<PalettePanel
+								bind:extractedPalette
+								imageSrc={editor.originalUrl}
+								{getEditedImage}
+								gradientMapOpacity={editorState.gradientMapOpacity}
+								gradientMapBlendMode={editorState.gradientMapBlendMode}
+								onGradientMapChange={(opacity, blendMode) => handleStateUpdate({ gradientMapOpacity: opacity, gradientMapBlendMode: blendMode })}
+								onGradientMapPreview={(opacity, blendMode) => handleStatePreview({ gradientMapOpacity: opacity, gradientMapBlendMode: blendMode })}
+							/>
+						{:else if activeTool === "export"}
+							<ExportPanelEnhanced
+								imageName={editor.reference.name}
+								{extractedPalette}
+								outputSize={editor.displaySize("edit")}
+								isSourceDownscaled={editor.isSourceDownscaled}
+								onExport={handleExport}
+							/>
+						{/if}
+					</EditorPanel>
 				</div>
-				<div class="pt-4 border-t border-white/10">
-					<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider mb-4 flex items-center gap-2">
-						<Icon icon="material-symbols:transform" class="w-4 h-4" />
-						Transform
-					</h4>
-					<TransformPanel {editorState} onUpdate={handleStateUpdate} onPreview={handleStatePreview} />
-				</div>
+			{/if}
+
+			<div class="md:col-start-1 md:row-start-2">
+				<EditorToolbar {activeTool} onToolSelect={selectTool} />
 			</div>
-		</EditorPanel>
+		</div>
 
-		<EditorPanel title="Crop" icon="material-symbols:crop" isOpen={activeTool === "crop"} onClose={() => { handleCancelCrop(); activeTool = null; }}>
-			<CropPanel
-				{cropRect}
-				{aspectRatio}
-				guideType={cropGuideType}
-				onCropChange={(rect) => (cropRect = rect)}
-				onAspectRatioChange={(ratio) => (aspectRatio = ratio)}
-				onGuideTypeChange={(guide) => (cropGuideType = guide)}
-				onApplyCrop={handleApplyCrop}
-				onCancelCrop={handleCancelCrop}
-				onExtractFromRegion={handleExtractFromRegion}
-				{imageWidth}
-				{imageHeight}
-			/>
-		</EditorPanel>
-
-		<EditorPanel title="Palette" icon="material-symbols:palette" isOpen={activeTool === "palette"} onClose={() => (activeTool = null)}>
-			<PalettePanel
-				imageSrc={editor.originalUrl}
-				{getEditedImage}
-				gradientMapOpacity={editorState.gradientMapOpacity}
-				gradientMapBlendMode={editorState.gradientMapBlendMode}
-				onGradientMapChange={(opacity, blendMode) => handleStateUpdate({ gradientMapOpacity: opacity, gradientMapBlendMode: blendMode })}
-				onGradientMapPreview={(opacity, blendMode) => handleStatePreview({ gradientMapOpacity: opacity, gradientMapBlendMode: blendMode })}
-			/>
-		</EditorPanel>
-
-		<EditorPanel title="Effects" icon="material-symbols:auto-fix-high" isOpen={activeTool === "effects"} onClose={() => (activeTool = null)}>
-			<EffectsPanel
-				activeEffect={editor.quickEffect}
-				effectIntensity={editor.effectIntensity}
-				duotoneColors={editor.duotoneColors}
-				appliedEffects={editorState.appliedEffects}
-				onEffectChange={(effect) => editor?.selectEffect(effect)}
-				onIntensityChange={(intensity) => editor && (editor.effectIntensity = intensity)}
-				onDuotoneColorsChange={(colors) => editor && (editor.duotoneColors = colors)}
-				onApplyEffect={() => editor?.applyEffect()}
-				onRemoveEffect={(index) => editor?.removeEffect(index)}
-				onClearEffects={() => editor?.clearEffects()}
-			/>
-		</EditorPanel>
-
-		<EditorPanel title="Layers" icon="material-symbols:layers" isOpen={activeTool === "layers"} onClose={() => (activeTool = null)}>
-			<LayersPanel
-				layers={editorState.layers}
-				activeLayerId={editorState.activeLayerId}
-				onAddImageLayer={handleAddLayerImage}
-				onRemoveLayer={(id) => editor?.removeLayer(id)}
-				onUpdateLayer={(id: string, updates: Partial<ImageLayer>) => editor?.updateLayer(id, layerUpdates(updates))}
-				onPreviewLayer={(id: string, updates: Partial<ImageLayer>) => editor?.updateLayer(id, layerUpdates(updates), true)}
-				onDuplicateLayer={(id) => editor?.duplicateLayer(id)}
-				onReorderLayer={(from, to) => editor?.reorderLayers(from, to)}
-				onSetActiveLayer={(id) => editor && (editor.activeLayerId = id)}
-				onMergeDown={(id) => runLayerAction(async () => editor?.mergeDown(id), "The layers could not be merged.")}
-				onFlattenAll={() => runLayerAction(async () => editor?.flattenLayers(), "The layers could not be flattened.")}
-			/>
-		</EditorPanel>
-
-		<EditorPanel title="Export" icon="material-symbols:download" isOpen={activeTool === "export"} onClose={() => (activeTool = null)}>
-			<ExportPanelEnhanced
-				imageName={editor.reference.name}
-				{extractedPalette}
-				onExport={handleExport}
-			/>
-		</EditorPanel>
-		<!-- Hidden file input for layer uploads -->
 		<input
 			bind:this={layerFileInput}
 			type="file"
@@ -819,86 +630,5 @@ onMount(() => {
 		/>
 	</div>
 
-	<!-- Keyboard Shortcuts Dialog -->
-	{#if showShortcuts}
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div
-			class="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-			onclick={() => (showShortcuts = false)}
-			onkeydown={(e) => e.key === "Escape" && (showShortcuts = false)}
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="shortcuts-dialog-title"
-			tabindex="-1"
-			transition:fade={{ duration: 150 }}
-		>
-			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-			<div
-				class="bg-void-deep border border-white/10 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl"
-				onclick={(e) => e.stopPropagation()}
-				onkeydown={(e) => e.stopPropagation()}
-				role="document"
-			>
-				<div class="flex items-center justify-between mb-4">
-					<h3 id="shortcuts-dialog-title" class="text-lg font-bold text-white flex items-center gap-2">
-						<Icon icon="material-symbols:keyboard" class="w-5 h-5 text-phoenix-primary" />
-						Keyboard Shortcuts
-					</h3>
-					<button class="btn btn-sm btn-circle btn-ghost text-white/60 hover:text-white" onclick={() => (showShortcuts = false)} aria-label="Close shortcuts dialog">
-						<Icon icon="material-symbols:close" class="w-5 h-5" />
-					</button>
-				</div>
-				<div class="space-y-4 text-sm">
-					<div>
-						<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Tools</h4>
-						<div class="grid grid-cols-2 gap-1">
-							{#each [["Adjust", "A"], ["Filters", "F"], ["Crop", "C"], ["Palette", "P"], ["Effects", "E"], ["Layers", "L"], ["Export", "X"]] as [name, key]}
-								<div class="flex justify-between text-white/70"><span>{name}</span><kbd class="kbd kbd-sm">{key}</kbd></div>
-							{/each}
-						</div>
-					</div>
-					<div>
-						<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Actions</h4>
-						<div class="grid grid-cols-2 gap-1">
-							{#each [["Undo", "Ctrl+Z"], ["Redo", "Ctrl+Y"], ["Save", "Ctrl+S"], ["Compare", "Space"]] as [name, key]}
-								<div class="flex justify-between text-white/70"><span>{name}</span><kbd class="kbd kbd-sm">{key}</kbd></div>
-							{/each}
-						</div>
-					</div>
-					<div>
-						<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">View</h4>
-						<div class="grid grid-cols-2 gap-1">
-							{#each [["Zoom In", "Ctrl++"], ["Zoom Out", "Ctrl+-"], ["Fit", "R"], ["100%", "Ctrl+0"]] as [name, key]}
-								<div class="flex justify-between text-white/70"><span>{name}</span><kbd class="kbd kbd-sm">{key}</kbd></div>
-							{/each}
-						</div>
-					</div>
-					<div>
-						<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Transform</h4>
-						<div class="grid grid-cols-2 gap-1">
-							{#each [["Rotate Left", "["], ["Rotate Right", "]"], ["Flip H", "H"], ["Flip V", "V"]] as [name, key]}
-								<div class="flex justify-between text-white/70"><span>{name}</span><kbd class="kbd kbd-sm">{key}</kbd></div>
-							{/each}
-						</div>
-					</div>
-					<div>
-						<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Crop</h4>
-						<div class="grid grid-cols-2 gap-1">
-							{#each [["Nudge 1px", "Arrows"], ["Nudge 10px", "Shift+Arrows"], ["Resize", "Alt+Arrows"]] as [name, key]}
-								<div class="flex justify-between text-white/70"><span>{name}</span><kbd class="kbd kbd-sm">{key}</kbd></div>
-							{/each}
-						</div>
-					</div>
-					<div>
-						<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">General</h4>
-						<div class="grid grid-cols-2 gap-1">
-							{#each [["Close Panel", "Esc"], ["Exit Editor", "Esc"]] as [name, key]}
-								<div class="flex justify-between text-white/70"><span>{name}</span><kbd class="kbd kbd-sm">{key}</kbd></div>
-							{/each}
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	{/if}
+	<ShortcutsDialog isOpen={showShortcuts} onClose={() => (showShortcuts = false)} />
 {/if}

@@ -12,14 +12,12 @@ import GlassPanel from "$lib/components/ui/GlassPanel.svelte";
 import { cn } from "$lib/utils/cn";
 import { validatePalette } from "$lib/schemas/validation";
 
-// Sub-components
 import PaletteList from "./palettes/PaletteList.svelte";
 import PaletteEditor from "./palettes/PaletteEditor.svelte";
 import PaletteInspector from "./palettes/PaletteInspector.svelte";
 import { isValidHexColor, normalizeHexColor } from "./palettes/palette-utils";
 
 
-// State
 let newPaletteName = $state("");
 let showCreateDialog = $state(false);
 let newPaletteSlots = $state(5);
@@ -27,7 +25,6 @@ let activeColorIndex = $state<number | null>(null); // Index-based selection
 let colorHistory: string[] = $state(["#FF0080", "#00E5FF", "#FFB800"]);
 let searchTerm = $state("");
 
-// Color extraction state
 let showExtractDialog = $state(false);
 let showImagePicker = $state(false);
 let extractSlots = $state(5);
@@ -175,7 +172,6 @@ function exportPaletteAsImage(palette: ValidatedColorPalette) {
 	}, "image/png");
 }
 
-// Color extraction functions
 async function startColorExtraction(referenceId: ReferenceId) {
 	const reference = library.find(referenceId);
 	if (!reference) {
@@ -269,13 +265,11 @@ function selectImageForExtraction(refId: ReferenceId) {
 	showImagePicker = false;
 	startColorExtraction(refId);
 }
-// View State for Mobile
 type MobileView = "list" | "editor" | "inspector";
 let mobileView = $state<MobileView>("list");
 let containerWidth = $state(0);
 
 function handlePaletteSelect() {
-	// Switch to editor view if container is small (mobile layout)
 	if (containerWidth < 768) {
 		mobileView = "editor";
 	}
@@ -299,9 +293,7 @@ function toggleInspector() {
 	class="h-full w-full bg-void text-text-muted relative overflow-hidden @container"
 	bind:clientWidth={containerWidth}
 >
-	<!-- DESKTOP LAYOUT (Container query based) -->
 	<div class="hidden @md:flex h-full w-full gap-0">
-		<!-- LEFT SIDEBAR -->
 		<div class="shrink-0 w-72 lg:w-80 border-r border-white/5 bg-void-deep">
 			<PaletteList
 				{searchTerm}
@@ -311,7 +303,6 @@ function toggleInspector() {
 			/>
 		</div>
 
-		<!-- MAIN EDITOR AREA -->
 		<div class="flex-1 min-w-0 bg-void p-4 overflow-hidden relative">
 			<PaletteEditor
 				{activeColorIndex}
@@ -319,7 +310,6 @@ function toggleInspector() {
 			/>
 		</div>
 
-		<!-- RIGHT INSPECTOR SIDEBAR -->
 		<div class="w-80 shrink-0 border-l border-white/5 bg-void-deep">
 			<PaletteInspector
 				{activeColorIndex}
@@ -335,9 +325,7 @@ function toggleInspector() {
 		</div>
 	</div>
 
-	<!-- MOBILE LAYOUT -->
 	<div class="@md:hidden h-full w-full relative">
-		<!-- HEADER / NAVIGATION FOR MOBILE -->
 		{#if mobileView !== "list"}
 			<div
 				class="absolute top-0 left-0 right-0 h-14 bg-void-deep border-b border-white/5 flex items-center justify-between px-4 z-20"
@@ -359,9 +347,7 @@ function toggleInspector() {
 			</div>
 		{/if}
 
-		<!-- VIEWS -->
 		<div class="h-full w-full transition-all duration-300" class:pt-14={mobileView !== "list"}>
-			<!-- LIST VIEW -->
 			<div class="{mobileView === 'list' ? 'block' : 'hidden'} h-full">
 				<PaletteList
 					{searchTerm}
@@ -372,7 +358,6 @@ function toggleInspector() {
 				/>
 			</div>
 
-			<!-- EDITOR VIEW -->
 			<div class="{mobileView === 'editor' ? 'block' : 'hidden'} h-full p-4 relative">
 				<PaletteEditor
 					{activeColorIndex}
@@ -380,7 +365,6 @@ function toggleInspector() {
 				/>
 			</div>
 
-			<!-- INSPECTOR VIEW -->
 			<div class="{mobileView === 'inspector' ? 'block' : 'hidden'} h-full bg-void-deep p-4">
 				<PaletteInspector
 					{activeColorIndex}
@@ -398,7 +382,6 @@ function toggleInspector() {
 	</div>
 </div>
 
-<!-- Create Palette Dialog -->
 {#if showCreateDialog}
 	<div
 		class="fixed inset-0 modal-backdrop-blur flex items-center justify-center z-50 p-4"
@@ -458,7 +441,6 @@ function toggleInspector() {
 	</div>
 {/if}
 
-<!-- Extract Dialog -->
 {#if showExtractDialog}
 	<div
 		class="fixed inset-0 modal-backdrop-blur flex items-center justify-center z-50 p-4"
@@ -508,7 +490,6 @@ function toggleInspector() {
 	</div>
 {/if}
 
-<!-- Image Picker Dialog -->
 {#if showImagePicker}
 	<div
 		class="fixed inset-0 modal-backdrop-blur flex items-center justify-center z-50 p-4"

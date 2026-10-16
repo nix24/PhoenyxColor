@@ -35,24 +35,20 @@ const hoverStyles = $derived(
 		: "",
 );
 
-// Island UI - floating containers with depth
 const islandStyles = $derived(
 	island ? "shadow-[0_8px_30px_rgba(0,0,0,0.3),0_2px_8px_rgba(0,0,0,0.2)] border-white/10" : "",
 );
 </script>
 
 <div class={cn(baseStyles, intensities[intensity], hoverStyles, islandStyles, className)} {...rest}>
-	<!-- Inner Glow Gradient (Top Left) -->
 	<div
 		class="absolute top-0 left-0 w-full h-full bg-linear-to-br from-white/10 to-transparent opacity-60 pointer-events-none"
 	></div>
 
-	<!-- Pop Shine Effect (Bottom Right) -->
 	<div
 		class="absolute bottom-0 right-0 w-2/3 h-2/3 bg-linear-to-tl from-phoenix-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
 	></div>
 
-	<!-- Content -->
 	<div class="relative z-10 h-full">
 		{@render children()}
 	</div>

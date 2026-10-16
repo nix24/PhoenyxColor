@@ -5,11 +5,11 @@ import type { SortMode, ViewMode } from "$lib/types/image-editor";
 import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
 import ImageCard from "./ImageCard.svelte";
+import ReferenceActionsMenu from "./ReferenceActionsMenu.svelte";
 import SkeletonCard from "$lib/components/ui/SkeletonCard.svelte";
 
 interface Props {
 	items: LibraryItem[];
-	selectedImageId: string | null;
 	isLoading: boolean;
 	loadError: string | null;
 	isDragOver: boolean;
@@ -18,13 +18,11 @@ interface Props {
 	onEdit: (id: ReferenceId) => void;
 	onDuplicate: (id: ReferenceId) => void;
 	onDelete: (id: ReferenceId) => void;
-	onContextMenu: (e: MouseEvent, item: LibraryItem) => void;
 	onRetry: () => void;
 }
 
 const {
 	items,
-	selectedImageId,
 	isLoading,
 	loadError,
 	isDragOver,
@@ -33,9 +31,10 @@ const {
 	onEdit,
 	onDuplicate,
 	onDelete,
-	onContextMenu,
 	onRetry,
 }: Props = $props();
+
+let listMenus: Record<string, ReferenceActionsMenu | null> = $state({});
 
 let searchTerm = $state("");
 let sortMode = $state<SortMode>("date");
@@ -44,13 +43,11 @@ let viewMode = $state<ViewMode>("grid");
 const filteredItems = $derived.by(() => {
 	let result = items;
 
-	// Filter by search
 	if (searchTerm.trim()) {
 		const term = searchTerm.toLowerCase();
 		result = result.filter(({ reference }) => reference.name.toLowerCase().includes(term));
 	}
 
-	// Sort
 	result = [...result].sort((a, b) => {
 		switch (sortMode) {
 			case "name":
@@ -69,82 +66,77 @@ const refCount = $derived(items.length);
 </script>
 
 <div class="flex flex-col h-full gap-3">
-	<!-- Header -->
-	<div class="flex flex-col @md:flex-row @md:items-center justify-between px-4 pt-4 @md:px-6 @md:pt-5 gap-3 shrink-0">
-		<div class="flex items-center gap-3">
-			<div class="w-10 h-10 rounded-xl bg-linear-to-br from-phoenix-primary/20 to-phoenix-violet/20 flex items-center justify-center shrink-0">
-				<Icon icon="material-symbols:photo-library" class="w-5 h-5 text-phoenix-primary" />
-			</div>
-			<div>
-				<h2 class="text-lg @md:text-xl font-bold text-white tracking-wide leading-tight">
-					References
-					{#if refCount > 0}
-						<span class="text-sm font-normal text-text-muted ml-1.5">({refCount})</span>
-					{/if}
-				</h2>
-				<p class="text-xs text-text-muted/70 mt-0.5">
-					Select an image to edit or open its actions
-				</p>
-			</div>
-		</div>
-
-		<div class="flex items-center gap-2">
-			<button
-				class="btn btn-sm gap-1.5 border-none bg-linear-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg hover:shadow-phoenix-primary/40 transition-all duration-300"
-				onclick={onAddFiles}
-				type="button"
-			>
-				<Icon icon="material-symbols:add-photo-alternate" class="w-4 h-4" />
-				<span class="hidden @sm:inline">Add Images</span>
-				<span class="@sm:hidden">Add</span>
-			</button>
-
+	<div class="flex shrink-0 items-center justify-between gap-3 px-4 pt-4 @md:px-6 @md:pt-5">
+		<h2 class="text-lg font-bold leading-tight tracking-wide text-white @md:text-xl">
+			References
 			{#if refCount > 0}
-				<button
-					class="btn btn-sm btn-ghost text-white/50 hover:text-red-400 hover:bg-red-400/10 gap-1.5"
-					onclick={onClearAll}
-					type="button"
-					title="Clear all references"
-				>
-					<Icon icon="material-symbols:delete-sweep" class="w-4 h-4" />
-					<span class="hidden @md:inline">Clear</span>
-				</button>
+				<span class="ml-1.5 text-sm font-normal text-text-muted">({refCount})</span>
 			{/if}
-		</div>
+		</h2>
+
+		{#if refCount > 0}
+			<div class="flex items-center gap-1">
+				<button
+					class="btn btn-sm min-h-11 gap-1.5 border-none bg-linear-to-r from-phoenix-primary to-phoenix-violet text-white shadow-lg transition-shadow duration-300 hover:shadow-phoenix-primary/40"
+					onclick={onAddFiles}
+					type="button"
+				>
+					<Icon icon="material-symbols:add-photo-alternate" class="w-4 h-4" />
+					Add images
+				</button>
+				<div class="dropdown dropdown-end">
+					<div
+						tabindex="0"
+						role="button"
+						class="flex h-11 w-11 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-phoenix-primary"
+						aria-label="More library actions"
+					>
+						<Icon icon="material-symbols:more-vert" class="h-5 w-5" />
+					</div>
+					<ul class="dropdown-content menu z-40 mt-1 w-56 rounded-xl border border-white/10 bg-void-deep/95 p-1.5 shadow-2xl backdrop-blur-xl">
+						<li>
+							<button class="min-h-11 text-sm text-red-400 hover:bg-red-400/10 hover:text-red-300" onclick={onClearAll} type="button">
+								<Icon icon="material-symbols:delete-sweep" class="h-4 w-4" />
+								Remove all references
+							</button>
+						</li>
+					</ul>
+				</div>
+			</div>
+		{/if}
 	</div>
 
-	<!-- Search & Controls -->
 	{#if refCount > 0}
 		<div class="px-4 @md:px-6 grid grid-cols-[minmax(0,1fr)_auto] @sm:flex items-center gap-2 shrink-0">
-			<!-- Search -->
 			<div class="relative flex-1 col-span-2 @sm:col-span-1">
-				<label for="reference-search" class="sr-only">Search reference images</label>
-				<Icon icon="material-symbols:search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted/50" />
+				<label for="reference-search" class="sr-only">Search references</label>
+				<Icon icon="material-symbols:search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
 				<input
 					id="reference-search"
 					type="text"
 					bind:value={searchTerm}
-					placeholder="Search images..."
-					class="w-full pl-9 pr-3 py-2 text-sm bg-white/5 border border-white/5 rounded-lg text-white placeholder:text-text-muted/40 focus:outline-none focus:border-phoenix-primary/40 transition-colors"
+					placeholder="Search"
+					class="w-full min-h-11 pl-9 pr-3 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-text-muted focus:outline-none focus:border-phoenix-primary/60 focus-visible:outline-2 focus-visible:outline-phoenix-primary transition-colors"
 				/>
 			</div>
 
-			<!-- Sort -->
-			<select
-				bind:value={sortMode}
-				class="px-2 py-2 text-xs bg-white/5 border border-white/5 rounded-lg text-text-muted focus:outline-none focus:border-phoenix-primary/40 cursor-pointer"
-				aria-label="Sort images by"
-			>
-				<option value="date">Newest</option>
-				<option value="name">A-Z</option>
-			</select>
+			<div class="relative">
+				<select
+					bind:value={sortMode}
+					class="min-h-11 appearance-none rounded-lg border border-white/10 bg-white/5 py-2 pl-3 pr-8 text-sm text-text-muted cursor-pointer focus:outline-none focus:border-phoenix-primary/60 focus-visible:outline-2 focus-visible:outline-phoenix-primary"
+					aria-label="Sort references"
+				>
+					<option value="date">Newest</option>
+					<option value="name">A–Z</option>
+				</select>
+				<Icon icon="material-symbols:expand-more" class="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+			</div>
 
-			<!-- View Toggle -->
-			<div class="flex border border-white/5 rounded-lg overflow-hidden">
+			<div class="flex border border-white/10 rounded-lg overflow-hidden">
 				<button
 					class={cn(
-						"px-2 py-1.5 text-xs transition-colors",
-						viewMode === "grid" ? "bg-white/10 text-white" : "text-text-muted/50 hover:text-white"
+						"min-h-11 min-w-11 flex items-center justify-center text-xs transition-colors",
+						viewMode === "grid" ? "bg-white/10 text-white" : "text-text-muted hover:text-white"
 					)}
 					onclick={() => viewMode = "grid"}
 					type="button"
@@ -155,8 +147,8 @@ const refCount = $derived(items.length);
 				</button>
 				<button
 					class={cn(
-						"px-2 py-1.5 text-xs transition-colors",
-						viewMode === "list" ? "bg-white/10 text-white" : "text-text-muted/50 hover:text-white"
+						"min-h-11 min-w-11 flex items-center justify-center text-xs transition-colors",
+						viewMode === "list" ? "bg-white/10 text-white" : "text-text-muted hover:text-white"
 					)}
 					onclick={() => viewMode = "list"}
 					type="button"
@@ -177,15 +169,14 @@ const refCount = $derived(items.length);
 		</div>
 	{/if}
 
-	<!-- Content -->
 	<div class="flex-1 overflow-hidden relative">
 		{#if isLoading}
 			<div class="h-full overflow-y-auto px-4 @md:px-6 pb-4">
-				<div class="grid grid-cols-2 @sm:grid-cols-3 @md:grid-cols-4 @lg:grid-cols-5 gap-3">
+				<div class="grid grid-cols-2 @lg:grid-cols-3 @2xl:grid-cols-4 @4xl:grid-cols-5 gap-3">
 					{#each Array(8) as _, i}
 						<div
 							style:animation-delay="{i * 60}ms"
-							class={cn("stagger-item", i === 0 && "@md:col-span-2 @md:row-span-2")}
+							class="stagger-item"
 						>
 							<SkeletonCard type="image" class="h-full" />
 						</div>
@@ -208,135 +199,71 @@ const refCount = $derived(items.length);
 			</div>
 		{:else if filteredItems.length > 0}
 			{#if viewMode === "grid"}
-				<!-- Grid View -->
 				<div class="h-full overflow-y-auto px-4 @md:px-6 pb-4 custom-scrollbar">
-					<div class="grid grid-cols-2 @sm:grid-cols-3 @md:grid-cols-4 @lg:grid-cols-5 gap-3">
-						{#each filteredItems as item, idx (item.reference.id)}
-							<ImageCard
-								{item}
-								isSelected={selectedImageId === item.reference.id}
-								isFeatured={idx === 0 && filteredItems.length > 4}
-								{onEdit}
-								{onDuplicate}
-								{onDelete}
-								{onContextMenu}
-							/>
+					<div class="grid grid-cols-2 @lg:grid-cols-3 @2xl:grid-cols-4 @4xl:grid-cols-5 gap-3">
+						{#each filteredItems as item (item.reference.id)}
+							<ImageCard {item} {onEdit} {onDuplicate} {onDelete} />
 						{/each}
 
-						<!-- Add More Card -->
-						<div
-							class="aspect-square border-2 border-dashed border-white/8 hover:border-phoenix-primary/40 hover:bg-phoenix-primary/5 transition-all duration-300 cursor-pointer rounded-xl flex items-center justify-center group"
+						<button
+							class="aspect-square border-2 border-dashed border-white/10 hover:border-phoenix-primary/40 hover:bg-phoenix-primary/5 transition-colors duration-200 rounded-xl flex flex-col items-center justify-center gap-2 group focus-visible:outline-2 focus-visible:outline-phoenix-primary"
 							onclick={onAddFiles}
-							role="button"
-							tabindex="0"
-							onkeydown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									onAddFiles();
-								}
-							}}
+							type="button"
 						>
-							<div class="text-center">
-								<div class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-2 group-hover:bg-phoenix-primary/15 transition-colors">
-									<Icon
-										icon="material-symbols:add"
-										class="w-5 h-5 text-text-muted/60 group-hover:text-phoenix-primary transition-colors"
-									/>
-								</div>
-								<p class="text-[11px] text-text-muted/50 group-hover:text-text-muted transition-colors">
-									Add more
-								</p>
-							</div>
-						</div>
+							<span class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-phoenix-primary/15 transition-colors">
+								<Icon icon="material-symbols:add" class="w-5 h-5 text-text-muted group-hover:text-phoenix-primary transition-colors" />
+							</span>
+							<span class="text-xs text-text-muted group-hover:text-white transition-colors">Add more</span>
+						</button>
 					</div>
 				</div>
 			{:else}
-				<!-- List View -->
 				<div class="h-full overflow-y-auto px-4 @md:px-6 pb-4 custom-scrollbar">
-					<div class="flex flex-col gap-1.5">
+					<div class="flex flex-col gap-1.5" role="list">
 						{#each filteredItems as item (item.reference.id)}
 							{@const reference = item.reference}
-							{@const isSelected = selectedImageId === reference.id}
 							<div
-								class={cn(
-									"group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200",
-									"hover:bg-white/5",
-									isSelected && "bg-phoenix-primary/10 border border-phoenix-primary/20"
-								)}
-								onclick={() => onEdit(reference.id)}
-								oncontextmenu={(e) => onContextMenu(e, item)}
-								role="button"
-								tabindex="0"
-								onkeydown={(e) => {
-									if (e.key === "Enter" || e.key === " ") {
-										e.preventDefault();
-										onEdit(reference.id);
-									}
+								class="group flex items-center gap-1 rounded-lg pr-1 transition-colors hover:bg-white/5"
+								role="listitem"
+								oncontextmenu={(e) => {
+									e.preventDefault();
+									listMenus[reference.id]?.openAt(e.clientX, e.clientY);
 								}}
 							>
-								<!-- Thumbnail -->
-								<div class="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-white/5">
-									<img
-										src={item.thumbnailUrl}
-										alt={reference.name}
-										class="w-full h-full object-cover"
-										loading="lazy"
-									/>
-								</div>
-
-								<!-- Info -->
-								<div class="flex-1 min-w-0">
-									<p class={cn(
-										"text-sm truncate",
-										isSelected ? "text-phoenix-primary font-medium" : "text-white/80"
-									)}>
-										{reference.name}
-									</p>
-									<p class="text-[10px] text-text-muted/50">
-										{`${reference.width}×${reference.height}`}
-									</p>
-								</div>
-
-								<!-- Actions -->
-								<div class="flex items-center gap-1 opacity-100 @md:opacity-0 @md:group-hover:opacity-100 @md:group-focus-within:opacity-100 transition-opacity">
-									<button
-										class="w-10 h-10 rounded-lg flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all"
-										onclick={(e) => {
-											e.stopPropagation();
-											onDuplicate(reference.id);
-										}}
-										type="button"
-										title="Duplicate"
-									>
-										<Icon icon="material-symbols:content-copy" class="w-3.5 h-3.5" />
-									</button>
-									<button
-										class="w-10 h-10 rounded-lg flex items-center justify-center text-white/50 hover:text-red-400 hover:bg-red-400/10 transition-all"
-										onclick={(e) => {
-											e.stopPropagation();
-											onDelete(reference.id);
-										}}
-										type="button"
-										title="Delete"
-									>
-										<Icon icon="material-symbols:delete-outline" class="w-3.5 h-3.5" />
-									</button>
-								</div>
+								<button
+									class="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-phoenix-primary"
+									onclick={() => onEdit(reference.id)}
+									type="button"
+								>
+									<span class="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-white/5">
+										<img src={item.thumbnailUrl} alt="" class="w-full h-full object-cover" loading="lazy" />
+									</span>
+									<span class="min-w-0 flex-1">
+										<span class="block truncate text-sm text-white/90">{reference.name}</span>
+										<span class="block text-xs text-text-muted tabular-nums">{reference.width} × {reference.height}</span>
+									</span>
+								</button>
+								<ReferenceActionsMenu
+									bind:this={listMenus[reference.id]}
+									referenceName={reference.name}
+									menuId={`reference-list-actions-${reference.id}`}
+									onOpen={() => onEdit(reference.id)}
+									onDuplicate={() => onDuplicate(reference.id)}
+									onDelete={() => onDelete(reference.id)}
+								/>
 							</div>
 						{/each}
 					</div>
 				</div>
 			{/if}
 		{:else if refCount > 0 && searchTerm.trim()}
-			<!-- No search results -->
 			<div class="flex items-center justify-center h-full p-6">
 				<div class="text-center">
 					<Icon icon="material-symbols:search-off" class="w-10 h-10 text-text-muted/30 mx-auto mb-3" />
-					<p class="text-sm text-text-muted/60">No images match "{searchTerm}"</p>
+					<p class="text-sm text-text-muted">No references match "{searchTerm}"</p>
 				</div>
 			</div>
 		{:else}
-			<!-- Empty State -->
 			<div class="flex items-center justify-center h-full p-6">
 				<div
 					class={cn(
@@ -358,22 +285,22 @@ const refCount = $derived(items.length);
 						/>
 					</div>
 
-					<h3 class="text-lg font-bold mb-1.5 text-white">Add References</h3>
-					<p class="text-sm text-text-muted/70 mb-6 max-w-[240px] mx-auto leading-relaxed">
-						Drop images here or choose files from your device
+					<h3 class="text-lg font-bold mb-1.5 text-white">Add your first reference</h3>
+					<p class="text-sm text-text-muted mb-6 max-w-60 mx-auto leading-relaxed">
+						Drop images here, or choose them from your device.
 					</p>
 
 					<button
-						class="btn btn-sm btn-primary gap-1.5"
+						class="btn btn-sm min-h-11 btn-primary gap-1.5"
 						type="button"
 						onclick={onAddFiles}
 					>
 						<Icon icon="material-symbols:upload" class="w-4 h-4" />
-						Choose Files
+						Choose files
 					</button>
 
-					<p class="text-[10px] text-text-muted/40 mt-5 tracking-wide">
-						JPG, PNG, GIF, WebP, SVG &middot; Up to 50MB
+					<p class="text-xs text-text-muted mt-5 tracking-wide">
+						JPG, PNG or WebP &middot; up to 50 MB each
 					</p>
 				</div>
 			</div>

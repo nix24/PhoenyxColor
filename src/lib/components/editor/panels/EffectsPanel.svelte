@@ -3,34 +3,39 @@ import Icon from "@iconify/svelte";
 import { cn } from "$lib/utils/cn";
 import { app } from "$lib/stores/root.svelte";
 import type { QuickEffect } from "$lib/types/effects";
-import type { AppliedEffect } from "$lib/types/image-editor";
+import type { AppliedEffect, EffectPatch } from "$lib/types/image-editor";
 
 let {
-	activeEffect = "none",
-	effectIntensity = 50,
-	duotoneColors = ["#000000", "#ffffff"],
 	appliedEffects = [],
-	onEffectChange,
-	onIntensityChange,
-	onDuotoneColorsChange,
-	onApplyEffect,
+	onAddEffect,
+	onPreviewEffect,
+	onUpdateEffect,
 	onRemoveEffect,
 	onClearEffects,
 } = $props<{
-	activeEffect: QuickEffect;
-	effectIntensity: number;
-	duotoneColors: [string, string];
 	appliedEffects: AppliedEffect[];
-	onEffectChange: (effect: QuickEffect) => void;
-	onIntensityChange: (intensity: number) => void;
-	onDuotoneColorsChange: (colors: [string, string]) => void;
-	onApplyEffect: () => void;
+	/** Adds the effect at once (one undo step); it previews live from then on. */
+	onAddEffect: (effect: QuickEffect) => void;
+	/** A slider mid-drag: shown, not recorded. */
+	onPreviewEffect: (index: number, patch: EffectPatch) => void;
+	/** One undo step. */
+	onUpdateEffect: (index: number, patch: EffectPatch) => void;
 	onRemoveEffect: (index: number) => void;
 	onClearEffects: () => void;
 }>();
 
+/** The applied effect whose settings are open; a new effect opens itself. */
+let selectedIndex = $state<number | null>(null);
+/** The count last seen; null before the first run, so effects already applied stay closed. */
+let previousCount: number | null = null;
+$effect.pre(() => {
+	const count = appliedEffects.length;
+	if (previousCount !== null && count > previousCount) selectedIndex = count - 1;
+	else if (selectedIndex !== null && selectedIndex >= count) selectedIndex = null;
+	previousCount = count;
+});
+
 const effects: Array<{ id: QuickEffect; name: string; icon: string; description: string }> = [
-	{ id: "none", name: "None", icon: "material-symbols:block", description: "No effect applied" },
 	{
 		id: "posterize",
 		name: "Posterize",
@@ -87,15 +92,14 @@ const effects: Array<{ id: QuickEffect; name: string; icon: string; description:
 	},
 ];
 
-// Get duotone colors from active palette if available
-function usePaletteForDuotone() {
-	if (app.palettes.activePalette && app.palettes.activePalette.colors.length >= 2) {
-		const colors = app.palettes.activePalette.colors;
-		onDuotoneColorsChange([colors[0], colors[colors.length - 1]]);
-	}
+/** The first and last colors of the active palette, for a duotone. */
+function paletteDuotone(): [string, string] | null {
+	const colors = app.palettes.activePalette?.colors ?? [];
+	const first = colors[0];
+	const last = colors.at(-1);
+	return colors.length >= 2 && first && last ? [first, last] : null;
 }
 
-// Preset duotone combinations
 const duotonePresets: Array<{ name: string; colors: [string, string] }> = [
 	{ name: "Classic", colors: ["#000000", "#ffffff"] },
 	{ name: "Sunset", colors: ["#1a1a2e", "#ff6b6b"] },
@@ -109,19 +113,14 @@ const duotonePresets: Array<{ name: string; colors: [string, string] }> = [
 </script>
 
 <div class="space-y-6">
-	<!-- Effect Selection Grid -->
 	<div class="space-y-3">
-		<h4 class="text-xs font-bold text-white/40 uppercase tracking-wider">Quick Effects</h4>
+		<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider">Add an effect</h4>
 		<div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-			{#each effects as effect}
+			{#each effects as effect (effect.id)}
 				<button
-					class={cn(
-						"flex flex-col items-center gap-1 p-2.5 sm:p-2 rounded-lg transition-all duration-200",
-						activeEffect === effect.id
-							? "bg-phoenix-primary text-white shadow-md shadow-phoenix-primary/20"
-							: "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
-					)}
-					onclick={() => onEffectChange(effect.id)}
+					class="flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg bg-white/5 p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-phoenix-primary"
+					onclick={() => onAddEffect(effect.id)}
+					aria-label={`Add ${effect.name}: ${effect.description}`}
 					title={effect.description}
 					type="button"
 				>
@@ -132,177 +131,128 @@ const duotonePresets: Array<{ name: string; colors: [string, string] }> = [
 		</div>
 	</div>
 
-	<!-- Effect Intensity -->
-	{#if activeEffect !== "none"}
-		<div class="space-y-1.5">
-			<div class="flex items-center justify-between">
-				<span class="text-[13px] font-medium text-white">Intensity</span>
-				<span class="text-xs font-mono text-phoenix-primary tabular-nums">{effectIntensity}%</span>
-			</div>
-			<input
-				type="range"
-				min="0"
-				max="100"
-				value={effectIntensity}
-				class="range range-xs range-primary w-full"
-				oninput={(e) => onIntensityChange(parseInt(e.currentTarget.value, 10))}
-			/>
-		</div>
-	{/if}
-
-	<!-- Duotone Color Selection -->
-	{#if activeEffect === "duotone"}
-		<div class="space-y-4 pt-4 border-t border-white/10">
-			<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">Duotone Colors</h4>
-
-			<!-- Color Pickers -->
-			<div class="flex gap-4">
-				<div class="flex-1 space-y-2">
-					<span class="text-xs text-white/60">Dark</span>
-					<div class="flex items-center gap-2">
-						<input
-							type="color"
-							value={duotoneColors[0]}
-							class="w-10 h-10 rounded cursor-pointer bg-transparent"
-							oninput={(e) => onDuotoneColorsChange([e.currentTarget.value, duotoneColors[1]])}
-						/>
-						<input
-							type="text"
-							value={duotoneColors[0]}
-							class="input input-xs flex-1 bg-white/5 border-white/10 text-white font-mono"
-							oninput={(e) => onDuotoneColorsChange([e.currentTarget.value, duotoneColors[1]])}
-						/>
-					</div>
-				</div>
-				<div class="flex-1 space-y-2">
-					<span class="text-xs text-white/60">Light</span>
-					<div class="flex items-center gap-2">
-						<input
-							type="color"
-							value={duotoneColors[1]}
-							class="w-10 h-10 rounded cursor-pointer bg-transparent"
-							oninput={(e) => onDuotoneColorsChange([duotoneColors[0], e.currentTarget.value])}
-						/>
-						<input
-							type="text"
-							value={duotoneColors[1]}
-							class="input input-xs flex-1 bg-white/5 border-white/10 text-white font-mono"
-							oninput={(e) => onDuotoneColorsChange([duotoneColors[0], e.currentTarget.value])}
-						/>
-					</div>
-				</div>
-			</div>
-
-			<!-- Use Active Palette Button -->
-			{#if app.palettes.activePalette}
-				<button
-					class="btn btn-xs w-full bg-phoenix-violet/20 border-phoenix-violet/30 text-phoenix-violet"
-					onclick={usePaletteForDuotone}
-				>
-					<Icon icon="material-symbols:palette" class="w-3 h-3" />
-					Use Active Palette Colors
-				</button>
-			{/if}
-
-			<!-- Duotone Presets -->
-			<div class="space-y-2">
-				<span class="text-xs text-white/50">Presets</span>
-				<div class="grid grid-cols-4 gap-2">
-					{#each duotonePresets as preset}
-						<button
-							class="h-8 rounded-md overflow-hidden border border-white/10 hover:border-white/30 transition-colors"
-							style:background="linear-gradient(to right, {preset.colors[0]} 50%, {preset.colors[1]}
-							50%)"
-							onclick={() => onDuotoneColorsChange(preset.colors)}
-							title={preset.name}
-						></button>
-					{/each}
-				</div>
-			</div>
-		</div>
-	{/if}
-
-	<!-- Apply Effect Button -->
-	{#if activeEffect !== "none"}
-		<button
-			class="btn btn-primary w-full gap-2"
-			onclick={onApplyEffect}
-			type="button"
-		>
-			<Icon icon="material-symbols:add-circle" class="w-4 h-4" />
-			Apply Effect to Stack
-		</button>
-
-		<div class="p-3 bg-white/5 rounded-lg border border-white/10">
-			<div class="flex items-start gap-2">
-				<Icon icon="material-symbols:info" class="w-4 h-4 text-white/40 mt-0.5" />
-				<p class="text-xs text-white/60">
-					{#if activeEffect === "posterize"}
-						Reduces the image to a limited number of color levels, creating a poster-like effect.
-					{:else if activeEffect === "pixelate"}
-						Creates a retro pixel art effect. Higher intensity = larger pixels.
-					{:else if activeEffect === "solarize"}
-						Inverts tones above a threshold, creating a surreal effect.
-					{:else if activeEffect === "duotone"}
-						Maps the image to two colors. Select colors above or use a preset.
-					{:else if activeEffect === "halftone"}
-						Simulates print halftone patterns using dots.
-					{:else if activeEffect === "vhs"}
-						Adds chromatic aberration and scan lines for a retro video look.
-					{:else if activeEffect === "glitch"}
-						Creates digital artifacts and color channel shifts.
-					{:else if activeEffect === "emboss"}
-						Creates a 3D relief effect highlighting edges.
-					{:else if activeEffect === "sharpen"}
-						Enhances edge contrast for a crisper image.
-					{/if}
-				</p>
-			</div>
-		</div>
-	{/if}
-
-	<!-- Applied Effects Stack -->
 	{#if appliedEffects.length > 0}
 		<div class="space-y-3 pt-4 border-t border-white/10">
 			<div class="flex items-center justify-between">
-				<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider">
-					Applied Effects ({appliedEffects.length})
+				<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider">
+					Applied ({appliedEffects.length})
 				</h4>
 				<button
-					class="btn btn-xs btn-ghost text-red-400 hover:text-red-300 hover:bg-red-400/10"
+					class="btn btn-xs min-h-8 btn-ghost text-red-400 hover:text-red-300 hover:bg-red-400/10"
 					onclick={onClearEffects}
+					type="button"
 				>
-					<Icon icon="material-symbols:delete-outline" class="w-3 h-3" />
-					Clear All
+					<Icon icon="material-symbols:delete-outline" class="w-3.5 h-3.5" />
+					Remove all
 				</button>
 			</div>
-			<div class="space-y-2">
-				{#each appliedEffects as effect, index}
-					{@const effectInfo = effects.find((e) => e.id === effect.type)}
-					<div class="flex items-center gap-2 p-2 bg-white/5 rounded-lg border border-white/10">
-						<div class="w-6 h-6 rounded bg-phoenix-primary/20 flex items-center justify-center">
-							<Icon icon={effectInfo?.icon ?? "material-symbols:auto-fix"} class="w-4 h-4 text-phoenix-primary" />
+			<ol class="space-y-2">
+				{#each appliedEffects as effect, index (index)}
+					{@const info = effects.find((e) => e.id === effect.type)}
+					{@const isOpen = selectedIndex === index}
+					<li class={cn("rounded-lg border bg-white/5", isOpen ? "border-phoenix-primary/40" : "border-white/10")}>
+						<div class="flex items-center gap-1">
+							<button
+								class="flex min-h-11 flex-1 items-center gap-2 rounded-lg p-2 text-left focus-visible:outline-2 focus-visible:outline-phoenix-primary"
+								onclick={() => (selectedIndex = isOpen ? null : index)}
+								aria-expanded={isOpen}
+								type="button"
+							>
+								<span class="w-6 h-6 rounded bg-phoenix-primary/20 flex items-center justify-center">
+									<Icon icon={info?.icon ?? "material-symbols:auto-fix"} class="w-4 h-4 text-phoenix-primary" />
+								</span>
+								<span class="min-w-0 flex-1">
+									<span class="block truncate text-xs font-medium text-white">{info?.name ?? effect.type}</span>
+									<span class="block text-[10px] text-white/60">{effect.intensity}%</span>
+								</span>
+								<Icon icon={isOpen ? "material-symbols:expand-less" : "material-symbols:expand-more"} class="h-4 w-4 text-white/60" />
+							</button>
+							<button
+								class="flex h-11 w-11 items-center justify-center rounded-lg text-white/60 hover:bg-red-400/10 hover:text-red-400 focus-visible:outline-2 focus-visible:outline-phoenix-primary"
+								onclick={() => onRemoveEffect(index)}
+								aria-label={`Remove ${info?.name ?? effect.type}`}
+								type="button"
+							>
+								<Icon icon="material-symbols:close" class="w-4 h-4" />
+							</button>
 						</div>
-						<div class="flex-1 min-w-0">
-							<div class="text-xs font-medium text-white truncate">
-								{effectInfo?.name ?? effect.type}
-							</div>
-							<div class="text-[10px] text-white/40">
-								{effect.intensity}% intensity
+
+						{#if isOpen}
+							<div class="space-y-4 border-t border-white/10 p-3">
+								<div class="space-y-1.5">
+									<div class="flex items-center justify-between">
+										<label for={`effect-intensity-${index}`} class="text-[13px] font-medium text-white">Intensity</label>
+										<span class="text-xs font-mono text-phoenix-primary tabular-nums">{effect.intensity}%</span>
+									</div>
+									<input
+										id={`effect-intensity-${index}`}
+										type="range"
+										min="0"
+										max="100"
+										value={effect.intensity}
+										class="range range-xs range-primary w-full"
+										oninput={(e) => onPreviewEffect(index, { intensity: parseInt(e.currentTarget.value, 10) })}
+										onchange={(e) => onUpdateEffect(index, { intensity: parseInt(e.currentTarget.value, 10) })}
+									/>
+								</div>
+
 								{#if effect.type === "duotone" && effect.duotoneColors}
-									• {effect.duotoneColors[0]} → {effect.duotoneColors[1]}
+									{@const [dark, light] = effect.duotoneColors}
+									{@const fromPalette = paletteDuotone()}
+									<div class="grid grid-cols-2 gap-3">
+										<label class="grid gap-1.5 text-xs text-white/70">
+											Dark
+											<input
+												type="color"
+												value={dark}
+												class="h-10 w-full cursor-pointer rounded border border-white/10 bg-transparent"
+												oninput={(e) => onPreviewEffect(index, { duotoneColors: [e.currentTarget.value, light] })}
+												onchange={(e) => onUpdateEffect(index, { duotoneColors: [e.currentTarget.value, light] })}
+											/>
+										</label>
+										<label class="grid gap-1.5 text-xs text-white/70">
+											Light
+											<input
+												type="color"
+												value={light}
+												class="h-10 w-full cursor-pointer rounded border border-white/10 bg-transparent"
+												oninput={(e) => onPreviewEffect(index, { duotoneColors: [dark, e.currentTarget.value] })}
+												onchange={(e) => onUpdateEffect(index, { duotoneColors: [dark, e.currentTarget.value] })}
+											/>
+										</label>
+									</div>
+									{#if fromPalette}
+										<button
+											class="btn btn-xs min-h-8 w-full bg-phoenix-violet/20 border-phoenix-violet/30 text-white"
+											onclick={() => onUpdateEffect(index, { duotoneColors: fromPalette })}
+											type="button"
+										>
+											<Icon icon="material-symbols:palette" class="w-3.5 h-3.5" />
+											Use active palette colors
+										</button>
+									{/if}
+									<div class="grid grid-cols-4 gap-2" role="group" aria-label="Duotone presets">
+										{#each duotonePresets as preset (preset.name)}
+											<button
+												class="h-9 rounded-md overflow-hidden border border-white/10 hover:border-white/30 transition-colors focus-visible:outline-2 focus-visible:outline-phoenix-primary"
+												style:background="linear-gradient(to right, {preset.colors[0]} 50%, {preset.colors[1]} 50%)"
+												onclick={() => onUpdateEffect(index, { duotoneColors: preset.colors })}
+												aria-label={`Duotone preset: ${preset.name}`}
+												title={preset.name}
+												type="button"
+											></button>
+										{/each}
+									</div>
 								{/if}
 							</div>
-						</div>
-						<button
-							class="btn btn-xs btn-circle btn-ghost text-white/40 hover:text-red-400 hover:bg-red-400/10"
-							onclick={() => onRemoveEffect(index)}
-						>
-							<Icon icon="material-symbols:close" class="w-3 h-3" />
-						</button>
-					</div>
+						{/if}
+					</li>
 				{/each}
-			</div>
+			</ol>
 		</div>
+	{:else}
+		<p class="text-xs leading-relaxed text-white/60">
+			Tap an effect to add it. Effects stack in order, and each one stays editable.
+		</p>
 	{/if}
 </div>

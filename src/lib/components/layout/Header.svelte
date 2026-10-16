@@ -39,10 +39,8 @@ function handleHover(path: string) {
 }
 </script>
 
-<header class="nav-header h-12 flex items-center justify-between px-4 md:px-5 z-30 shrink-0">
-	<!-- Left: Mobile Menu + Brand -->
+<header class="nav-header relative h-12 flex items-center justify-between px-4 md:px-5 z-30 shrink-0">
 	<div class="flex items-center gap-2.5">
-		<!-- Mobile Menu Toggle -->
 		<button
 			class="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-white/8 active:scale-90 transition-all"
 			onclick={() => app.toggleMobileMenu()}
@@ -55,7 +53,6 @@ function handleHover(path: string) {
 			/>
 		</button>
 
-		<!-- Brand -->
 		<a
 			href="/"
 			data-sveltekit-preload-data="hover"
@@ -73,13 +70,11 @@ function handleHover(path: string) {
 		</a>
 	</div>
 
-	<!-- Center: Pill Navigation (Desktop) -->
 	<nav
 		class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex"
 		aria-label="Main navigation"
 	>
 		<div class="nav-pill relative flex items-center gap-0.5 p-1 rounded-full">
-			<!-- Sliding active indicator -->
 			{#if activeIndex >= 0}
 				<div
 					class="nav-indicator absolute top-1 bottom-1 rounded-full"
@@ -114,9 +109,7 @@ function handleHover(path: string) {
 		</div>
 	</nav>
 
-	<!-- Right: Color Buffer + Settings -->
 	<div class="flex items-center gap-2">
-		<!-- Global Color Buffer (when active) -->
 		{#if app.globalColorBuffer}
 			<button
 				class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/8 hover:bg-white/10 transition-all group"
@@ -141,7 +134,6 @@ function handleHover(path: string) {
 			</button>
 		{/if}
 
-		<!-- Settings -->
 		<a
 			href="/settings"
 			data-sveltekit-preload-data="hover"
@@ -157,7 +149,6 @@ function handleHover(path: string) {
 	</div>
 </header>
 
-<!-- Mobile Navigation Menu -->
 {#if app.mobileMenuOpen}
 	<div
 		class="md:hidden mx-3 mb-2 rounded-xl overflow-hidden z-40 relative"
@@ -190,7 +181,6 @@ function handleHover(path: string) {
 				</a>
 			{/each}
 
-			<!-- Mobile Settings Link -->
 			<a
 				href="/settings"
 				data-sveltekit-preload-data="hover"
@@ -206,7 +196,6 @@ function handleHover(path: string) {
 				<span>Settings</span>
 			</a>
 
-			<!-- Mobile Color Buffer -->
 			{#if app.globalColorBuffer}
 				<div class="flex items-center gap-2.5 px-4 py-2.5 border-t border-white/5 mt-1">
 					<div

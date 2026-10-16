@@ -1,6 +1,3 @@
-// Centralized SEO configuration for PhoenyxColor
-// This file contains all site-wide metadata constants and helper functions
-
 export const SITE_CONFIG = {
 	name: "PhoenyxColor",
 	shortName: "Phoenyx",

@@ -16,7 +16,6 @@
   <a href="#-quick-start">Quick Start</a> •
   <a href="#-features">Features</a> •
   <a href="#-the-science">The Science</a> •
-  <a href="#-documentation">Docs</a> •
   <a href="#-architecture">Architecture</a>
 </p>
 
@@ -24,7 +23,7 @@
 
 ## ✨ What is PhoenyxColor?
 
-**PhoenyxColor** is a next-generation color toolkit that rises from the ashes of traditional color pickers and palette generators. Built with **SvelteKit 5**, **WebAssembly**, and modern **perceptual color science**, it offers a seamless experience for creating, managing, and exporting stunning color palettes and gradients.
+**PhoenyxColor** is a next-generation color toolkit that rises from the ashes of traditional color pickers and palette generators. Built with **SvelteKit 5**, **WebGL2**, and modern **perceptual color science**, it offers a seamless experience for creating, managing, and exporting stunning color palettes and gradients.
 
 Unlike conventional tools that operate in the outdated RGB or HSL color spaces, PhoenyxColor leverages the power of **OkLCH** and **Oklab**—perceptually uniform color spaces designed for how humans _actually see_ color. The result? Gradients that feel natural, palettes that harmonize effortlessly, and color manipulation that just makes sense.
 
@@ -53,16 +52,6 @@ bun run build
 bun run preview
 ```
 
-### Building the WASM Module
-
-PhoenyxColor uses a custom **Zig**-based WebAssembly module for high-performance image processing:
-
-```bash
-cd wasm
-zig build
-# Output: static/phoenyx-color.wasm
-```
-
 ---
 
 ## 🎨 Features
@@ -84,15 +73,14 @@ zig build
 ### **Reference Boards**
 
 - Drag-and-drop image uploads with automatic thumbnailing
-- Advanced transformations: brightness, contrast, saturation, blur
-- Creative filters: grayscale, sepia, invert, hue rotation
-- WASM-powered effects: posterize, solarize, duotone, pixelate, VHS, glitch
+- Non-destructive edits: crop/rotate/flip, tone, color, curves, effects, layers, drawing
+- Export as PNG, JPEG or WebP, pixel-identical to the preview
 
 ### **High-Performance Processing**
 
-- **WebAssembly (Zig)** for blazing-fast image manipulation
-- K-Means clustering, temperature/tint adjustments, and creative effects
-- Non-blocking architecture with IndexedDB persistence
+- **WebGL2** render pipeline: one GPU path serves the preview and the export
+- K-Means palette extraction in a Web Worker
+- Local-first: images stored as Blobs in IndexedDB, no server
 
 ---
 
@@ -124,54 +112,27 @@ For color comparison and sorting, we use the **CIEDE2000 (ΔE00)** formula—the
 
 ---
 
-## 📖 Documentation
-
-Full documentation is available in the `/docs` directory, built with [Starlight](https://starlight.astro.build/):
-
-```bash
-cd docs
-bun install
-bun run dev
-```
-
-### Key Guides
-
-| Guide                                                          | Description                           |
-| -------------------------------------------------------------- | ------------------------------------- |
-| [Getting Started](docs/src/content/docs/guides/example.md)     | Quick setup and first steps           |
-| [Architecture](docs/src/content/docs/guides/architecture.mdx)  | Deep dive into the codebase structure |
-| [WASM & Effects](docs/src/content/docs/guides/wasm-effects.md) | Using WebAssembly image processing    |
-| [API Reference](docs/src/content/docs/reference/api/README.md) | Auto-generated TypeDoc documentation  |
-
----
-
 ## 🏗️ Architecture
 
 PhoenyxColor uses a modular, reactive architecture built on **Svelte 5 runes**:
 
 ```
 src/lib/
-├── stores/           # Reactive state management
-│   ├── root.svelte.ts       # Central store singleton
-│   ├── palettes.svelte.ts   # Color palette CRUD
-│   ├── gradients.svelte.ts  # Gradient management
-│   ├── references.svelte.ts # Reference images
-│   ├── settings.svelte.ts   # User preferences
-│   └── theme.svelte.ts      # Dynamic theming
-├── services/         # Business logic
-│   ├── wasm.ts              # WebAssembly interface
-│   ├── color-engine.ts      # Theme extraction
-│   └── storage/             # IndexedDB persistence
-├── utils/            # Pure functions
-│   ├── color-engine.ts      # Palette extraction & sorting
-│   └── effects-processing.ts # Canvas effects
+├── core/             # Shared, framework-light modules
+│   ├── color/               # The only color-math module (culori)
+│   ├── history/             # Undo/redo (preview/commit snapshots)
+│   └── storage/             # IndexedDB v2: repositories, blobs, migrations
+├── features/
+│   └── references/   # Domain, library, edit session, WebGL2 engine, palette worker
+├── stores/           # Legacy app-wide stores (palettes, gradients, settings, theme)
+├── services/         # Persistence, keyboard shortcuts, legacy storage
 └── components/       # UI components
 ```
 
 ### Core Principles
 
 - **Non-blocking initialization** — Stores load asynchronously without blocking the UI
-- **Undo/Redo everywhere** — Every action is reversible via the HistoryStore
+- **Undo/Redo everywhere** — One gesture is one undo step, via `core/history`
 - **Type-safe IDs** — Branded types prevent mixing palette, gradient, and reference IDs
 - **IndexedDB persistence** — Large data (images) stored efficiently; settings in LocalStorage
 
@@ -179,21 +140,20 @@ src/lib/
 
 ## 🛠️ Tech Stack
 
-| Technology      | Purpose                                |
-| --------------- | -------------------------------------- |
-| **SvelteKit 5** | Framework with runes-based reactivity  |
-| **TypeScript**  | Type safety with branded types         |
-| **Zig → WASM**  | High-performance image processing      |
-| **Culori**      | Color space conversions (OkLCH, Oklab) |
-| **IndexedDB**   | Persistent storage for large data      |
-| **Starlight**   | Documentation site generator           |
-| **Zod**         | Runtime validation schemas             |
+| Technology      | Purpose                                 |
+| --------------- | --------------------------------------- |
+| **SvelteKit 5** | Framework with runes-based reactivity   |
+| **TypeScript**  | Type safety with branded types          |
+| **WebGL2**      | GPU image processing (preview = export) |
+| **Culori**      | Color space conversions (OkLCH, Oklab)  |
+| **IndexedDB**   | Persistent storage for large data       |
+| **Zod**         | Runtime validation schemas              |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read the architecture guide before diving in.
+Contributions are welcome! Please read the [Architecture](#-architecture) section before diving in.
 
 ```bash
 # Run tests

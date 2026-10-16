@@ -9,6 +9,7 @@ import {
 	stopsFromGradient,
 	stopsFromPalette,
 	storedPresetSettings,
+	withEffectPatch,
 	type GradientStops,
 } from "./editor-state";
 
@@ -24,6 +25,28 @@ function stateOf(recipe: EditRecipe) {
 }
 
 describe("editor state adapter", () => {
+	test("an applied effect's intensity and duotone colors change in place; others stay", () => {
+		const recipe: EditRecipe = {
+			...neutralRecipe(referenceId),
+			effects: [
+				{ type: "posterize", intensity: 50, seed: 1 },
+				{ type: "duotone", intensity: 50, seed: 2, colors: ["#000000", "#ffffff"] },
+			],
+		};
+		const next = withEffectPatch(recipe, 1, {
+			intensity: 80,
+			duotoneColors: ["#FF0000", "#00ff00"],
+		});
+		expect(next.effects[0]).toEqual(recipe.effects[0]);
+		expect(next.effects[1]).toEqual({
+			type: "duotone",
+			intensity: 80,
+			seed: 2,
+			colors: ["#ff0000", "#00ff00"],
+		});
+		expect(() => withEffectPatch(recipe, 5, { intensity: 10 })).toThrow();
+	});
+
 	test("the neutral recipe shows v1's neutral slider values", () => {
 		expect(stateOf(neutralRecipe(referenceId))).toMatchObject({
 			brightness: 100,

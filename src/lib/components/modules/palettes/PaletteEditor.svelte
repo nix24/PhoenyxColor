@@ -52,12 +52,10 @@ function handleDndFinalize(e: CustomEvent<DndEvent<SwatchItem>>) {
 
 	if (!app.palettes.activePalette) return;
 
-	// Extract colors from reordered items
 	const newColors = localItems.map((item) => item.color);
 	app.palettes.update(app.palettes.activePalette.id, { colors: newColors });
 }
 
-// Accessibility Checks derived from active palette
 let activePaletteColors = $derived(app.palettes.activePalette?.colors ?? []);
 
 let accessibilityStats = $derived.by(() => {
@@ -98,7 +96,6 @@ function removeColor(idx: number, e: Event) {
 	}
 }
 
-// Harmony generation
 let selectedHarmony = $state<string>("none");
 const harmonyOptions = [
 	{ value: "none", label: "Select Harmony..." },
@@ -150,7 +147,6 @@ function handleRedo() {
 	toast.info("Redo not yet implemented");
 }
 
-// Calculate minimum width needed for hex code display
 function getMinWidth(colorCount: number): string {
 	// Each color needs at least 80px to show hex code fully
 	const minPerColor = 80;
@@ -163,7 +159,6 @@ function getMinWidth(colorCount: number): string {
 	class="flex-1 flex flex-col h-full overflow-hidden bg-black/20 rounded-xl border border-white/5 relative"
 >
 	{#if app.palettes.activePalette}
-		<!-- Header -->
 		<div
 			class="h-14 border-b border-white/5 flex items-center justify-between px-6 shrink-0 bg-black/40"
 		>
@@ -194,7 +189,6 @@ function getMinWidth(colorCount: number): string {
 			</div>
 		</div>
 
-		<!-- Main Color Area -->
 		<div class="flex-1 min-h-0 relative flex flex-col items-stretch overflow-hidden">
 			<div class="flex-1 overflow-x-auto overflow-y-hidden p-6">
 				<div
@@ -232,7 +226,6 @@ function getMinWidth(colorCount: number): string {
 							role="button"
 							aria-label={`Select color ${item.color}`}
 						>
-							<!-- Delete button -->
 							<button
 								class="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/50 text-white/70 hover:bg-red-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
 								onclick={(e) => removeColor(idx, e)}
@@ -241,7 +234,6 @@ function getMinWidth(colorCount: number): string {
 								<Icon icon="material-symbols:close" class="w-4 h-4" />
 							</button>
 
-							<!-- Drag Handle -->
 							<div
 								class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-1 rounded hover:bg-black/20 text-white/80"
 								aria-hidden="true"
@@ -249,7 +241,6 @@ function getMinWidth(colorCount: number): string {
 								<Icon icon="material-symbols:drag-indicator" class="w-4 h-4" />
 							</div>
 
-							<!-- Frosted glass hex label (reveals on hover) -->
 							<div
 								class="absolute inset-x-0 bottom-0 p-1.5 flex flex-col items-center justify-end text-center opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out translate-y-1 group-hover:translate-y-0"
 							>
@@ -283,7 +274,6 @@ function getMinWidth(colorCount: number): string {
 								</div>
 							</div>
 
-							<!-- Always-visible subtle index dot -->
 							<div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 group-hover:opacity-0 transition-opacity duration-200">
 								<div
 									class="w-1.5 h-1.5 rounded-full"
@@ -294,7 +284,6 @@ function getMinWidth(colorCount: number): string {
 							</div>
 						</div>
 					{/each}
-					<!-- Add Color Button -->
 					{#if localItems.length < (app.palettes.activePalette?.maxSlots ?? 10)}
 						<button
 							class="h-full min-w-[60px] w-16 shrink-0 flex flex-col items-center justify-center bg-white/2 hover:bg-white/6 border-l border-white/5 border-dashed transition-all duration-300 group"
@@ -316,7 +305,6 @@ function getMinWidth(colorCount: number): string {
 			{/if}
 		</div>
 
-		<!-- Footer / Stats -->
 		<div class="h-14 bg-black/30 border-t border-white/5 flex items-center px-6 gap-5">
 			<div class="flex items-center gap-1.5">
 				<div class="w-2 h-2 rounded-full bg-emerald-400"></div>

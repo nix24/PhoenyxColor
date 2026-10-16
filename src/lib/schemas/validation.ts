@@ -2,7 +2,6 @@ import { z } from "zod";
 import type { PaletteId, GradientId } from "$lib/types/brands";
 import { LegacyReferenceSchema, type LegacyReference } from "$lib/features/references";
 
-// Color validation
 const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
 const ColorSchema = z.string().regex(hexColorRegex, "Invalid hex color format");
 
@@ -11,14 +10,12 @@ const DimensionsSchema = z.object({
 	height: z.number().positive("Height must be positive"),
 });
 
-// Gradient validation
 const GradientStopSchema = z.object({
 	color: ColorSchema,
 	position: z.number().min(0).max(100, "Position must be between 0 and 100"),
 	easing: z.enum(["linear", "ease-in", "ease-out", "ease-in-out"]).optional(),
 });
 
-// Mesh gradient point schema
 const MeshPointSchema = z.object({
 	id: z.string().uuid(),
 	x: z.number().min(0).max(100),
@@ -27,7 +24,6 @@ const MeshPointSchema = z.object({
 	radius: z.number().min(1).max(200).default(50),
 });
 
-// Noise configuration schema
 const NoiseConfigSchema = z.object({
 	enabled: z.boolean().default(false),
 	intensity: z.number().min(0).max(100).default(10),
@@ -51,14 +47,12 @@ const GradientSchema = z.object({
 	centerX: z.number().min(0).max(100).optional(),
 	centerY: z.number().min(0).max(100).optional(),
 	createdAt: z.date(),
-	// Enhanced properties
 	interpolationMode: z.enum(["oklch", "oklab", "rgb", "hsl", "lab", "lch"]).optional(),
 	meshPoints: z.array(MeshPointSchema).optional(),
 	noise: NoiseConfigSchema.optional(),
 	tags: z.array(z.string().max(20)).max(10).optional(),
 });
 
-// Color Palette validation
 const ColorPaletteSchema = z.object({
 	id: z
 		.string()
@@ -75,7 +69,6 @@ const ColorPaletteSchema = z.object({
 	tags: z.array(z.string().max(20, "Tag too long")).max(10, "Too many tags"),
 });
 
-// App Settings validation
 export const AppSettingsSchema = z.object({
 	theme: z.enum(["light", "dark", "system"]),
 	defaultPaletteSlots: z.number().min(3).max(50),
@@ -101,7 +94,7 @@ export const AppSettingsSchema = z.object({
 	autoSaveInterval: z.number().min(1).max(60),
 });
 
-// Tutorial progress validation — the flags an export actually carries
+/** The tutorial flags an export actually carries. */
 const TutorialProgressSchema = z.object({
 	hasSeenWelcome: z.boolean(),
 	hasSeenPaletteTutorial: z.boolean(),
@@ -109,7 +102,6 @@ const TutorialProgressSchema = z.object({
 	hasSeenReferenceTutorial: z.boolean(),
 });
 
-// File export validation
 const ExportDataSchema = z.object({
 	version: z.string(),
 	timestamp: z.string().datetime(),
@@ -123,7 +115,6 @@ const ExportDataSchema = z.object({
 	}),
 });
 
-// Validation helper functions
 type ValidationResult<TData = never> = {
 	valid: boolean;
 	error?: string;
@@ -257,7 +248,6 @@ export function parseImportedState(fileText: string): ImportedState | null {
 	};
 }
 
-// Runtime type guards
 export type ValidatedGradientStop = z.infer<typeof GradientStopSchema>;
 export type ValidatedGradient = z.infer<typeof GradientSchema>;
 export type ValidatedColorPalette = z.infer<typeof ColorPaletteSchema>;

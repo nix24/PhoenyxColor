@@ -10,7 +10,6 @@ import { cn } from "$lib/utils/cn";
 let isExporting = $state(false);
 let isImporting = $state(false);
 
-// Helper function for async onChange handlers
 function handleAsyncChange(handler: () => Promise<void>) {
 	return () => {
 		handler().catch((error) => {
@@ -20,10 +19,6 @@ function handleAsyncChange(handler: () => Promise<void>) {
 	};
 }
 
-// Local state for settings form - synced with store
-// We can bind directly to the store state in Svelte 5, but let's keep a local copy for form handling if needed
-// Actually, for settings, direct binding is often cleaner in Svelte 5
-
 const themeOptions = [
 	{ value: "system", label: "System" },
 	{ value: "light", label: "Light" },
@@ -32,11 +27,8 @@ const themeOptions = [
 
 async function saveSettings() {
 	try {
-		// In the new architecture, changes to app.settings.state are reactive
-		// We just need to trigger a save to persistence
 		await app.settings.save();
 
-		// Apply theme change to DOM
 		document.documentElement.setAttribute("data-theme", app.settings.state.theme);
 
 		toast.success("Settings saved successfully!");
@@ -95,7 +87,6 @@ async function nuclearClear() {
 
 <div class="h-full overflow-y-auto custom-scrollbar">
 	<div class="container mx-auto p-4 md:p-6 max-w-4xl">
-		<!-- Header -->
 		<GlassPanel class="mb-6 md:mb-8 p-6" intensity="low">
 			<div class="flex items-center gap-3 mb-2">
 				<Icon
@@ -108,14 +99,12 @@ async function nuclearClear() {
 		</GlassPanel>
 
 		<div class="grid grid-cols-1 gap-6">
-			<!-- Appearance Settings -->
 			<GlassPanel class="p-6" intensity="medium">
 				<h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
 					<Icon icon="material-symbols:palette" class="text-phoenix-primary" />
 					Appearance
 				</h2>
 
-				<!-- Theme Selection -->
 				<div class="form-control mb-6">
 					<label class="label" for="theme-select">
 						<span class="label-text font-medium text-white">Theme</span>
@@ -137,7 +126,6 @@ async function nuclearClear() {
 					</label>
 				</div>
 
-				<!-- Animations Toggle -->
 				<div class="form-control">
 					<label class="label cursor-pointer justify-start gap-4">
 						<input
@@ -156,14 +144,12 @@ async function nuclearClear() {
 				</div>
 			</GlassPanel>
 
-			<!-- General Settings -->
 			<GlassPanel class="p-6" intensity="medium">
 				<h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
 					<Icon icon="material-symbols:settings" class="text-phoenix-primary" />
 					General
 				</h2>
 
-				<!-- Auto Save -->
 				<div class="form-control mb-6">
 					<label class="label cursor-pointer justify-start gap-4">
 						<input
@@ -194,14 +180,12 @@ async function nuclearClear() {
 				{/if}
 			</GlassPanel>
 
-			<!-- Workspace Settings -->
 			<GlassPanel class="p-6" intensity="medium">
 				<h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
 					<Icon icon="material-symbols:grid-view" class="text-phoenix-primary" />
 					Workspace
 				</h2>
 
-				<!-- Grid Toggle -->
 				<div class="form-control mb-4">
 					<label class="label cursor-pointer justify-start gap-4">
 						<input
@@ -215,7 +199,6 @@ async function nuclearClear() {
 				</div>
 
 				{#if app.settings.state.workspace.showGrid}
-					<!-- Grid Size -->
 					<div class="form-control mb-4 ml-12">
 						<label class="label" for="grid-size">
 							<span class="label-text font-medium text-white">Grid Size (px)</span>
@@ -232,7 +215,6 @@ async function nuclearClear() {
 						/>
 					</div>
 
-					<!-- Snap to Grid -->
 					<div class="form-control mb-4 ml-12">
 						<label class="label cursor-pointer justify-start gap-4">
 							<input
@@ -246,7 +228,6 @@ async function nuclearClear() {
 					</div>
 				{/if}
 
-				<!-- Rulers Toggle -->
 				<div class="form-control">
 					<label class="label cursor-pointer justify-start gap-4">
 						<input
@@ -260,14 +241,12 @@ async function nuclearClear() {
 				</div>
 			</GlassPanel>
 
-			<!-- Export Settings -->
 			<GlassPanel class="p-6" intensity="medium">
 				<h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
 					<Icon icon="material-symbols:ios-share" class="text-phoenix-primary" />
 					Export
 				</h2>
 
-				<!-- Default Format -->
 				<div class="form-control mb-6">
 					<label class="label" for="export-format">
 						<span class="label-text font-medium text-white">Default Format</span>
@@ -285,7 +264,6 @@ async function nuclearClear() {
 					</select>
 				</div>
 
-				<!-- Default Scale -->
 				<div class="form-control mb-6">
 					<label class="label" for="export-scale">
 						<span class="label-text font-medium text-white">
@@ -310,7 +288,6 @@ async function nuclearClear() {
 					</div>
 				</div>
 
-				<!-- Include Background -->
 				<div class="form-control">
 					<label class="label cursor-pointer justify-start gap-4">
 						<input
@@ -325,7 +302,6 @@ async function nuclearClear() {
 			</GlassPanel>
 		</div>
 
-		<!-- Data Management -->
 		<GlassPanel class="mt-6 p-6" intensity="medium">
 			<h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
 				<Icon icon="material-symbols:storage" class="text-phoenix-primary" />

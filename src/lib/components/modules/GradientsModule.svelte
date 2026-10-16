@@ -18,22 +18,18 @@ import ExportDialog from "./gradients/dialogs/ExportDialog.svelte";
 
 import type { InterpolationMode, GradientPreset } from "./gradients/gradient-utils";
 
-// Dialog visibility
 let showCreateDialog = $state(false);
 let showSmartGeneratorDialog = $state(false);
 let showImageExtractDialog = $state(false);
 let showPalettePickerDialog = $state(false);
 let showExportDialog = $state(false);
 
-// Editor state
 let interpolationMode = $state<InterpolationMode>("oklch");
 let searchTerm = $state("");
 
-// Mobile view management (follows PalettesModule pattern)
 type MobileView = "library" | "editor" | "properties";
 let mobileView = $state<MobileView>("library");
 
-// Handlers
 function handleStopPositionChange(index: number, position: number) {
 	const gradient = app.gradients.activeGradient;
 	if (!gradient) return;
@@ -159,7 +155,6 @@ function handlePaletteSelect(palette: { name: string; colors: string[] }) {
 	mobileView = "editor";
 }
 
-// Shared library props
 const libraryProps = $derived({
 	searchTerm,
 	onCreateNew: () => (showCreateDialog = true),
@@ -186,7 +181,6 @@ const propertiesProps = $derived({
 </script>
 
 <div class="h-full w-full p-4 overflow-hidden @container">
-	<!-- DESKTOP LAYOUT -->
 	<div class="hidden @lg:flex h-full w-full gap-4">
 		<div class="w-[240px] shrink-0">
 			<GradientLibrary
@@ -216,9 +210,7 @@ const propertiesProps = $derived({
 		</div>
 	</div>
 
-	<!-- MOBILE LAYOUT -->
 	<div class="@lg:hidden h-full w-full flex flex-col">
-		<!-- Mobile Navigation Header -->
 		{#if mobileView !== "library"}
 			<div class="flex items-center justify-between px-2 pb-3 shrink-0">
 				<button
@@ -272,7 +264,6 @@ const propertiesProps = $derived({
 			</div>
 		</div>
 
-		<!-- Mobile Bottom Action Bar (editor view) -->
 		{#if mobileView === "editor"}
 			<div class="flex gap-2 pt-3 shrink-0">
 				<button
@@ -304,7 +295,6 @@ const propertiesProps = $derived({
 	</div>
 </div>
 
-<!-- Dialogs -->
 <CreateGradientDialog
 	open={showCreateDialog}
 	onClose={() => (showCreateDialog = false)}

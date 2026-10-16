@@ -8,14 +8,9 @@ import { toast } from "svelte-sonner";
 import type { ValidatedGradient, ValidatedColorPalette } from "$lib/schemas/validation";
 import chroma from "chroma-js";
 
-let {
-	imageSrc,
-	getEditedImage,
-	onGradientMapChange,
-	onGradientMapPreview,
-	gradientMapOpacity,
-	gradientMapBlendMode,
-} = $props<{
+interface Props {
+	/** The palette being worked on; kept by the editor so a region extraction lands here too. */
+	extractedPalette: string[] | null;
 	imageSrc: string;
 	/** The image as edited, for extraction. */
 	getEditedImage: () => Promise<Blob>;
@@ -25,17 +20,24 @@ let {
 	onGradientMapPreview: (opacity: number, blendMode: string) => void;
 	gradientMapOpacity: number;
 	gradientMapBlendMode: string;
-}>();
+}
 
-// Extraction state
+let {
+	extractedPalette = $bindable<string[] | null>(null),
+	imageSrc,
+	getEditedImage,
+	onGradientMapChange,
+	onGradientMapPreview,
+	gradientMapOpacity,
+	gradientMapBlendMode,
+}: Props = $props();
+
 let isExtracting = $state(false);
-let extractedPalette = $state<string[] | null>(null);
 let extractColorCount = $state(8);
 let paletteNames = $state<string[]>([]);
 let paletteName = $state("Extracted Palette");
 let showSaveDialog = $state(false);
 
-// Export formats
 type ExportFormat = "css" | "tailwind" | "json" | "scss" | "less" | "ase" | "gpl";
 
 const exportFormats: Array<{ id: ExportFormat; label: string; icon: string }> = [
@@ -67,16 +69,41 @@ const blendModes = [
 	"luminosity",
 ];
 
+/** Copies `text`; says so only once the browser has actually done it. */
+async function copyText(text: string, success: string) {
+	try {
+		await navigator.clipboard.writeText(text);
+		toast.success(success);
+	} catch (error) {
+		console.error("Clipboard write failed:", error);
+		toast.error("Copying is blocked in this browser. Select the value and copy it by hand.");
+	}
+}
+
+// The first visit extracts at once; the panel exists to pull a palette. Once only, so a
+// failure shows its error and the button instead of retrying forever.
+let hasAutoExtracted = false;
+$effect(() => {
+	if (hasAutoExtracted || extractedPalette !== null) return;
+	hasAutoExtracted = true;
+	void handleExtractPalette();
+});
+
+// Names for a palette that arrived from elsewhere (a region extraction).
+$effect.pre(() => {
+	const count = extractedPalette?.length ?? 0;
+	if (paletteNames.length !== count) paletteNames = Array.from({ length: count }, (_, i) => `Color ${i + 1}`);
+});
+
 async function handleExtractPalette() {
 	isExtracting = true;
 	try {
 		const colors = await extractPalette(await getEditedImage(), extractColorCount);
 		extractedPalette = colors;
-		// Generate default color names
 		paletteNames = colors.map((_, i) => `Color ${i + 1}`);
 	} catch (e) {
 		console.error("Failed to extract palette", e);
-		toast.error("Failed to extract palette");
+		toast.error("The palette could not be extracted. Try again.");
 	} finally {
 		isExtracting = false;
 	}
@@ -107,18 +134,15 @@ function handleSavePalette() {
 function generateColorName(hex: string): string {
 	const [hue, colorSaturation, colorLightness] = chroma(hex).hsl();
 
-	// Determine lightness descriptor
 	let lightness = "";
 	if (colorLightness < 0.2) lightness = "Dark ";
 	else if (colorLightness > 0.8) lightness = "Light ";
 
-	// Determine saturation descriptor
 	let saturation = "";
 	if (colorSaturation < 0.1 || Number.isNaN(hue)) return `${lightness}Gray`;
 	if (colorSaturation < 0.3) saturation = "Muted ";
 	else if (colorSaturation > 0.7) saturation = "Vivid ";
 
-	// Determine hue name
 	let hueName = "";
 	if (hue < 15) hueName = "Red";
 	else if (hue < 45) hueName = "Orange";
@@ -203,8 +227,7 @@ function exportPalette(format: ExportFormat) {
 			break;
 
 		case "ase":
-			// Adobe Swatch Exchange format (simplified text representation)
-			// For actual ASE binary, we'd need a more complex implementation
+			// A plain-text stand-in; real ASE is a binary format.
 			content = `SWATCHEXCHANGE\nVersion: 1.0\n\n${extractedPalette
 				.map((color, i) => {
 					const [red, green, blue] = chroma(color).rgb();
@@ -215,7 +238,6 @@ function exportPalette(format: ExportFormat) {
 			break;
 
 		case "gpl":
-			// GIMP Palette format
 			content = `GIMP Palette\nName: Extracted Palette\nColumns: ${extractedPalette.length}\n#\n${extractedPalette
 				.map((color, i) => {
 					const [red, green, blue] = chroma(color).rgb();
@@ -256,8 +278,7 @@ function copyToClipboard(format: ExportFormat) {
 			content = extractedPalette.join(", ");
 	}
 
-	navigator.clipboard.writeText(content);
-	toast.success("Copied to clipboard!");
+	void copyText(content, "Copied to clipboard");
 }
 
 function downloadFile(content: string, filename: string, mimeType: string) {
@@ -281,19 +302,19 @@ function getGradientBackground(gradient: ValidatedGradient) {
 </script>
 
 <div class="space-y-6">
-	<!-- Palette Extraction -->
 	<div class="space-y-4">
-		<h4 class="text-xs font-bold text-white/50 uppercase tracking-wider flex items-center gap-2">
+		<h4 class="text-xs font-bold text-white/60 uppercase tracking-wider flex items-center gap-2">
 			<Icon icon="material-symbols:colorize" class="w-4 h-4" />
 			Extract Colors
 		</h4>
 
 		<div class="space-y-2">
 			<div class="flex items-center justify-between">
-				<span class="text-sm text-white">Color Count</span>
+				<label for="palette-count" class="text-sm text-white">Color count</label>
 				<span class="text-xs font-mono text-white/60">{extractColorCount}</span>
 			</div>
 			<input
+				id="palette-count"
 				type="range"
 				min="2"
 				max="16"
@@ -318,7 +339,6 @@ function getGradientBackground(gradient: ValidatedGradient) {
 				{/if}
 			</button>
 		{:else}
-			<!-- Extracted Palette Display -->
 			<div class="space-y-3">
 				<div class="flex h-12 w-full rounded-lg overflow-hidden border border-white/10">
 					{#each extractedPalette as color, i}
@@ -326,10 +346,9 @@ function getGradientBackground(gradient: ValidatedGradient) {
 							class="flex-1 h-full relative group"
 							style:background-color={color}
 							title={color}
-							onclick={() => {
-								navigator.clipboard.writeText(color);
-								toast.success(`Copied ${color}`);
-							}}
+							aria-label={`Copy ${color}`}
+							onclick={() => void copyText(color, `Copied ${color}`)}
+							type="button"
 						>
 							<span
 								class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors"
@@ -343,7 +362,6 @@ function getGradientBackground(gradient: ValidatedGradient) {
 					{/each}
 				</div>
 
-				<!-- Color Names (editable) -->
 				<div class="max-h-32 overflow-y-auto space-y-1 custom-scrollbar">
 					{#each extractedPalette as color, i}
 						<div class="flex items-center gap-2">
@@ -354,13 +372,11 @@ function getGradientBackground(gradient: ValidatedGradient) {
 								bind:value={paletteNames[i]}
 								placeholder={generateColorName(color)}
 							/>
-							<span class="text-[10px] font-mono text-white/40">{color}</span>
+							<span class="text-[10px] font-mono text-white/60">{color}</span>
 						</div>
 					{/each}
 				</div>
 
-				<!-- Quick Actions -->
-				<!-- Save Dialog -->
 				{#if showSaveDialog}
 					<div class="p-3 bg-white/5 rounded-lg border border-white/10 space-y-3">
 						<div class="space-y-2">
@@ -375,12 +391,12 @@ function getGradientBackground(gradient: ValidatedGradient) {
 						</div>
 						<div class="flex gap-2">
 							<button
-								class="btn btn-xs flex-1 btn-ghost text-white/60"
+								class="btn btn-xs pointer-coarse:min-h-11 flex-1 btn-ghost text-white/70"
 								onclick={() => (showSaveDialog = false)}
 							>
 								Cancel
 							</button>
-							<button class="btn btn-xs flex-1 btn-success" onclick={handleSavePalette}>
+							<button class="btn btn-xs pointer-coarse:min-h-11 flex-1 border-transparent bg-phoenix-primary text-white" onclick={handleSavePalette} type="button">
 								Save Palette
 							</button>
 						</div>
@@ -388,53 +404,54 @@ function getGradientBackground(gradient: ValidatedGradient) {
 				{:else}
 					<div class="flex gap-2">
 						<button
-							class="btn btn-xs flex-1 bg-white/5 border-white/10 text-white"
+							class="btn btn-xs pointer-coarse:min-h-11 flex-1 whitespace-nowrap bg-white/5 border-white/10 text-white"
 							onclick={handleSortPalette}
 						>
 							<Icon icon="material-symbols:sort" class="w-3 h-3" />
 							Sort
 						</button>
 						<button
-							class="btn btn-xs flex-1 bg-white/5 border-white/10 text-white"
-							onclick={() => (extractedPalette = null)}
+							class="btn btn-xs pointer-coarse:min-h-11 flex-1 whitespace-nowrap bg-white/5 border-white/10 text-white"
+							onclick={() => void handleExtractPalette()}
+							disabled={isExtracting}
+							type="button"
 						>
 							<Icon icon="material-symbols:refresh" class="w-3 h-3" />
-							Clear
+							Extract again
 						</button>
-						<button class="btn btn-xs flex-1 btn-success text-white" onclick={openSaveDialog}>
+						<button class="btn btn-xs pointer-coarse:min-h-11 flex-1 whitespace-nowrap border-transparent bg-phoenix-primary text-white" onclick={openSaveDialog} type="button">
 							<Icon icon="material-symbols:save" class="w-3 h-3" />
 							Save
 						</button>
 					</div>
 				{/if}
 
-				<!-- Export Options -->
 				<div class="pt-4 border-t border-white/10 space-y-3">
-					<h5 class="text-xs font-bold text-white/50 uppercase tracking-wider">Export Palette</h5>
+					<h5 class="text-xs font-bold text-white/60 uppercase tracking-wider">Export Palette</h5>
 
 					<div class="grid grid-cols-4 gap-2">
 						{#each exportFormats as format}
 							<button
-								class="btn btn-xs bg-white/5 border-white/10 text-white hover:bg-white/10 flex-col h-auto py-2"
+								class="btn btn-xs bg-white/5 border-white/10 text-white hover:bg-white/10 flex-col h-auto min-h-11 py-2"
 								onclick={() => exportPalette(format.id)}
 								title={`Export as ${format.label}`}
 							>
 								<Icon icon={format.icon} class="w-4 h-4" />
-								<span class="text-[9px]">{format.label}</span>
+								<span class="text-[10px]">{format.label}</span>
 							</button>
 						{/each}
 					</div>
 
 					<div class="flex gap-2">
 						<button
-							class="btn btn-xs flex-1 bg-phoenix-primary/20 border-phoenix-primary/30 text-phoenix-primary"
+							class="btn btn-xs pointer-coarse:min-h-11 flex-1 whitespace-nowrap bg-white/5 border-white/10 text-white"
 							onclick={() => copyToClipboard("css")}
 						>
 							<Icon icon="material-symbols:content-copy" class="w-3 h-3" />
 							Copy CSS
 						</button>
 						<button
-							class="btn btn-xs flex-1 bg-phoenix-violet/20 border-phoenix-violet/30 text-phoenix-violet"
+							class="btn btn-xs pointer-coarse:min-h-11 flex-1 whitespace-nowrap bg-white/5 border-white/10 text-white"
 							onclick={() => copyToClipboard("json")}
 						>
 							<Icon icon="material-symbols:content-copy" class="w-3 h-3" />
@@ -446,12 +463,9 @@ function getGradientBackground(gradient: ValidatedGradient) {
 		{/if}
 	</div>
 
-	<!-- Divider -->
-	<div class="divider before:bg-white/10 after:bg-white/10 text-white/30 text-xs">Gradient Map</div>
+	<div class="divider before:bg-white/10 after:bg-white/10 text-white/60 text-xs">Gradient Map</div>
 
-	<!-- Gradient Map Application -->
 	<div class="space-y-4">
-		<!-- Active Gradient/Palette Display -->
 		{#if app.gradients.activeGradient}
 			<div class="p-3 bg-white/5 rounded-lg border border-white/10">
 				<div class="text-xs text-white/70 mb-2">Active Gradient</div>
@@ -477,22 +491,22 @@ function getGradientBackground(gradient: ValidatedGradient) {
 			</div>
 		{:else}
 			<div class="p-4 bg-white/5 rounded-lg border border-dashed border-white/10 text-center">
-				<p class="text-sm text-white/50">
+				<p class="text-sm text-white/60">
 					Select a gradient or palette from the main app to apply it here.
 				</p>
 			</div>
 		{/if}
 
-		<!-- Gradient Map Controls -->
 		<div class="space-y-3">
 			<div class="space-y-2">
 				<div class="flex items-center justify-between">
-					<span class="text-sm text-white">Effect Opacity</span>
+					<label for="gradient-map-opacity" class="text-sm text-white">Gradient map opacity</label>
 					<span class="text-xs font-mono text-white/60"
 						>{Math.round(gradientMapOpacity * 100)}%</span
 					>
 				</div>
 				<input
+					id="gradient-map-opacity"
 					type="range"
 					min="0"
 					max="1"

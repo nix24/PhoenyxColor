@@ -1,8 +1,6 @@
 <script lang="ts">
 import Icon from "@iconify/svelte";
-import { app } from "$lib/stores/root.svelte";
-import type { CropRect } from "$lib/components/editor/panels/CropPanel.svelte";
-import type { CropGuideType } from "$lib/types/image-editor";
+import type { CropGuideType, CropRect } from "$lib/types/image-editor";
 import type { usePanZoom } from "$lib/hooks/usePanZoom.svelte";
 import CropOverlay from "./CropOverlay.svelte";
 
@@ -17,9 +15,7 @@ interface Props {
 	isDrawing: boolean;
 	cropRect: CropRect | null;
 	cropGuideType: CropGuideType;
-	// Pan/zoom
 	panZoom: ReturnType<typeof usePanZoom>;
-	// Callbacks
 	/** The engine draws into this canvas; called once it is in the DOM. */
 	onCanvasReady: (canvas: HTMLCanvasElement) => void;
 	onCropStart: (e: PointerEvent) => void;
@@ -31,6 +27,8 @@ interface Props {
 	onDrawMove: (e: PointerEvent) => void;
 	onDrawEnd: () => void;
 	onRetryPreview: () => void;
+	/** The canvas area changed size (the inspector opened, the window resized). */
+	onViewportResize: () => void;
 }
 
 const {
@@ -53,6 +51,7 @@ const {
 	onDrawMove,
 	onDrawEnd,
 	onRetryPreview,
+	onViewportResize,
 }: Props = $props();
 
 let canvasContainer: HTMLDivElement | null = $state(null);
@@ -60,6 +59,13 @@ let previewCanvas: HTMLCanvasElement | null = $state(null);
 
 $effect(() => {
 	if (previewCanvas) onCanvasReady(previewCanvas);
+});
+
+$effect(() => {
+	if (!canvasContainer) return;
+	const observer = new ResizeObserver(() => onViewportResize());
+	observer.observe(canvasContainer);
+	return () => observer.disconnect();
 });
 
 function handlePointerDown(e: PointerEvent) {
@@ -104,7 +110,7 @@ function handlePointerUp() {
 
 <div
 	bind:this={canvasContainer}
-	class="flex-1 relative overflow-hidden flex items-center justify-center select-none touch-none"
+	class="min-h-0 min-w-0 flex-1 relative overflow-hidden flex items-center justify-center select-none touch-none"
 	data-editor-canvas
 	onwheel={panZoom.handleWheel}
 	onpointerdown={handlePointerDown}
@@ -117,12 +123,10 @@ function handlePointerUp() {
 	style:cursor={isCropping || isDrawing ? "crosshair" : panZoom.isPanning ? "grabbing" : "grab"}
 	role="presentation"
 >
-	<!-- Checkered Background -->
 	<div class="absolute inset-0 bg-checkered opacity-30"></div>
 
-	<!-- Canvas Content -->
 	<div
-		class="relative transition-transform duration-75 ease-out will-change-transform"
+		class="relative transition-transform duration-75 ease-out will-change-transform motion-reduce:transition-none"
 		style:transform="translate({panZoom.panX}px, {panZoom.panY}px) scale({panZoom.zoom})"
 		data-image-inner
 	>
@@ -137,34 +141,24 @@ function handlePointerUp() {
 			></canvas>
 		</div>
 
-		<!-- Crop Overlay -->
 		{#if isCropping && cropRect}
 			<CropOverlay
 				{cropRect}
 				guideType={cropGuideType}
 				imageWidth={displayWidth}
 				imageHeight={displayHeight}
+				zoom={panZoom.zoom}
 				onHandleDragStart={onCropHandleDragStart}
 				onBodyDragStart={onCropBodyDragStart}
 			/>
 		{/if}
 	</div>
 
-	<!-- Rulers -->
-	{#if app.settings.state.workspace.showRulers}
-		<div class="absolute top-0 left-8 right-0 h-6 bg-black/60 border-b border-white/10 z-10">
-			<span class="text-[10px] text-white/40 font-mono ml-2">0px</span>
-		</div>
-		<div class="absolute top-6 left-0 bottom-0 w-6 bg-black/60 border-r border-white/10 z-10">
-			<span class="text-[10px] text-white/40 font-mono mt-2 ml-1 rotate-90 origin-top-left">0px</span>
-		</div>
-	{/if}
-
 	{#if previewError}
 		<div role="alert" class="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 rounded-xl border border-red-400/20 bg-void-deep/95 px-4 py-3 text-sm text-red-200 shadow-xl">
 			<Icon icon="material-symbols:broken-image" class="w-5 h-5 shrink-0" />
 			<span>{previewError}</span>
-			<button class="btn btn-xs btn-ghost text-white" type="button" onclick={onRetryPreview}>Retry</button>
+			<button class="btn btn-sm min-h-11 btn-ghost text-white" type="button" onclick={onRetryPreview}>Retry</button>
 		</div>
 	{/if}
 </div>

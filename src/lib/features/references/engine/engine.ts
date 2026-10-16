@@ -133,7 +133,7 @@ export class RenderEngine {
 	}
 
 	/**
-	 * Renders `recipe` into the output target. `outputScale` is the fraction of full resolution:
+	 * Renders `recipe` into the output target. `requestedScale` is the fraction of full resolution:
 	 * 1 for export at full size, smaller for a preview that fits the viewport, larger to upscale.
 	 */
 	render(recipe: EditRecipe, requestedScale = 1): RenderResult {

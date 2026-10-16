@@ -98,6 +98,28 @@ export type SortMode = "name" | "date";
 export type ViewMode = "grid" | "list";
 export type CropGuideType = "none" | "thirds" | "golden" | "diagonal";
 
+/** A crop in source-image pixels. */
+export interface CropRect {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+export type AspectRatio = "free" | "1:1" | "4:3" | "3:4" | "16:9" | "9:16" | "3:2" | "2:3";
+
+/** The Crop & Rotate tool's tab: the box over the upright image, or the rotated result. */
+export type CropMode = "crop" | "rotate";
+
+/** The editor header's save indicator. */
+export type SaveState = "saving" | "saved" | "error";
+
+/** The editable parts of an applied effect. */
+export interface EffectPatch {
+	intensity?: number;
+	duotoneColors?: [string, string];
+}
+
 /** The flat editor state the panels read and write (v1 units; see `editor-state.ts`). */
 export interface AppliedEffect {
 	type: QuickEffect;
@@ -118,7 +140,6 @@ export interface DrawStroke {
 }
 
 export interface ImageEditorState {
-	// Basic adjustments
 	brightness: number;
 	contrast: number;
 	saturation: number;
@@ -129,7 +150,6 @@ export interface ImageEditorState {
 	invert: number;
 	isGrayscale: boolean;
 
-	// Enhanced adjustments
 	shadows: number;
 	highlights: number;
 	vibrance: number;
@@ -138,29 +158,23 @@ export interface ImageEditorState {
 	clarity: number;
 	vignette: number;
 
-	// Transform
 	scale: number;
 	rotation: number;
 	flipX: boolean;
 	flipY: boolean;
 
-	// Gradient map
 	gradientMapOpacity: number;
 	gradientMapBlendMode: string;
 
-	// Crop (if applied)
 	cropRect: { x: number; y: number; width: number; height: number } | null;
 
-	// Curves (stored as control points)
 	curves: CurveChannels;
 
-	// Effects (stackable)
 	appliedEffects: AppliedEffect[];
 
-	// Drawing overlay in source-image coordinates
+	/** In source-image coordinates. */
 	drawStrokes: DrawStroke[];
 
-	// Layers
 	layers: ImageLayer[];
 	activeLayerId: string | null;
 }

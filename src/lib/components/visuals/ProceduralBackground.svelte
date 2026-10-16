@@ -8,7 +8,6 @@ let ctx: CanvasRenderingContext2D | null;
 let animationFrame: number;
 let particles: Particle[] = [];
 
-// Parallax state
 let mouseX = 0;
 let mouseY = 0;
 let targetX = 0;
@@ -55,17 +54,11 @@ function animate() {
 
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-	// Smooth parallax
 	targetX += (mouseX - targetX) * 0.05;
 	targetY += (mouseY - targetY) * 0.05;
 
-	// Draw gradient background based on theme
 	const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
 	gradient.addColorStop(0, app.theme.current.background); // Use theme background
-	// Mix in some primary/secondary for depth
-	// Note: Canvas gradient doesn't support oklch directly in all browsers yet,
-	// but modern browsers do. If issues arise, we might need computed styles.
-	// For safety, we rely on CSS background for the main fill and use canvas for particles.
 
 	ctx.fillStyle = "transparent"; // Let CSS handle the base color
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -75,7 +68,6 @@ function animate() {
 		p.y += p.speedY + targetY * p.size * 0.001;
 		p.rotation += p.rotationSpeed;
 
-		// Wrap around screen
 		if (p.x < -50) p.x = canvas.width + 50;
 		if (p.x > canvas.width + 50) p.x = -50;
 		if (p.y < -50) p.y = canvas.height + 50;
@@ -111,7 +103,6 @@ function handleMouseMove(e: MouseEvent) {
 	mouseY = e.clientY - window.innerHeight / 2;
 }
 
-// Gyroscope support for mobile
 function handleOrientation(e: DeviceOrientationEvent) {
 	if (e.gamma && e.beta) {
 		mouseX = e.gamma * 5;

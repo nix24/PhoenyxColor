@@ -9,11 +9,9 @@ export class RootStore {
 	gradients = new GradientStore();
 	theme = new ThemeStore();
 
-	// Global UI state
 	isEyedropperActive = $state(false);
 	globalColorBuffer = $state<string | null>(null);
 
-	// Mobile navigation state
 	mobileMenuOpen = $state(false);
 
 	toggleEyedropper() {
@@ -29,7 +27,5 @@ export class RootStore {
 	}
 }
 
-// Create singleton instance
+/** The app-wide store. */
 export const app = new RootStore();
-
-// Export for usage in components

@@ -8,6 +8,7 @@ import { EditRecipeSchema, type EditRecipe, type FilterPreset } from "$lib/featu
 import {
 	BLEND_MODE_VALUES,
 	type BlendMode,
+	type EffectPatch,
 	type FilterPresetSettings,
 	type ImageLayer,
 } from "$lib/types/image-editor";
@@ -162,6 +163,23 @@ function nextGradientMap(
 		opacity,
 		blendMode: blendMode(updates.gradientMapBlendMode ?? current?.blendMode ?? "normal"),
 	};
+}
+
+/** The recipe with one applied effect's intensity or duotone colors changed; validated. */
+export function withEffectPatch(recipe: EditRecipe, index: number, patch: EffectPatch): EditRecipe {
+	const effect = recipe.effects[index];
+	if (!effect) throw new Error(`No applied effect at ${index}.`);
+	const intensity = patch.intensity ?? effect.intensity;
+	const next =
+		effect.type === "duotone"
+			? {
+					...effect,
+					intensity,
+					colors: patch.duotoneColors?.map(canonicalHex) ?? effect.colors,
+				}
+			: { ...effect, intensity };
+	const effects = recipe.effects.map((current, i) => (i === index ? next : current));
+	return EditRecipeSchema.parse({ ...recipe, effects });
 }
 
 /** A LayersPanel edit, in recipe terms. */

@@ -62,7 +62,6 @@ function copyCss() {
 	</div>
 
 	{#if activeGradient}
-		<!-- Gradient Info -->
 		<div class="text-sm text-white mb-2">
 			<span class="font-semibold">{activeGradient.name}</span>
 			<span class="text-text-muted/60 ml-1">({activeGradient.type})</span>
@@ -76,7 +75,6 @@ function copyCss() {
 
 		<div class="w-full h-px bg-white/5 my-2"></div>
 
-		<!-- CSS Output -->
 		<section class="mt-auto">
 			<div class="flex items-center justify-between mb-2">
 				<span class="text-xs font-bold text-text-muted uppercase tracking-wider">CSS Output</span>
@@ -104,7 +102,6 @@ function copyCss() {
 			</div>
 		</section>
 
-		<!-- Export Action -->
 		<button
 			class="btn btn-primary w-full bg-linear-to-r from-phoenix-primary to-phoenix-rose border-none shadow-lg shadow-phoenix-primary/20 hover:shadow-phoenix-primary/40 text-white font-bold tracking-wide mt-2"
 			onclick={onExport}

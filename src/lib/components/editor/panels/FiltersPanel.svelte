@@ -307,13 +307,13 @@ async function handleDeletePreset(id: string) {
 </script>
 
 <div class="space-y-4">
-	<!-- Intensity Slider -->
 	<div class="space-y-2">
 		<div class="flex items-center justify-between">
-			<span class="text-sm text-white">Filter Intensity</span>
+			<label for="preset-intensity" class="text-sm text-white">Intensity</label>
 			<span class="text-xs font-mono text-white/60">{presetIntensity}%</span>
 		</div>
 		<input
+			id="preset-intensity"
 			type="range"
 			min="0"
 			max="100"
@@ -324,14 +324,13 @@ async function handleDeletePreset(id: string) {
 		/>
 	</div>
 
-	<!-- Tab Bar -->
 	<div class="flex gap-1 p-0.5 rounded-lg bg-white/5">
 		<button
 			class={cn(
 				"flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
 				activeTab === "builtin"
 					? "bg-phoenix-primary text-white shadow-sm"
-					: "text-white/50 hover:text-white/80"
+					: "text-white/60 hover:text-white/80"
 			)}
 			onclick={() => (activeTab = "builtin")}
 			aria-pressed={activeTab === "builtin"}
@@ -343,7 +342,7 @@ async function handleDeletePreset(id: string) {
 				"flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
 				activeTab === "custom"
 					? "bg-phoenix-primary text-white shadow-sm"
-					: "text-white/50 hover:text-white/80"
+					: "text-white/60 hover:text-white/80"
 			)}
 			onclick={() => (activeTab = "custom")}
 			aria-pressed={activeTab === "custom"}
@@ -355,7 +354,6 @@ async function handleDeletePreset(id: string) {
 		</button>
 	</div>
 
-	<!-- Built-in Presets Tab -->
 	{#if activeTab === "builtin"}
 		<div class="space-y-3">
 			<div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -388,26 +386,23 @@ async function handleDeletePreset(id: string) {
 		</div>
 	{/if}
 
-	<!-- Custom Presets Tab -->
 	{#if activeTab === "custom"}
 		<div class="space-y-3">
-			<!-- Search -->
 			{#if savedPresets.length > 4}
 				<div class="relative">
 					<Icon
 						icon="material-symbols:search"
-						class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40"
+						class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60"
 					/>
 					<input
 						type="text"
-						class="input input-sm w-full pl-8 bg-white/5 border-white/10 text-white placeholder:text-white/30"
-						placeholder="Search presets..."
+						class="input input-sm w-full pl-8 bg-white/5 border-white/10 text-white placeholder:text-white/60 focus-visible:outline-2 focus-visible:outline-phoenix-primary"
+						placeholder="Search presets"
 						bind:value={searchQuery}
 					/>
 				</div>
 			{/if}
 
-			<!-- Category Filter -->
 			{#if savedPresets.length > 0}
 				<div class="flex flex-wrap gap-1">
 					{#each categories as cat}
@@ -416,7 +411,7 @@ async function handleDeletePreset(id: string) {
 								"px-2.5 py-1 rounded-full text-[10px] font-medium transition-all",
 								selectedCategory === cat.value
 									? "bg-phoenix-primary/20 text-phoenix-primary ring-1 ring-phoenix-primary/40"
-									: "bg-white/5 text-white/50 hover:text-white/80 hover:bg-white/8"
+									: "bg-white/5 text-white/60 hover:text-white/80 hover:bg-white/8"
 							)}
 							onclick={() => (selectedCategory = cat.value)}
 							aria-pressed={selectedCategory === cat.value}
@@ -427,7 +422,6 @@ async function handleDeletePreset(id: string) {
 				</div>
 			{/if}
 
-			<!-- Preset Grid -->
 			{#if filteredCustomPresets.length > 0}
 				<div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
 					{#each filteredCustomPresets as preset (preset.id)}
@@ -441,25 +435,24 @@ async function handleDeletePreset(id: string) {
 					{/each}
 				</div>
 			{:else if searchQuery.trim()}
-				<div class="text-center py-8 text-white/40">
+				<div class="text-center py-8 text-white/60">
 					<Icon icon="material-symbols:search-off" class="w-8 h-8 mx-auto mb-2 opacity-50" />
 					<p class="text-xs">No presets match "{searchQuery}"</p>
 				</div>
 			{:else if savedPresets.length === 0}
-				<div class="text-center py-8 text-white/40">
+				<div class="text-center py-8 text-white/60">
 					<Icon icon="material-symbols:filter-vintage" class="w-10 h-10 mx-auto mb-3 opacity-30" />
-					<p class="text-sm font-medium text-white/50 mb-1">No custom presets yet</p>
+					<p class="text-sm font-medium text-white/60 mb-1">No custom presets yet</p>
 					<p class="text-xs">Adjust filters and save them as presets</p>
 				</div>
 			{:else}
-				<div class="text-center py-8 text-white/40">
+				<div class="text-center py-8 text-white/60">
 					<p class="text-xs">No presets in this category</p>
 				</div>
 			{/if}
 		</div>
 	{/if}
 
-	<!-- Save Current as Preset -->
 	<div class="pt-4 border-t border-white/10">
 		{#if showSaveDialog}
 			<div class="space-y-3">

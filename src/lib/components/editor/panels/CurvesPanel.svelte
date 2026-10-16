@@ -49,13 +49,11 @@ const channelColors = {
 	blue: "#4444ff",
 } satisfies Record<CurveChannel, string>;
 
-// Generate histogram from image
 async function generateHistogram() {
 	const img = await createImageBitmap(await (await fetch(imageSrc)).blob(), {
 		imageOrientation: "from-image",
 	});
 
-	// Downsample for performance
 	const maxSize = 256;
 	let width = img.width;
 	let height = img.height;
@@ -75,7 +73,6 @@ async function generateHistogram() {
 	const data = imageData.data;
 	const histogram = Array.from({ length: 256 }, () => 0);
 
-	// Calculate luminance histogram
 	for (let i = 0; i < data.length; i += 4) {
 		const r = data[i] ?? 0;
 		const g = data[i + 1] ?? 0;
@@ -84,12 +81,10 @@ async function generateHistogram() {
 		histogram[lum] = (histogram[lum] ?? 0) + 1;
 	}
 
-	// Normalize
 	const max = Math.max(...histogram);
 	histogramData = histogram.map((v) => v / max);
 }
 
-// Draw curve canvas
 function drawCurve() {
 	if (!canvasElement) return;
 	const ctx = canvasElement.getContext("2d");
@@ -98,7 +93,6 @@ function drawCurve() {
 	const size = CANVAS_SIZE;
 	ctx.clearRect(0, 0, size, size);
 
-	// Draw histogram background
 	ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
 	for (let i = 0; i < histogramData.length; i++) {
 		const height = (histogramData[i] ?? 0) * size * 0.8;
@@ -106,7 +100,6 @@ function drawCurve() {
 		ctx.fillRect(scaledX, size - height, SCALE_FACTOR, height);
 	}
 
-	// Draw grid
 	ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
 	ctx.lineWidth = 1;
 	for (let i = 0; i <= 4; i++) {
@@ -121,7 +114,6 @@ function drawCurve() {
 		ctx.stroke();
 	}
 
-	// Draw diagonal reference line
 	ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
 	ctx.setLineDash([5, 5]);
 	ctx.beginPath();
@@ -130,7 +122,6 @@ function drawCurve() {
 	ctx.stroke();
 	ctx.setLineDash([]);
 
-	// Draw curve for active channel
 	const points = curves[activeChannel];
 	if (points.length < 2) return;
 
@@ -138,16 +129,13 @@ function drawCurve() {
 	ctx.lineWidth = 2;
 	ctx.beginPath();
 
-	// Simple Catmull-Rom spline for smooth curve
 	const curvePoints = sampleCurve(points);
-	// Scale coordinates from 0-255 to 0-180
 	const scaledX0 = (curvePoints[0]?.x ?? 0) * SCALE_FACTOR;
 	const scaledY0 = size - (curvePoints[0]?.y ?? 0) * SCALE_FACTOR;
 	ctx.moveTo(scaledX0, scaledY0);
 	for (let i = 1; i < curvePoints.length; i++) {
 		const pt = curvePoints[i];
 		if (pt) {
-			// Scale coordinates from 0-255 to 0-180
 			const scaledX = pt.x * SCALE_FACTOR;
 			const scaledY = size - pt.y * SCALE_FACTOR;
 			ctx.lineTo(scaledX, scaledY);
@@ -155,12 +143,10 @@ function drawCurve() {
 	}
 	ctx.stroke();
 
-	// Draw control points
 	for (let i = 0; i < points.length; i++) {
 		const pt = points[i];
 		if (!pt) continue;
 
-		// Scale coordinates from 0-255 to 0-180
 		const scaledX = pt.x * SCALE_FACTOR;
 		const scaledY = size - pt.y * SCALE_FACTOR;
 
@@ -174,14 +160,11 @@ function drawCurve() {
 	}
 }
 
-// Handle mouse interactions
 function handleMouseDown(e: MouseEvent) {
 	const rect = canvasElement.getBoundingClientRect();
 	const x = ((e.clientX - rect.left) / rect.width) * CANVAS_SIZE;
 	const y = CANVAS_SIZE - ((e.clientY - rect.top) / rect.height) * CANVAS_SIZE;
 
-	// Check if clicking near existing point
-	// Convert canvas coordinates (0-180) to data coordinates (0-255)
 	const dataX = (x / CANVAS_SIZE) * DATA_RANGE;
 	const dataY = (y / CANVAS_SIZE) * DATA_RANGE;
 	const points = curves[activeChannel];
@@ -196,7 +179,6 @@ function handleMouseDown(e: MouseEvent) {
 		}
 	}
 
-	// Add new point (convert canvas coordinates to data coordinates)
 	const newDataX = Math.max(0, Math.min(DATA_RANGE, (x / CANVAS_SIZE) * DATA_RANGE));
 	const newDataY = Math.max(0, Math.min(DATA_RANGE, (y / CANVAS_SIZE) * DATA_RANGE));
 	const newPoints = [...points, { x: newDataX, y: newDataY }].sort((a, b) => a.x - b.x);
@@ -212,7 +194,6 @@ function handleMouseMove(e: MouseEvent) {
 	if (!isDragging || selectedPointIndex === null) return;
 
 	const rect = canvasElement.getBoundingClientRect();
-	// Get canvas coordinates (0-180)
 	const canvasX = Math.max(
 		0,
 		Math.min(CANVAS_SIZE, ((e.clientX - rect.left) / rect.width) * CANVAS_SIZE),
@@ -221,14 +202,12 @@ function handleMouseMove(e: MouseEvent) {
 		0,
 		Math.min(CANVAS_SIZE, CANVAS_SIZE - ((e.clientY - rect.top) / rect.height) * CANVAS_SIZE),
 	);
-	// Convert to data coordinates (0-255)
 	const x = Math.max(0, Math.min(DATA_RANGE, (canvasX / CANVAS_SIZE) * DATA_RANGE));
 	const y = Math.max(0, Math.min(DATA_RANGE, (canvasY / CANVAS_SIZE) * DATA_RANGE));
 
 	const points = [...curves[activeChannel]];
 	const point = points[selectedPointIndex];
 	if (point) {
-		// Don't move first and last points horizontally
 		if (selectedPointIndex === 0) {
 			points[selectedPointIndex] = { x: 0, y };
 		} else if (selectedPointIndex === points.length - 1) {
@@ -247,7 +226,6 @@ function handleMouseUp() {
 }
 
 function handleDoubleClick(_e: MouseEvent) {
-	// Remove point on double click (except first and last)
 	if (selectedPointIndex !== null && selectedPointIndex > 0) {
 		const points = curves[activeChannel];
 		if (selectedPointIndex < points.length - 1) {
@@ -305,7 +283,6 @@ onMount(() => {
 </script>
 
 <div class="space-y-4">
-	<!-- Channel Selector -->
 	<div class="flex gap-1 p-1 bg-white/5 rounded-lg">
 		{#each ["rgb", "red", "green", "blue"] as channel}
 			<button
@@ -328,7 +305,6 @@ onMount(() => {
 		{/each}
 	</div>
 
-	<!-- Curve Canvas -->
 	<div class="relative bg-black rounded-lg overflow-hidden border border-white/10">
 		<canvas
 			bind:this={canvasElement}
@@ -342,18 +318,15 @@ onMount(() => {
 			ondblclick={handleDoubleClick}
 		></canvas>
 
-		<!-- Axis Labels -->
-		<div class="absolute bottom-1 left-1 text-[10px] text-white/40">Shadows</div>
-		<div class="absolute bottom-1 right-1 text-[10px] text-white/40">Highlights</div>
-		<div class="absolute top-1 left-1 text-[10px] text-white/40">Output</div>
+		<div class="absolute bottom-1 left-1 text-[10px] text-white/60">Shadows</div>
+		<div class="absolute bottom-1 right-1 text-[10px] text-white/60">Highlights</div>
+		<div class="absolute top-1 left-1 text-[10px] text-white/60">Output</div>
 	</div>
 
-	<!-- Instructions -->
-	<div class="text-xs text-white/40 text-center">
+	<div class="text-xs text-white/60 text-center">
 		Click to add point • Drag to adjust • Double-click to remove
 	</div>
 
-	<!-- Quick Actions -->
 	<div class="grid grid-cols-2 gap-2">
 		<button
 			class="btn btn-xs bg-white/5 border-white/10 text-white hover:bg-white/10"
@@ -371,9 +344,8 @@ onMount(() => {
 		</button>
 	</div>
 
-	<!-- Presets -->
 	<div class="space-y-2">
-		<span class="text-xs text-white/50">Presets</span>
+		<span class="text-xs text-white/60">Presets</span>
 		<div class="grid grid-cols-3 gap-2">
 			<button
 				class="btn btn-xs bg-white/5 border-white/10 text-white hover:bg-white/10"

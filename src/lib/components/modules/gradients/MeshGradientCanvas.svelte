@@ -39,7 +39,6 @@ let {
 let canvas: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D | null = null;
 
-// Interaction state
 let isDragging = $state(false);
 let dragPointId = $state<string | null>(null);
 let hoveredPointId = $state<string | null>(null);
@@ -94,7 +93,6 @@ function renderMeshGradient() {
 	const imageData = ctx.createImageData(width, height);
 	const data = imageData.data;
 
-	// Parse colors once
 	const parsedPoints = points.map((p) => ({
 		...p,
 		rgb: chroma(p.color).rgb(),
@@ -110,7 +108,6 @@ function renderMeshGradient() {
 				g = 0,
 				b = 0;
 
-			// Calculate weighted color contribution from each point
 			for (const point of parsedPoints) {
 				const dx = x - point.px;
 				const dy = y - point.py;
@@ -128,14 +125,12 @@ function renderMeshGradient() {
 				}
 			}
 
-			// Normalize colors
 			if (totalWeight > 0) {
 				r /= totalWeight;
 				g /= totalWeight;
 				b /= totalWeight;
 			}
 
-			// Apply noise if enabled
 			if (noiseEnabled && noiseIntensity > 0) {
 				const noise = perlinNoise(x * noiseScale * 0.02, y * noiseScale * 0.02);
 				const noiseAmount = (noise * noiseIntensity) / 100;
@@ -154,7 +149,6 @@ function renderMeshGradient() {
 
 	ctx.putImageData(imageData, 0, 0);
 
-	// Draw handles if enabled
 	if (showHandles) {
 		drawHandles();
 	}
@@ -173,7 +167,6 @@ function drawHandles() {
 		const isDragTarget = isDragging && dragPointId === point.id;
 		const radius = isHovered || isDragTarget ? 14 : 12;
 
-		// Draw radius indicator for hovered/dragged points
 		if (isHovered || isDragTarget) {
 			ctx.beginPath();
 			ctx.arc(x, y, (point.radius / 100) * Math.max(width, height) * 0.5, 0, Math.PI * 2);
@@ -186,7 +179,6 @@ function drawHandles() {
 			ctx.globalAlpha = 1;
 		}
 
-		// Draw main handle
 		ctx.beginPath();
 		ctx.arc(x, y, radius, 0, Math.PI * 2);
 		ctx.fillStyle = point.color;
@@ -195,13 +187,11 @@ function drawHandles() {
 		ctx.lineWidth = 2;
 		ctx.stroke();
 
-		// Draw inner dot
 		ctx.beginPath();
 		ctx.arc(x, y, 3, 0, Math.PI * 2);
 		ctx.fillStyle = getContrastColor(point.color);
 		ctx.fill();
 
-		// Draw point number
 		ctx.fillStyle = "white";
 		ctx.font = "bold 10px sans-serif";
 		ctx.textAlign = "center";
@@ -242,7 +232,6 @@ function handleMouseMove(e: MouseEvent) {
 		const percentY = Math.max(0, Math.min(100, (y / height) * 100));
 		onPointMove(dragPointId, Math.round(percentX), Math.round(percentY));
 	} else {
-		// Update hover state
 		hoveredPointId = findPointAt(x, y)?.id ?? null;
 	}
 }
@@ -257,17 +246,13 @@ function handleDoubleClick(e: MouseEvent) {
 
 	const { x, y } = getCanvasCoordinates(e);
 
-	// Check if double-clicking on existing point (to potentially edit it)
 	if (findPointAt(x, y)) return;
 
-	// Add new point
 	const percentX = (x / width) * 100;
 	const percentY = (y / height) * 100;
 
-	// Generate a color based on surrounding points
 	let color = "#808080";
 	if (points.length > 0) {
-		// Find nearest point and use a similar color
 		let nearestDist = Infinity;
 		let nearestColor = "#808080";
 
@@ -282,7 +267,6 @@ function handleDoubleClick(e: MouseEvent) {
 			}
 		}
 
-		// Shift the hue slightly for variety
 		const hsl = chroma(nearestColor).hsl();
 		color = chroma.hsl((hsl[0] + 30) % 360, hsl[1], hsl[2]).hex();
 	}
@@ -306,7 +290,6 @@ onMount(() => {
 });
 
 $effect(() => {
-	// Re-render when points or settings change
 	if (ctx) {
 		renderMeshGradient();
 	}

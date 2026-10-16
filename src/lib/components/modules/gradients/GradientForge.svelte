@@ -28,13 +28,11 @@ let {
 	onBrowsePresets = undefined,
 }: Props = $props();
 
-// Canvas state
 let previewSize = $state({ width: 600, height: 400 });
 let showInteractiveHandles = $state(true);
 let draggingStopIndex = $state<number | null>(null);
 let sliderEl = $state<HTMLDivElement | null>(null);
 
-// Mesh state (internal -- secondary feature)
 let isMeshMode = $state(false);
 let meshPoints = $state<MeshPoint[]>([]);
 let noiseEnabled = $state(false);
@@ -44,7 +42,6 @@ let noiseScale = $state(1);
 // Track active drag listeners for cleanup on unmount
 let activeDragCleanup: (() => void) | null = null;
 
-// Derived info badge text
 let gradientInfo = $derived.by(() => {
 	const g = app.gradients.activeGradient;
 	if (!g) return "";
@@ -114,7 +111,6 @@ function handleStopKeydown(e: KeyboardEvent, index: number, currentPosition: num
 	}
 }
 
-// Mesh handlers (internal)
 function toggleMeshMode() {
 	if (!isMeshMode) {
 		if (meshPoints.length === 0) {
@@ -154,7 +150,6 @@ function handleMeshPointRadiusChange(id: string, radius: number) {
 <div
 	class="flex-1 flex flex-col h-full bg-black/20 rounded-2xl border border-white/5 relative overflow-hidden"
 >
-	<!-- Top Controls (Floating) -->
 	<div class="absolute top-4 left-4 z-20">
 		{#if app.gradients.activeGradient && gradientInfo}
 			<div
@@ -166,7 +161,6 @@ function handleMeshPointRadiusChange(id: string, radius: number) {
 	</div>
 
 	<div class="absolute top-4 right-4 z-20 flex gap-2">
-		<!-- Mode Toggle -->
 		<div class="join border border-white/10 rounded-lg p-0.5 bg-black/40 backdrop-blur-md">
 			<button
 				class={cn(
@@ -209,7 +203,6 @@ function handleMeshPointRadiusChange(id: string, radius: number) {
 		</button>
 	</div>
 
-	<!-- Main Canvas Area -->
 	<div class="flex-1 w-full h-full p-8 flex items-center justify-center">
 		<div class="w-full h-full rounded-2xl overflow-hidden shadow-2xl relative">
 			{#if isMeshMode}
@@ -243,7 +236,6 @@ function handleMeshPointRadiusChange(id: string, radius: number) {
 		</div>
 	</div>
 
-	<!-- Bottom: Gradient Stops Slider -->
 	{#if !isMeshMode && app.gradients.activeGradient && app.gradients.activeGradient.stops}
 		<div class="px-8 pb-8">
 			<div
@@ -296,7 +288,6 @@ function handleMeshPointRadiusChange(id: string, radius: number) {
 		</div>
 	{/if}
 
-	<!-- Empty State -->
 	{#if !app.gradients.activeGradient && !isMeshMode}
 		<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
 			<div class="text-center text-text-muted/50 pointer-events-auto">

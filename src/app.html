@@ -4,7 +4,6 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 
-		<!-- Branding & PWA -->
 		<meta name="theme-color" content="#ff007f" />
 		<meta name="application-name" content="PhoenyxColor" />
 		<meta name="apple-mobile-web-app-title" content="PhoenyxColor" />
@@ -13,11 +12,9 @@
 		<meta name="mobile-web-app-capable" content="yes" />
 		<meta name="msapplication-TileColor" content="#ff007f" />
 
-		<!-- Favicon -->
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 		<link rel="apple-touch-icon" href="%sveltekit.assets%/favicon.png" />
 
-		<!-- Preconnect to external resources for faster loading -->
 		<link rel="preconnect" href="https://api.iconify.design" crossorigin />
 		<link rel="dns-prefetch" href="https://api.iconify.design" />
 
@@ -40,7 +37,6 @@
 						}
 					}
 
-					// Apply effective theme
 					let effective = theme;
 					if (theme === "system") {
 						effective = window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -50,7 +46,6 @@
 
 					document.documentElement.setAttribute("data-theme", effective);
 				} catch (e) {
-					// Fallback to system theme detection
 					const effective = window.matchMedia("(prefers-color-scheme: dark)").matches
 						? "dark"
 						: "light";

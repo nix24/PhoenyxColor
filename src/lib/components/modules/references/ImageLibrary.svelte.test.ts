@@ -10,7 +10,6 @@ describe("ImageLibrary", () => {
 		render(ImageLibrary, {
 			props: {
 				items: [],
-				selectedImageId: null,
 				isLoading: false,
 				loadError: "Reference images could not be loaded.",
 				isDragOver: false,
@@ -19,7 +18,6 @@ describe("ImageLibrary", () => {
 				onEdit: vi.fn(),
 				onDuplicate: vi.fn(),
 				onDelete: vi.fn(),
-				onContextMenu: vi.fn(),
 				onRetry,
 			},
 		});

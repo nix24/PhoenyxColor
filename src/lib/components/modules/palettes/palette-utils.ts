@@ -26,8 +26,6 @@ export interface WcagLevel {
 	aaaLarge: boolean;
 }
 
-// --- Color Validation ---
-
 // fallow-ignore-next-line unused-export
 export function isValidHexColor(color: string): boolean {
 	return /^#?([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
@@ -45,6 +43,7 @@ function isValidHslColor(color: string): boolean {
 	);
 }
 
+/** Uppercase `#RRGGBB` from valid hex: expands 3-digit shorthand, drops an 8-digit alpha. */
 // fallow-ignore-next-line unused-export
 export function normalizeHexColor(color: string): string {
 	color = color.replace("#", "");
@@ -59,8 +58,7 @@ export function normalizeHexColor(color: string): string {
 	return `#${color.toUpperCase()}`;
 }
 
-// --- Color Conversions ---
-
+/** Rounded HSL: hue 0–360, saturation and lightness 0–100. Null when `hex` is unreadable. */
 export function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
 	const rgb = hexToRgb(hex);
 	if (!rgb) return null;
@@ -79,13 +77,13 @@ function hslToRgb(h: number, s: number, l: number): Rgb {
 	return { r: f(0), g: f(8), b: f(4) };
 }
 
+/** `h` in degrees; `s` and `l` in percent (0–100). */
 export function hslToHex(h: number, s: number, l: number): string {
 	const rgb = hslToRgb(h, s / 100, l / 100);
 	return rgbToHex(rgb.r, rgb.g, rgb.b);
 }
 
-// --- Color Validation with Normalization ---
-
+/** Parses hex, `rgb()` or `hsl()` text into uppercase `#RRGGBB`; any alpha is dropped. */
 export function validateAndNormalizeColor(color: string): ColorNormalization {
 	color = color.trim();
 
@@ -141,8 +139,6 @@ export function validateAndNormalizeColor(color: string): ColorNormalization {
 	};
 }
 
-// --- Harmony Generators ---
-
 export function generateComplementaryColor(baseColor: string): string {
 	const hsl = hexToHsl(baseColor);
 	if (!hsl) return baseColor;
@@ -164,6 +160,10 @@ export function generateTriadicColors(baseColor: string): string[] {
 	return [hslToHex((hsl.h + 120) % 360, hsl.s, hsl.l), hslToHex((hsl.h + 240) % 360, hsl.s, hsl.l)];
 }
 
+/**
+ * Same hue; lightness steps by 20 from one step below the base (clamped 10–90) while
+ * saturation alternates ±15.
+ */
 export function generateMonochromaticColors(baseColor: string, count: number = 4): string[] {
 	const hsl = hexToHsl(baseColor);
 	if (!hsl) return [baseColor];
@@ -187,8 +187,6 @@ export function generateSplitComplementaryColors(baseColor: string): string[] {
 	return [hslToHex((hsl.h + 150) % 360, hsl.s, hsl.l), hslToHex((hsl.h + 210) % 360, hsl.s, hsl.l)];
 }
 
-// --- Contrast Calculation (WCAG) ---
-
 function getLuminance(r: number, g: number, b: number): number {
 	const transform = (c: number) => {
 		c = c / 255;
@@ -197,6 +195,7 @@ function getLuminance(r: number, g: number, b: number): number {
 	return 0.2126 * transform(r) + 0.7152 * transform(g) + 0.0722 * transform(b);
 }
 
+/** WCAG contrast ratio, 1–21; 1 when either color is unreadable. */
 export function getContrastRatio(color1: string, color2: string): number {
 	const rgb1 = hexToRgb(color1);
 	const rgb2 = hexToRgb(color2);
@@ -219,17 +218,3 @@ export function getWcagLevel(ratio: number): WcagLevel {
 		aaaLarge: ratio >= 4.5,
 	};
 }
-
-// --- Color Blindness Simulation ---
-
-// --- Global Palette Adjustments ---
-
-// --- Mood/Theme Generators ---
-
-// --- Semantic Theme Generator ---
-
-// --- Smart Color Assignment for UI Previews ---
-
-// --- Tween/Interpolation ---
-
-// --- Export Formatters ---

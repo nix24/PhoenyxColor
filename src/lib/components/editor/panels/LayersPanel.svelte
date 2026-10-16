@@ -89,12 +89,12 @@ function handleBlendModeChange(layerId: string, value: string) {
 }
 </script>
 
-<!-- Layer Actions Bar -->
 <div class="flex items-center gap-1.5 mb-3">
 	<button
 		class="btn btn-xs btn-ghost gap-1 text-white/60 hover:text-white"
 		onclick={onAddImageLayer}
 		title="Add Image Layer"
+						aria-label="Add Image Layer"
 		type="button"
 	>
 		<Icon icon="material-symbols:add-photo-alternate-outline" class="w-4 h-4" />
@@ -103,9 +103,10 @@ function handleBlendModeChange(layerId: string, value: string) {
 	<div class="flex-1"></div>
 	{#if layers.length > 0}
 		<button
-			class="btn btn-xs btn-ghost text-white/40 hover:text-white"
+			class="btn btn-xs btn-ghost text-white/60 hover:text-white"
 			onclick={onFlattenAll}
 			title="Flatten All Layers"
+						aria-label="Flatten All Layers"
 			type="button"
 		>
 			<Icon icon="material-symbols:layers-clear" class="w-3.5 h-3.5" />
@@ -113,14 +114,12 @@ function handleBlendModeChange(layerId: string, value: string) {
 	{/if}
 </div>
 
-<!-- Active Layer Controls -->
 {#if activeLayerId}
 	{@const activeLayer = layers.find((l: ImageLayer) => l.id === activeLayerId)}
 	{#if activeLayer}
 		<div class="mb-3 p-2.5 rounded-lg bg-white/3 border border-white/5 space-y-2">
-			<!-- Blend Mode -->
 			<div class="flex items-center gap-2">
-				<label class="text-[10px] text-white/40 uppercase tracking-wider w-12 shrink-0" for="blend-mode-select">Blend</label>
+				<label class="text-[10px] text-white/60 uppercase tracking-wider w-12 shrink-0" for="blend-mode-select">Blend</label>
 				<select
 					id="blend-mode-select"
 					class="select select-xs bg-white/5 border-white/10 text-white/80 flex-1 text-xs"
@@ -133,9 +132,8 @@ function handleBlendModeChange(layerId: string, value: string) {
 				</select>
 			</div>
 
-			<!-- Opacity -->
 			<div class="flex items-center gap-2">
-				<label class="text-[10px] text-white/40 uppercase tracking-wider w-12 shrink-0" for="layer-opacity">Opacity</label>
+				<label class="text-[10px] text-white/60 uppercase tracking-wider w-12 shrink-0" for="layer-opacity">Opacity</label>
 				<input
 					id="layer-opacity"
 					type="range"
@@ -146,7 +144,7 @@ function handleBlendModeChange(layerId: string, value: string) {
 					onchange={(e) => onUpdateLayer(activeLayer.id, { opacity: Number(e.currentTarget.value) / 100 })}
 					class="range range-xs range-primary flex-1"
 				/>
-				<span class="text-[11px] text-white/50 w-8 text-right tabular-nums">
+				<span class="text-[11px] text-white/60 w-8 text-right tabular-nums">
 					{Math.round(activeLayer.opacity * 100)}%
 				</span>
 			</div>
@@ -154,13 +152,12 @@ function handleBlendModeChange(layerId: string, value: string) {
 	{/if}
 {/if}
 
-<!-- Layer Stack -->
 <div class="space-y-0.5">
 	{#if displayLayers.length === 0}
 		<div class="text-center py-8">
 			<Icon icon="material-symbols:layers-outline" class="w-10 h-10 text-white/15 mx-auto mb-2" />
-			<p class="text-xs text-white/30">No layers added</p>
-			<p class="text-[10px] text-white/20 mt-1">Add an image layer to start blending</p>
+			<p class="text-xs text-white/60">No layers added</p>
+			<p class="text-[10px] text-white/60 mt-1">Add an image layer to start blending</p>
 		</div>
 	{:else}
 		{#each displayLayers as layer, i (layer.id)}
@@ -184,23 +181,20 @@ function handleBlendModeChange(layerId: string, value: string) {
 				ondragend={handleDragEnd}
 				draggable={!layer.locked}
 			>
-				<!-- Drag Handle -->
-				<div class="cursor-grab active:cursor-grabbing text-white/20 hover:text-white/40 shrink-0">
+				<div class="cursor-grab active:cursor-grabbing text-white/60 hover:text-white/60 shrink-0">
 					<Icon icon="material-symbols:drag-indicator" class="w-3.5 h-3.5" />
 				</div>
 
-				<!-- Thumbnail -->
 				<div class="w-8 h-8 rounded bg-white/5 overflow-hidden shrink-0 border border-white/10">
 					{#if layer.thumbnailSrc}
 						<img src={layer.thumbnailSrc} alt={layer.name} class="w-full h-full object-cover" />
 					{:else}
 						<div class="w-full h-full flex items-center justify-center">
-							<Icon icon="material-symbols:image-outline" class="w-4 h-4 text-white/20" />
+							<Icon icon="material-symbols:image-outline" class="w-4 h-4 text-white/60" />
 						</div>
 					{/if}
 				</div>
 
-				<!-- Name -->
 				<div class="flex-1 min-w-0">
 					{#if editingNameId === layer.id}
 						<input
@@ -223,45 +217,44 @@ function handleBlendModeChange(layerId: string, value: string) {
 							{layer.name}
 						</span>
 						{#if layer.blendMode !== "normal"}
-							<span class="text-[9px] text-white/30">{layer.blendMode}</span>
+							<span class="text-[9px] text-white/60">{layer.blendMode}</span>
 						{/if}
 					{/if}
 				</div>
 
-				<!-- Layer Actions -->
-				<div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-					<!-- Visibility -->
+				<div class="flex items-center gap-0.5 transition-opacity shrink-0 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100">
 					<button
 						class={cn(
-							"w-6 h-6 rounded flex items-center justify-center transition-colors",
-							layer.visible ? "text-white/50 hover:text-white" : "text-white/20 hover:text-white/40"
+							"w-7 h-7 pointer-coarse:w-11 pointer-coarse:h-11 rounded flex items-center justify-center transition-colors",
+							layer.visible ? "text-white/60 hover:text-white" : "text-white/60 hover:text-white/60"
 						)}
 						onclick={(e) => { e.stopPropagation(); onUpdateLayer(layer.id, { visible: !layer.visible }); }}
 						title={layer.visible ? "Hide layer" : "Show layer"}
+						aria-label={layer.visible ? "Hide layer" : "Show layer"}
 						type="button"
 					>
 						<Icon icon={layer.visible ? "material-symbols:visibility" : "material-symbols:visibility-off"} class="w-3.5 h-3.5" />
 					</button>
 
-					<!-- Lock -->
 					<button
 						class={cn(
-							"w-6 h-6 rounded flex items-center justify-center transition-colors",
-							layer.locked ? "text-phoenix-primary/70" : "text-white/30 hover:text-white/50"
+							"w-7 h-7 pointer-coarse:w-11 pointer-coarse:h-11 rounded flex items-center justify-center transition-colors",
+							layer.locked ? "text-phoenix-primary/70" : "text-white/60 hover:text-white/60"
 						)}
 						onclick={(e) => { e.stopPropagation(); onUpdateLayer(layer.id, { locked: !layer.locked }); }}
 						title={layer.locked ? "Unlock layer" : "Lock layer"}
+						aria-label={layer.locked ? "Unlock layer" : "Lock layer"}
 						type="button"
 					>
 						<Icon icon={layer.locked ? "material-symbols:lock" : "material-symbols:lock-open"} class="w-3 h-3" />
 					</button>
 
-					<!-- More Actions -->
 					<div class="dropdown dropdown-end">
 						<button
-							class="w-6 h-6 rounded flex items-center justify-center text-white/30 hover:text-white/60"
+							class="w-7 h-7 pointer-coarse:w-11 pointer-coarse:h-11 rounded flex items-center justify-center text-white/60 hover:text-white"
 							tabindex="0"
 							onclick={(e) => e.stopPropagation()}
+							aria-label={`More actions for ${layer.name}`}
 							type="button"
 						>
 							<Icon icon="material-symbols:more-vert" class="w-3.5 h-3.5" />
@@ -293,9 +286,8 @@ function handleBlendModeChange(layerId: string, value: string) {
 	{/if}
 </div>
 
-<!-- Base Image Indicator -->
 <div class="mt-2 pt-2 border-t border-white/5">
-	<div class="flex items-center gap-2 px-2 py-1.5 text-white/30">
+	<div class="flex items-center gap-2 px-2 py-1.5 text-white/60">
 		<Icon icon="material-symbols:image" class="w-4 h-4" />
 		<span class="text-[11px]">Base Image (Background)</span>
 		<Icon icon="material-symbols:lock" class="w-3 h-3 ml-auto" />

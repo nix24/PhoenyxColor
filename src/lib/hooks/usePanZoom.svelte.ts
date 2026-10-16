@@ -19,6 +19,10 @@ export function usePanZoom(options: PanZoomOptions = {}) {
 	let panX = $state(0);
 	let panY = $state(0);
 	let isPanning = $state(false);
+	/** Still showing the whole image; a resize or a new image size should refit it. */
+	let isFitted = $state(false);
+	/** The last fit zoom; zooming out may go this far even below `minZoom`. */
+	let fitZoom = minZoom;
 
 	let startPanX = 0;
 	let startPanY = 0;
@@ -27,6 +31,7 @@ export function usePanZoom(options: PanZoomOptions = {}) {
 
 	/** Actual size (100 %), centred. */
 	function fitToScreen() {
+		isFitted = false;
 		zoom = 1;
 		panX = 0;
 		panY = 0;
@@ -43,24 +48,34 @@ export function usePanZoom(options: PanZoomOptions = {}) {
 			return;
 		}
 		const fit = Math.min(viewportWidth / contentWidth, viewportHeight / contentHeight) * FIT_MARGIN;
-		zoom = Math.min(1, Math.max(minZoom, fit));
+		// Not clamped to `minZoom`: a 4000 px image must still fit a phone.
+		fitZoom = Math.min(1, fit);
+		zoom = fitZoom;
 		panX = 0;
 		panY = 0;
+		isFitted = true;
+	}
+
+	function floor(): number {
+		return Math.min(minZoom, fitZoom);
 	}
 
 	function zoomIn() {
+		isFitted = false;
 		zoom = Math.min(maxZoom, zoom + zoomStep);
 	}
 
 	function zoomOut() {
-		zoom = Math.max(minZoom, zoom - zoomStep);
+		isFitted = false;
+		zoom = Math.max(floor(), zoom - zoomStep);
 	}
 
 	function handleWheel(e: WheelEvent) {
 		e.preventDefault();
+		isFitted = false;
 		if (e.ctrlKey || e.metaKey) {
 			const delta = e.deltaY > 0 ? 0.9 : 1.1;
-			zoom = Math.min(Math.max(minZoom, zoom * delta), maxZoom);
+			zoom = Math.min(Math.max(floor(), zoom * delta), maxZoom);
 		} else {
 			panX -= e.deltaX;
 			panY -= e.deltaY;
@@ -77,6 +92,7 @@ export function usePanZoom(options: PanZoomOptions = {}) {
 
 	function handleMouseMove(e: MouseEvent) {
 		if (!isPanning) return;
+		isFitted = false;
 		panX = e.clientX - startPanX;
 		panY = e.clientY - startPanY;
 	}
@@ -108,6 +124,7 @@ export function usePanZoom(options: PanZoomOptions = {}) {
 		if (e.touches.length === 1 && isPanning) {
 			const touch = e.touches[0];
 			if (touch) {
+				isFitted = false;
 				panX = touch.clientX - startPanX;
 				panY = touch.clientY - startPanY;
 			}
@@ -118,7 +135,8 @@ export function usePanZoom(options: PanZoomOptions = {}) {
 			if (t1 && t2) {
 				const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
 				const scale = dist / touchStartDist;
-				zoom = Math.min(maxZoom, Math.max(minZoom, touchStartZoom * scale));
+				isFitted = false;
+				zoom = Math.min(maxZoom, Math.max(floor(), touchStartZoom * scale));
 			}
 		}
 	}
@@ -148,6 +166,9 @@ export function usePanZoom(options: PanZoomOptions = {}) {
 		},
 		get isPanning() {
 			return isPanning;
+		},
+		get isFitted() {
+			return isFitted;
 		},
 		fitToScreen,
 		fitContent,

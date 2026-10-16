@@ -14,6 +14,8 @@ type RecipeRepository = Repository<typeof EditRecipeSchema>;
 export class EditSession {
 	readonly history: History<EditRecipe>;
 	saveError = $state<string | null>(null);
+	/** A committed change is not in storage yet (waiting for the delay, being written, or failed). */
+	hasUnsavedChanges = $state(false);
 	/** The committed recipe waiting to be written; null when storage is up to date. */
 	#unsaved: EditRecipe | null = null;
 	#saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -65,6 +67,8 @@ export class EditSession {
 		try {
 			await this.#recipes.put(recipe);
 			this.saveError = null;
+			// A commit made during the write is still waiting.
+			this.hasUnsavedChanges = this.#unsaved !== null;
 		} catch (cause) {
 			// Keep it for the next save unless a newer commit already replaced it.
 			this.#unsaved ??= recipe;
@@ -82,6 +86,7 @@ export class EditSession {
 
 	#scheduleSave(): void {
 		this.#unsaved = $state.snapshot(this.history.present);
+		this.hasUnsavedChanges = true;
 		clearTimeout(this.#saveTimer);
 		this.#saveTimer = setTimeout(this.#flushNow, SAVE_DELAY_MS);
 	}

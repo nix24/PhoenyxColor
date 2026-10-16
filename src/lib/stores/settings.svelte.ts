@@ -34,7 +34,6 @@ export class SettingsStore {
 	private loadPromise: Promise<void>;
 
 	constructor() {
-		// Non-blocking initialization - store the promise but don't await
 		this.loadPromise = this.load();
 	}
 
@@ -69,7 +68,6 @@ export class SettingsStore {
 		void this.save();
 	}
 
-	// Specific actions
 	setTheme(theme: ValidatedAppSettings["theme"]) {
 		this.update({ theme });
 	}

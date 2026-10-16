@@ -15,7 +15,6 @@ interface Props {
 let { activeColorIndex, colorHistory, onColorChange, onExport, onColorHistorySelect }: Props =
 	$props();
 
-// Get the actual color from the palette based on index
 let activeColor = $derived(
 	activeColorIndex !== null && app.palettes.activePalette?.colors
 		? (app.palettes.activePalette.colors[activeColorIndex] ?? null)
@@ -25,7 +24,6 @@ let activeColor = $derived(
 let hsl = $state<HSL>({ h: 0, s: 0, l: 0 });
 let hexInput = $state("");
 
-// Derive text color for active swatch
 let isDark = $derived(() => {
 	if (!activeColor) return true;
 	const hex = activeColor.replace("#", "");
@@ -35,7 +33,6 @@ let isDark = $derived(() => {
 	return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
 });
 
-// Update HSL when active color changes
 $effect(() => {
 	if (activeColor) {
 		const extracted = hexToHsl(activeColor);
@@ -83,13 +80,11 @@ async function copyHex() {
 </script>
 
 <div class="h-full flex flex-col gap-4 p-4 overflow-y-auto custom-scrollbar">
-	<!-- Active Color Swatch — immersive preview -->
 	<div
 		class="relative rounded-xl overflow-hidden transition-all duration-500 ease-out"
 		style:background-color={activeColor || "#1a1a2e"}
 		style:min-height={activeColor ? "100px" : "60px"}
 	>
-		<!-- Subtle inner gradient for depth -->
 		<div
 			class="absolute inset-0 pointer-events-none"
 			style:background="linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%)"
@@ -137,9 +132,7 @@ async function copyHex() {
 	</div>
 
 	{#if activeColor}
-		<!-- HSL Sliders -->
 		<div class="space-y-3">
-			<!-- Hue -->
 			<div class="space-y-1.5">
 				<div class="flex justify-between text-[11px]">
 					<span class="text-text-muted font-medium">Hue</span>
@@ -156,7 +149,6 @@ async function copyHex() {
 				/>
 			</div>
 
-			<!-- Saturation -->
 			<div class="space-y-1.5">
 				<div class="flex justify-between text-[11px]">
 					<span class="text-text-muted font-medium">Saturation</span>
@@ -173,7 +165,6 @@ async function copyHex() {
 				/>
 			</div>
 
-			<!-- Lightness -->
 			<div class="space-y-1.5">
 				<div class="flex justify-between text-[11px]">
 					<span class="text-text-muted font-medium">Lightness</span>
@@ -191,7 +182,6 @@ async function copyHex() {
 			</div>
 		</div>
 
-		<!-- Hex Input -->
 		<div class="relative">
 			<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
 				<span class="text-text-muted/60 font-mono text-sm">#</span>
@@ -218,7 +208,6 @@ async function copyHex() {
 		</div>
 	{/if}
 
-	<!-- History -->
 	{#if colorHistory.length > 0}
 		<div class="space-y-2">
 			<h4 class="text-[10px] font-semibold text-text-muted/60 uppercase tracking-widest">
@@ -237,7 +226,6 @@ async function copyHex() {
 		</div>
 	{/if}
 
-	<!-- Export Section -->
 	<div class="mt-auto space-y-2 pt-2 border-t border-white/5">
 		<h4 class="text-[10px] font-semibold text-text-muted/60 uppercase tracking-widest">
 			Export
